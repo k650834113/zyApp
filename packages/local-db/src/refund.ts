@@ -26,6 +26,7 @@ type OrderRow = {
   customer_member_id: string | null
   payment_method: 'cash' | 'stored_value'
   wallet_member_id: string | null
+  member_nickname: string | null
   total_fen: number
   note: string | null
   completed_at: string
@@ -178,11 +179,15 @@ function findOrder(
   const row = database
     .prepare(
       `SELECT o.id, o.order_number, o.visit_batch_id, o.customer_member_id,
-              o.payment_method, o.wallet_member_id, o.total_fen, o.note,
+              o.payment_method, o.wallet_member_id, payer.nickname member_nickname,
+              o.total_fen, o.note,
               o.completed_at, p.id payment_id
        FROM sales_order o
        JOIN order_payment p
          ON p.tenant_id = o.tenant_id AND p.order_id = o.id AND p.status = 'completed'
+       LEFT JOIN member payer
+         ON payer.tenant_id = o.tenant_id
+        AND payer.id = COALESCE(o.wallet_member_id, o.customer_member_id)
        WHERE o.tenant_id = ? AND o.store_id = ?
          AND (o.id = ? OR o.order_number = ?)
        LIMIT 1`
@@ -246,6 +251,7 @@ export function findRefundableOrder(
     customerMemberId: order.customer_member_id,
     paymentMethod: order.payment_method,
     walletMemberId: order.wallet_member_id,
+    memberNickname: order.member_nickname,
     status: 'completed',
     totalFen: order.total_fen,
     note: order.note,

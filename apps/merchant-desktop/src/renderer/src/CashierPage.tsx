@@ -109,6 +109,19 @@ function monthlyCardText(details: MonthlyCardDetails | null): string {
   return `有效至 ${new Date(card.expiresAt).toLocaleDateString('zh-CN')}`
 }
 
+function orderMemberLabel(
+  order: SalesOrderSummary,
+  members: CashierMemberOption[]
+): string {
+  const memberId = order.walletMemberId ?? order.customerMemberId
+  const nickname =
+    order.memberNickname ??
+    members.find((member) => member.id === memberId)?.nickname ??
+    null
+  if (nickname) return `会员：${nickname}`
+  return order.paymentMethod === 'cash' ? '现金订单' : '会员储值订单'
+}
+
 export function CashierPage({ session }: { session: SessionUser }): React.JSX.Element {
   const [catalog, setCatalog] = useState<CatalogItemSummary[]>([])
   const [orders, setOrders] = useState<SalesOrderSummary[]>([])
@@ -789,6 +802,9 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
                 <div>
                   <strong>{order.orderNumber}</strong>
                   <span>{new Date(order.completedAt).toLocaleString('zh-CN')}</span>
+                  <span className="recent-order-payer">
+                    {orderMemberLabel(order, members)}
+                  </span>
                 </div>
                 <div>
                   {order.items.map((item) => (

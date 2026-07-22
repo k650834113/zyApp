@@ -329,9 +329,15 @@ function findOrderById(
 ): SalesOrderSummary {
   const row = database
     .prepare(
-      `SELECT id, order_number, visit_batch_id, customer_member_id, payment_method,
-              wallet_member_id, status, total_fen, note, completed_at
-       FROM sales_order WHERE tenant_id = ? AND id = ?`
+      `SELECT orders.id, orders.order_number, orders.visit_batch_id,
+              orders.customer_member_id, orders.payment_method,
+              orders.wallet_member_id, payer.nickname member_nickname,
+              orders.status, orders.total_fen, orders.note, orders.completed_at
+       FROM sales_order orders
+       LEFT JOIN member payer
+         ON payer.tenant_id = orders.tenant_id
+        AND payer.id = COALESCE(orders.wallet_member_id, orders.customer_member_id)
+       WHERE orders.tenant_id = ? AND orders.id = ?`
     )
     .get(tenantId, orderId) as Record<string, unknown> | undefined
   if (!row) throw new Error('Sales order was not found')
@@ -343,6 +349,7 @@ function findOrderById(
       row.customer_member_id === null ? null : String(row.customer_member_id),
     paymentMethod: row.payment_method as OrderPaymentMethod,
     walletMemberId: row.wallet_member_id === null ? null : String(row.wallet_member_id),
+    memberNickname: row.member_nickname === null ? null : String(row.member_nickname),
     status: 'completed',
     totalFen: Number(row.total_fen),
     note: row.note === null ? null : String(row.note),

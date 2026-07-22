@@ -1686,6 +1686,11 @@ const previewApi: DesktopApi = {
       customerMemberId: request.customerMemberId ?? null,
       paymentMethod: request.paymentMethod,
       walletMemberId: request.walletMemberId ?? null,
+      memberNickname:
+        previewMembers.find(
+          (member) =>
+            member.id === (request.walletMemberId ?? request.customerMemberId)
+        )?.nickname ?? null,
       status: 'completed',
       totalFen,
       note: request.note?.trim() || null,

@@ -815,6 +815,12 @@ export class MockMiniappClient implements MiniappClient {
           customerMemberId: input.customerMemberId ?? null,
           paymentMethod: input.paymentMethod,
           walletMemberId: input.walletMemberId ?? null,
+          memberNickname:
+            employeeMembers.find(
+              (candidate) =>
+                candidate.memberId ===
+                (input.walletMemberId ?? input.customerMemberId)
+            )?.nickname ?? null,
           status: 'completed',
           totalFen,
           note: input.note?.trim() || null,

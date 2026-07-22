@@ -1343,6 +1343,7 @@ export type SalesOrderSummary = {
   customerMemberId: Identifier | null
   paymentMethod: OrderPaymentMethod
   walletMemberId: Identifier | null
+  memberNickname: string | null
   status: 'completed'
   totalFen: number
   note: string | null

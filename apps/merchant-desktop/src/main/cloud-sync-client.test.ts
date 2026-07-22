@@ -251,6 +251,7 @@ describe('desktop cloud sync client', () => {
       customerMemberId: null,
       paymentMethod: 'cash' as const,
       walletMemberId: null,
+      memberNickname: null,
       status: 'completed' as const,
       totalFen: 4000,
       note: null,

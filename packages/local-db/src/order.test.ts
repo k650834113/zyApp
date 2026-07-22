@@ -105,6 +105,7 @@ describe('sales order repository', () => {
 
     const saved = listRecentOrders(localDatabase.connection, store, 10)[0]
     expect(order.totalFen).toBe(8000)
+    expect(saved?.memberNickname).toBeNull()
     expect(saved?.items[0]).toMatchObject({
       regularPriceFen: 4000,
       advancedPriceFen: 3000,
@@ -163,6 +164,27 @@ describe('sales order repository', () => {
       }
     )
     expect(repeated.id).toBe(first.id)
+    expect(first.memberNickname).toBe('Order Member')
+    expect(listRecentOrders(localDatabase.connection, store, 10)[0]?.memberNickname).toBe(
+      'Order Member'
+    )
+    const memberCashOrder = createSalesOrder(
+      localDatabase.connection,
+      { ...store, actor: manager },
+      {
+        requestId: randomUUID(),
+        customerMemberId: member.id,
+        paymentMethod: 'cash',
+        lines: [
+          {
+            catalogItemId: drink.id,
+            quantity: 1,
+            pricingTier: 'regular'
+          }
+        ]
+      }
+    )
+    expect(memberCashOrder.memberNickname).toBe('Order Member')
     expect(getWalletDetails(localDatabase.connection, store, member.id).wallet).toMatchObject({
       principalBalanceFen: 49_000,
       giftBalanceFen: 0,

@@ -2258,6 +2258,12 @@ footer {
   font-size: 10px;
 }
 
+.recent-order-list .recent-order-payer {
+  color: #365c48;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .recent-order-list em {
   width: fit-content;
   border-radius: 999px;
