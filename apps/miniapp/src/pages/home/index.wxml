@@ -1,0 +1,205 @@
+<view class="home-page" wx:if="{{home}}">
+  <view class="store-strip">
+    <view>
+      <text class="store-name">{{home.store.name}}</text>
+      <text class="store-hours">{{home.store.businessHours}}</text>
+    </view>
+    <text class="store-status {{home.store.isOpen ? 'open' : 'closed'}}">{{home.store.statusText}}</text>
+  </view>
+
+  <view class="profile-panel">
+    <view class="panel-title-row">
+      <text class="panel-title">个人中心</text>
+      <button
+        wx:if="{{!member && testVirtualPhoneLoginEnabled}}"
+        class="login-button"
+        bindtap="loginWithVirtualPhone"
+        loading="{{busy}}"
+      >
+        一键登录
+      </button>
+      <button
+        wx:elif="{{!member}}"
+        class="login-button"
+        open-type="getPhoneNumber"
+        bindgetphonenumber="loginWithWechat"
+        loading="{{busy}}"
+      >
+        一键登录
+      </button>
+    </view>
+    <text wx:if="{{!member && testVirtualPhoneLoginEnabled}}" class="muted block">
+      ICP备案审核期间使用测试虚拟号码 188****8888
+    </text>
+    <text
+      wx:if="{{!member && !loginFallbackVisible}}"
+      class="login-switch"
+      bindtap="showPhoneLogin"
+    >手机号验证码登录</text>
+
+    <view wx:if="{{!member && loginFallbackVisible}}" class="fallback-login">
+      <input
+        class="form-input"
+        type="number"
+        maxlength="11"
+        value="{{loginPhone}}"
+        placeholder="手机号"
+        bindinput="updateLoginPhone"
+      />
+      <view class="verification-row">
+        <input
+          class="form-input verification-input"
+          type="number"
+          maxlength="8"
+          value="{{loginCode}}"
+          placeholder="验证码"
+          bindinput="updateLoginCode"
+        />
+        <button
+          class="secondary-button verify-button"
+          loading="{{verificationBusy}}"
+          disabled="{{busy || verificationBusy}}"
+          bindtap="requestLoginVerification"
+        >获取验证码</button>
+      </view>
+      <input
+        class="form-input"
+        maxlength="30"
+        value="{{loginNickname}}"
+        placeholder="昵称（可空）"
+        bindinput="updateLoginNickname"
+      />
+      <view class="age-row">
+        <text>已满 14 周岁</text>
+        <switch
+          checked="{{loginConfirmedAtLeast14}}"
+          color="#245a45"
+          bindchange="toggleLoginAgeGate"
+        />
+      </view>
+      <text wx:if="{{loginVerificationHint}}" class="login-hint">{{loginVerificationHint}}</text>
+      <button
+        class="primary-button"
+        loading="{{busy}}"
+        disabled="{{busy}}"
+        bindtap="loginWithPhoneVerification"
+      >手机号登录</button>
+    </view>
+
+    <view wx:if="{{member}}" class="member-identity">
+      <image
+        wx:if="{{member.avatarUrl}}"
+        class="avatar image-avatar"
+        src="{{member.avatarUrl}}"
+        mode="aspectFill"
+      />
+      <view wx:else class="avatar">{{member.avatarText}}</view>
+      <view class="identity-main">
+        <text class="member-name">{{member.nickname}}</text>
+        <text class="member-subtitle">{{member.phoneMasked}} · {{member.tierText}} · {{member.ageGateText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{member}}" class="balance-panel">
+    <text class="balance-label">当前余额</text>
+    <text class="balance-total">{{member.totalBalanceText}}</text>
+    <view class="balance-detail-row">
+      <text>本金 {{member.principalBalanceText}}</text>
+      <text>赠送 {{member.giftBalanceText}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{member}}" class="metric-grid">
+    <view class="metric-card">
+      <text class="metric-label">本金余额</text>
+      <text class="metric-value">{{member.principalBalanceText}}</text>
+    </view>
+    <view class="metric-card">
+      <text class="metric-label">赠送余额</text>
+      <text class="metric-value">{{member.giftBalanceText}}</text>
+    </view>
+    <view class="metric-card monthly {{member.monthlyCardClass}}">
+      <text class="metric-label">{{member.monthlyCardLabel}}</text>
+      <text class="metric-value small">{{member.monthlyCardExpiresText}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{member}}" class="section-heading">
+    <text>快捷充值</text>
+    <text class="section-note">{{member.canRecharge ? '微信支付' : '暂不可用'}}</text>
+  </view>
+  <view wx:if="{{member}}" class="package-grid">
+    <button
+      wx:for="{{rechargePackages}}"
+      wx:key="id"
+      class="package-card"
+      data-fen="{{item.principalFen}}"
+      disabled="{{busy || !member.canRecharge}}"
+      bindtap="quickRecharge"
+    >
+      <text class="package-label">{{item.label}}</text>
+      <text class="package-price">{{item.priceText}}</text>
+      <text class="package-total">{{item.totalText}}</text>
+    </button>
+  </view>
+
+  <view wx:if="{{rechargeOrder}}" class="payment-card">
+    <view class="payment-head">
+      <text class="payment-title">充值单</text>
+      <text class="payment-status {{rechargeOrder.status === 'settled' ? 'settled' : ''}}">
+        {{rechargeOrder.statusText}}
+      </text>
+    </view>
+    <view class="payment-line">
+      <text>支付金额</text>
+      <text>{{rechargeOrder.principalText}}</text>
+    </view>
+    <view class="payment-line">
+      <text>赠送金额</text>
+      <text>{{rechargeOrder.giftText}}</text>
+    </view>
+    <view class="payment-line total">
+      <text>预计到账</text>
+      <text>{{rechargeOrder.totalCreditText}}</text>
+    </view>
+    <button
+      wx:if="{{rechargeOrder.providerMode === 'mock' && rechargeOrder.status === 'pending_payment'}}"
+      class="primary-button"
+      loading="{{busy}}"
+      bindtap="settleMockRecharge"
+    >
+      测试支付成功
+    </button>
+  </view>
+
+  <view wx:if="{{member}}" class="section-heading">
+    <text>最近明细</text>
+    <text class="section-note" bindtap="openMember">全部</text>
+  </view>
+  <view wx:if="{{member}}" class="ledger-card">
+    <view wx:for="{{recentRecords}}" wx:key="id" class="ledger-row">
+      <view class="ledger-main">
+        <text class="ledger-title">{{item.title}}</text>
+        <text class="ledger-subtitle">{{item.subtitle}}</text>
+      </view>
+      <text wx:if="{{item.amountText}}" class="ledger-amount {{item.amountClass}}">{{item.amountText}}</text>
+    </view>
+    <view wx:if="{{recentRecords.length === 0}}" class="empty-compact">暂无明细</view>
+  </view>
+
+  <view class="section-heading">
+    <text>门店动态</text>
+    <text class="section-note" bindtap="openActivities">全部</text>
+  </view>
+  <view class="activity-card" wx:for="{{home.activities}}" wx:key="id">
+    <view class="activity-main">
+      <text class="activity-title">{{item.title}}</text>
+      <text class="activity-summary">{{item.summary}}</text>
+    </view>
+    <text class="activity-tag">{{item.activityType === 'recharge' ? '充值' : '活动'}}</text>
+  </view>
+  <view class="empty-compact" wx:if="{{home.activities.length === 0}}">暂无门店动态</view>
+</view>
+
+<view class="empty" wx:if="{{loading && !home}}">正在加载门店信息...</view>

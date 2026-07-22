@@ -1,0 +1,23 @@
+{
+  "name": "@zyapp/cloud-db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "build": "tsup",
+    "migrate": "tsx src/migrate-cli.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2",
+    "pg": "8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.1",
+    "@types/pg": "8.20.0",
+    "tsup": "8.5.1",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  }
+}

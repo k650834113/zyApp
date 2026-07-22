@@ -1,0 +1,138 @@
+page {
+  min-height: 100%;
+  color: #2f332f;
+  background: #f5f1e8;
+  font-family: -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+}
+
+.page {
+  padding: 30rpx;
+}
+
+.hero,
+.card {
+  border: 1rpx solid #ddd2c2;
+  border-radius: 24rpx;
+  background: #fffcf6;
+  box-shadow: 0 14rpx 40rpx rgba(63, 49, 34, 0.06);
+}
+
+.hero {
+  padding: 34rpx;
+  color: #fffaf0;
+  background: #32453b;
+}
+
+.hero-title {
+  display: block;
+  font-size: 42rpx;
+  font-weight: 800;
+}
+
+.hero-subtitle {
+  display: block;
+  margin-top: 12rpx;
+  color: #d8e0da;
+  font-size: 25rpx;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 38rpx 0 18rpx;
+}
+
+.section-title text:first-child {
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.section-link {
+  color: #587162;
+  font-size: 24rpx;
+}
+
+.card {
+  margin-bottom: 18rpx;
+  padding: 26rpx;
+}
+
+.card-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.muted {
+  color: #817462;
+  font-size: 24rpx;
+  line-height: 1.65;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 18rpx;
+}
+
+.tag {
+  border-radius: 999rpx;
+  padding: 7rpx 14rpx;
+  color: #5f5548;
+  background: #eee7dc;
+  font-size: 21rpx;
+  font-weight: 700;
+}
+
+.tag.good {
+  color: #2d6940;
+  background: #e5f3e8;
+}
+
+.tag.warn {
+  color: #7b581a;
+  background: #f8eabd;
+}
+
+.primary-button,
+.secondary-button {
+  margin-top: 20rpx;
+  border-radius: 16rpx;
+  font-size: 27rpx;
+  font-weight: 800;
+}
+
+.primary-button {
+  color: #fff;
+  background: #3f5a4b;
+}
+
+.secondary-button {
+  color: #3f5a4b;
+  background: #ebe4d8;
+}
+
+.empty {
+  padding: 70rpx 20rpx;
+  color: #8b7d69;
+  text-align: center;
+}
+
+.money {
+  color: #3f5a4b;
+  font-size: 36rpx;
+  font-weight: 800;
+}
+
+.form-input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 14rpx;
+  border: 1rpx solid #d7ccbc;
+  border-radius: 14rpx;
+  padding: 18rpx 20rpx;
+  background: #fff;
+  font-size: 27rpx;
+}

@@ -1,0 +1,240 @@
+name: zyapp-cloud
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      TEST_POSTGRES_DB: ${TEST_POSTGRES_DB:-zyapp_test}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    networks: [backend]
+    logging: *default-logging
+
+  redis:
+    image: redis:8-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    command:
+      [
+        "sh",
+        "-c",
+        "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""
+      ]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    networks: [backend]
+    logging: *default-logging
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/cloud.Dockerfile
+    command: ["pnpm", "--filter", "@zyapp/cloud-db", "migrate"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [backend]
+    logging: *default-logging
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/cloud.Dockerfile
+    command: ["node", "apps/api/dist/main.js"]
+    environment:
+      NODE_ENV: production
+      DEPLOYMENT_ENVIRONMENT: production
+      API_PORT: 3100
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+      DEVICE_ENROLLMENT_SECRET: ${DEVICE_ENROLLMENT_SECRET:?DEVICE_ENROLLMENT_SECRET is required}
+      DESKTOP_UPDATE_DIRECTORY: /app/updates/windows
+      PHONE_VERIFICATION_SECRET: ${PHONE_VERIFICATION_SECRET:?PHONE_VERIFICATION_SECRET is required}
+      PHONE_VERIFICATION_MODE: disabled
+      WECHAT_PAYMENT_MODE: disabled
+      MINIAPP_DEVELOPMENT_AUTH_ENABLED: "false"
+      MINIAPP_WECHAT_AUTH_MODE: ${MINIAPP_WECHAT_AUTH_MODE:-disabled}
+      WECHAT_MINIAPP_APP_ID: ${WECHAT_MINIAPP_APP_ID:-}
+      WECHAT_MINIAPP_APP_SECRET: ${WECHAT_MINIAPP_APP_SECRET:-}
+    volumes:
+      - ./updates/production/windows:/app/updates/windows:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3100/v1/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    restart: unless-stopped
+    networks: [frontend, backend]
+    logging: *default-logging
+
+  migrate-test:
+    build:
+      context: ../..
+      dockerfile: infra/docker/cloud.Dockerfile
+    command: ["pnpm", "--filter", "@zyapp/cloud-db", "migrate"]
+    environment:
+      DATABASE_URL: ${TEST_DATABASE_URL:?TEST_DATABASE_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [backend]
+    logging: *default-logging
+
+  api-test:
+    build:
+      context: ../..
+      dockerfile: infra/docker/cloud.Dockerfile
+    command: ["node", "apps/api/dist/main.js"]
+    environment:
+      NODE_ENV: production
+      DEPLOYMENT_ENVIRONMENT: test
+      API_PORT: 3100
+      DATABASE_URL: ${TEST_DATABASE_URL:?TEST_DATABASE_URL is required}
+      REDIS_URL: ${TEST_REDIS_URL:?TEST_REDIS_URL is required}
+      DEVICE_ENROLLMENT_SECRET: ${TEST_DEVICE_ENROLLMENT_SECRET:?TEST_DEVICE_ENROLLMENT_SECRET is required}
+      DESKTOP_UPDATE_DIRECTORY: /app/updates/windows
+      PHONE_VERIFICATION_SECRET: ${TEST_PHONE_VERIFICATION_SECRET:?TEST_PHONE_VERIFICATION_SECRET is required}
+      PHONE_VERIFICATION_MODE: disabled
+      WECHAT_PAYMENT_MODE: disabled
+      MINIAPP_DEVELOPMENT_AUTH_ENABLED: "false"
+      MINIAPP_WECHAT_AUTH_MODE: ${TEST_MINIAPP_WECHAT_AUTH_MODE:-disabled}
+      WECHAT_MINIAPP_APP_ID: ${WECHAT_MINIAPP_APP_ID:-}
+      WECHAT_MINIAPP_APP_SECRET: ${WECHAT_MINIAPP_APP_SECRET:-}
+      MINIAPP_TEST_VIRTUAL_PHONE: ${TEST_MINIAPP_VIRTUAL_PHONE:-}
+    volumes:
+      - ./updates/test/windows:/app/updates/windows:ro
+    depends_on:
+      migrate-test:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3100/v1/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    restart: unless-stopped
+    networks: [frontend, backend]
+    logging: *default-logging
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/cloud.Dockerfile
+    command: ["node", "apps/worker/dist/main.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+      WORKER_QUEUE_NAME: ${WORKER_QUEUE_NAME:-zyapp-maintenance}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [backend]
+    logging: *default-logging
+
+  worker-test:
+    build:
+      context: ../..
+      dockerfile: infra/docker/cloud.Dockerfile
+    command: ["node", "apps/worker/dist/main.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${TEST_DATABASE_URL:?TEST_DATABASE_URL is required}
+      REDIS_URL: ${TEST_REDIS_URL:?TEST_REDIS_URL is required}
+      WORKER_QUEUE_NAME: ${TEST_WORKER_QUEUE_NAME:-zyapp-maintenance-test}
+    depends_on:
+      migrate-test:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [backend]
+    logging: *default-logging
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+      ACME_CA: ${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ${CADDYFILE_PATH:-./Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      api-test:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [frontend]
+    logging: *default-logging
+
+volumes:
+  postgres-data:
+  redis-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  frontend:
+  backend:
+    internal: true

@@ -1,0 +1,18 @@
+{
+  "name": "@zyapp/miniapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ZyApp WeChat mini program",
+  "scripts": {
+    "build": "pnpm run typecheck && node scripts/build.mjs",
+    "dev": "pnpm run typecheck && node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test scripts/build-configuration.test.mjs && vitest run --root ../.. apps/miniapp/src/services/mock-client.test.ts apps/miniapp/src/services/member-login.test.ts apps/miniapp/src/services/http-client.test.ts apps/miniapp/src/services/client.test.ts"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.7",
+    "miniprogram-api-typings": "5.2.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.8"
+  }
+}

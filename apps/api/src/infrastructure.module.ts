@@ -1,0 +1,102 @@
+import {
+  Global,
+  Inject,
+  Injectable,
+  Module,
+  OnApplicationShutdown
+} from '@nestjs/common'
+import { checkCloudDatabase, createPostgresPool } from '@zyapp/cloud-db'
+import type { Pool } from '@zyapp/cloud-db'
+import Redis from 'ioredis'
+import { readApiConfig, type ApiConfig } from './config'
+import {
+  DisabledWechatPaymentProvider,
+  MockWechatPaymentProvider,
+  type WechatPaymentProvider
+} from './wechat-payment-provider'
+
+export const API_CONFIG = Symbol('API_CONFIG')
+export const POSTGRES_POOL = Symbol('POSTGRES_POOL')
+export const REDIS_CLIENT = Symbol('REDIS_CLIENT')
+export const WECHAT_PAYMENT_PROVIDER = Symbol('WECHAT_PAYMENT_PROVIDER')
+
+@Injectable()
+export class InfrastructureLifecycle implements OnApplicationShutdown {
+  constructor(
+    @Inject(POSTGRES_POOL) private readonly pool: Pool,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis
+  ) {}
+
+  async onApplicationShutdown(): Promise<void> {
+    this.redis.disconnect()
+    await this.pool.end()
+  }
+}
+
+@Injectable()
+export class InfrastructureHealthService {
+  constructor(
+    @Inject(POSTGRES_POOL) private readonly pool: Pool,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis
+  ) {}
+
+  async check(): Promise<{
+    postgres: { ok: true; version: string; databaseTime: string }
+    redis: { ok: true; response: string }
+  }> {
+    const database = await checkCloudDatabase(this.pool)
+    if (this.redis.status === 'wait') await this.redis.connect()
+    const response = await this.redis.ping()
+    return {
+      postgres: {
+        ok: true,
+        version: database.postgresVersion,
+        databaseTime: database.databaseTime
+      },
+      redis: { ok: true, response }
+    }
+  }
+}
+
+@Global()
+@Module({
+  providers: [
+    {
+      provide: API_CONFIG,
+      useFactory: readApiConfig
+    },
+    {
+      provide: POSTGRES_POOL,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig) => createPostgresPool(config.databaseUrl)
+    },
+    {
+      provide: REDIS_CLIENT,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig) =>
+        new Redis(config.redisUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+          connectTimeout: 5_000
+        })
+    },
+    {
+      provide: WECHAT_PAYMENT_PROVIDER,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig): WechatPaymentProvider =>
+        config.wechatPaymentMode === 'mock'
+          ? new MockWechatPaymentProvider()
+          : new DisabledWechatPaymentProvider()
+    },
+    InfrastructureLifecycle,
+    InfrastructureHealthService
+  ],
+  exports: [
+    API_CONFIG,
+    POSTGRES_POOL,
+    REDIS_CLIENT,
+    WECHAT_PAYMENT_PROVIDER,
+    InfrastructureHealthService
+  ]
+})
+export class InfrastructureModule {}

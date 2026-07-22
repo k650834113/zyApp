@@ -1,0 +1,39 @@
+.compact {
+  padding: 28rpx;
+}
+
+.activity {
+  margin-top: 22rpx;
+}
+
+.activity-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.block,
+.content {
+  display: block;
+  margin-top: 14rpx;
+}
+
+.content {
+  color: #4f4a43;
+  font-size: 25rpx;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.time-box {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10rpx;
+  margin-top: 20rpx;
+  border-radius: 14rpx;
+  padding: 16rpx;
+  color: #756a5c;
+  background: #f4eee5;
+  font-size: 22rpx;
+  text-align: center;
+}

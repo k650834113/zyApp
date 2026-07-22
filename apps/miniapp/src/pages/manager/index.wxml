@@ -1,0 +1,115 @@
+<view class="page">
+  <view class="hero compact">
+    <text class="hero-title">店长工作台</text>
+    <text class="hero-subtitle">活动发布与经营摘要。移动端必须联网，财务数据以门店 PC 同步结果为准。</text>
+  </view>
+
+  <block wx:if="{{identity.role === 'manager'}}">
+    <view class="card">
+      <view class="section-heading">
+        <view>
+          <text class="card-title">经营摘要</text>
+          <text class="muted block">按自然日统计，时区为 Asia/Shanghai</text>
+        </view>
+        <button class="mini-button primary-button" bindtap="loadReport">刷新</button>
+      </view>
+      <view class="date-row">
+        <picker mode="date" value="{{reportFromDate}}" bindchange="changeReportFrom">
+          <view class="date-picker">从 {{reportFromDate}}</view>
+        </picker>
+        <picker mode="date" value="{{reportToDate}}" bindchange="changeReportTo">
+          <view class="date-picker">至 {{reportToDate}}</view>
+        </picker>
+      </view>
+      <view class="report-grid" wx:if="{{report}}">
+        <view class="metric primary"><text class="metric-label">实际现金流入</text><text class="metric-value">¥{{report.actualCashText}}</text></view>
+        <view class="metric"><text class="metric-label">订单净销售</text><text class="metric-value">¥{{report.orderNetText}}</text></view>
+        <view class="metric"><text class="metric-label">现金充值本金</text><text class="metric-value">¥{{report.rechargePrincipalText}}</text></view>
+        <view class="metric"><text class="metric-label">充值赠送</text><text class="metric-value">¥{{report.rechargeGiftText}}</text></view>
+        <view class="metric"><text class="metric-label">月卡净销售</text><text class="metric-value">¥{{report.monthlyNetText}}</text></view>
+        <view class="metric"><text class="metric-label">退款合计</text><text class="metric-value">¥{{report.refundText}}</text></view>
+      </view>
+      <view class="summary-row" wx:if="{{report}}">
+        <text>订单 {{report.orderCount}} 笔</text>
+        <text>入场 {{report.admissionQuantity}} 人次</text>
+        <text>有效月卡 {{report.activeMonthlyCount}} 张</text>
+      </view>
+      <view class="item-row" wx:for="{{report.items}}" wx:key="key">
+        <view><text class="item-name">{{item.itemName}}</text><text class="muted block">售出 / 退款 / 净数量：{{item.quantityText}}</text></view>
+        <text class="item-amount">¥{{item.amountText}}</text>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="section-heading">
+        <view><text class="card-title">活动编辑</text><text class="muted block">发布活动不会自动启用充值赠送规则，两项操作保持独立。</text></view>
+        <button class="mini-button secondary-button" bindtap="newActivity">新建</button>
+      </view>
+      <form bindsubmit="saveActivity">
+        <input class="form-input" name="title" value="{{form.title}}" maxlength="100" placeholder="活动标题" />
+        <input class="form-input" name="summary" value="{{form.summary}}" maxlength="300" placeholder="活动摘要" />
+        <textarea class="form-textarea" name="content" value="{{form.content}}" maxlength="5000" placeholder="活动正文" />
+        <picker range="{{activityTypeOptions}}" range-key="label" value="{{activityTypeIndex}}" bindchange="changeActivityType">
+          <view class="picker-field">活动类型：{{activityTypeOptions[activityTypeIndex].label}}</view>
+        </picker>
+        <input class="form-input" name="startsAt" value="{{form.startsAt}}" placeholder="开始时间 YYYY-MM-DD HH:mm" />
+        <input class="form-input" name="endsAt" value="{{form.endsAt}}" placeholder="结束时间 YYYY-MM-DD HH:mm" />
+        <view class="price-row">
+          <input class="form-input" name="regularPrice" value="{{form.regularPrice}}" type="digit" placeholder="普通价（元，可空）" />
+          <input class="form-input" name="advancedPrice" value="{{form.advancedPrice}}" type="digit" placeholder="高级会员价（元，可空）" />
+        </view>
+        <input class="form-input" name="rechargeTiers" value="{{form.rechargeTiers}}" placeholder="充值档位，如 300:20,500:50,1000:200" />
+        <view class="switch-row">
+          <label><switch checked="{{pinned}}" bindchange="changePinned" />置顶</label>
+          <label><switch checked="{{allowStoredValue}}" bindchange="changeStoredValue" />储值支付</label>
+          <label><switch checked="{{allowWechat}}" bindchange="changeWechat" />微信支付</label>
+        </view>
+        <input wx:if="{{form.activityId}}" class="form-input" name="reason" value="{{form.reason}}" maxlength="200" placeholder="修改原因（必填）" />
+        <button class="primary-button" form-type="submit" loading="{{busy}}">{{form.activityId ? '保存修改' : '创建草稿'}}</button>
+      </form>
+    </view>
+
+    <view class="card">
+      <text class="card-title">活动列表</text>
+      <input class="form-input" value="{{statusReason}}" bindinput="updateStatusReason" maxlength="200" placeholder="发布或停用原因（操作前填写）" />
+      <input class="form-input" value="{{applyReason}}" bindinput="updateApplyReason" maxlength="200" placeholder="应用充值规则原因（仅充值活动使用）" />
+      <view
+        class="command-status {{activeApplyCommand && activeApplyCommand.status}}"
+        wx:if="{{activeApplyCommand}}"
+      >
+        <text class="item-name">{{applyStatusText}}</text>
+        <text class="muted block" wx:if="{{applyResultText}}">{{applyResultText}}</text>
+        <text class="muted block" wx:if="{{activeApplyCommand.status === 'pending' || activeApplyCommand.status === 'claimed'}}">
+          此操作需要在线门店 PC 执行；发布活动本身不会改变充值赠送规则。
+        </text>
+        <button
+          class="mini-button secondary-button command-cancel"
+          wx:if="{{activeApplyCommand.status === 'pending'}}"
+          bindtap="cancelApplyCommand"
+        >取消等待</button>
+      </view>
+      <view class="activity-row" wx:for="{{activities}}" wx:key="id">
+        <view class="activity-main" data-activity-id="{{item.id}}" bindtap="editActivity">
+          <view class="activity-title-row"><text class="item-name">{{item.title}}</text><text class="tag {{item.visibility === 'active' ? 'good' : ''}}">{{item.statusText}}</text></view>
+          <text class="muted block">{{item.scheduleText}}</text>
+          <text class="muted block">{{item.tierText}}</text>
+        </view>
+        <view class="action-row">
+          <button wx:if="{{item.status !== 'published'}}" class="mini-button primary-button" data-activity-id="{{item.id}}" data-status="published" bindtap="setActivityStatus" disabled="{{busy}}">发布</button>
+          <button wx:if="{{item.status !== 'disabled'}}" class="mini-button secondary-button" data-activity-id="{{item.id}}" data-status="disabled" bindtap="setActivityStatus" disabled="{{busy}}">停用</button>
+          <button
+            wx:if="{{item.activityType === 'recharge'}}"
+            class="mini-button apply-button"
+            data-activity-id="{{item.id}}"
+            bindtap="applyRechargeTiers"
+            loading="{{applyBusy && activeApplyCommand && (activeApplyCommand.status === 'pending' || activeApplyCommand.status === 'claimed')}}"
+            disabled="{{applyBusy}}"
+          >应用充值规则</button>
+        </view>
+      </view>
+      <view class="empty" wx:if="{{activities.length === 0}}">暂无活动</view>
+    </view>
+  </block>
+
+  <view class="card empty" wx:else>当前账号不是店长，无法查看此页面。</view>
+</view>

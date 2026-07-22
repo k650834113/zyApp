@@ -1,0 +1,20 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/activities/index",
+    "pages/member/index",
+    "pages/staff/index",
+    "pages/manager/index",
+    "pages/content/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "桌游吧",
+    "navigationBarBackgroundColor": "#32453b",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f1e8",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

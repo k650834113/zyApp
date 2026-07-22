@@ -1,0 +1,93 @@
+<view class="page">
+  <view class="hero compact">
+    <text class="hero-title">内容与营业状态</text>
+    <text class="hero-subtitle">公告和门店状态仅店长可改；桌游运营状态允许店员与店长维护。</text>
+  </view>
+
+  <block wx:if="{{identity.role === 'staff' || identity.role === 'manager'}}">
+    <view class="card" wx:if="{{identity.role === 'manager' && store}}">
+      <text class="card-title">门店营业状态</text>
+      <text class="muted block">{{store.name}} · 固定营业时间 {{storeHoursText}}</text>
+      <picker range="{{storeStatusOptions}}" range-key="label" value="{{storeStatusIndex}}" bindchange="changeStoreStatus">
+        <view class="picker-field">当前设置：{{storeStatusOptions[storeStatusIndex].label}}</view>
+      </picker>
+      <input class="form-input" value="{{storeCustomStatusText}}" bindinput="updateStoreCustomStatus" maxlength="100" placeholder="顾客可见状态文字（可空）" />
+      <input class="form-input" value="{{storeReason}}" bindinput="updateStoreReason" maxlength="200" placeholder="修改原因（必填）" />
+      <button class="primary-button" bindtap="saveStoreStatus" loading="{{busy}}" disabled="{{busy}}">保存营业状态</button>
+    </view>
+
+    <view class="card" wx:if="{{identity.role === 'manager'}}">
+      <view class="section-heading">
+        <view>
+          <text class="card-title">公告编辑</text>
+          <text class="muted block">支持置顶、定时开始和自动到期隐藏</text>
+        </view>
+        <button class="mini-button secondary-button" bindtap="newAnnouncement">新建</button>
+      </view>
+      <form bindsubmit="saveAnnouncement">
+        <input class="form-input" name="title" value="{{announcementForm.title}}" maxlength="100" placeholder="公告标题" />
+        <textarea class="form-textarea" name="content" value="{{announcementForm.content}}" maxlength="5000" placeholder="公告内容" />
+        <input class="form-input" name="visibleFrom" value="{{announcementForm.visibleFrom}}" placeholder="开始展示 YYYY-MM-DD HH:mm" />
+        <input class="form-input" name="visibleUntil" value="{{announcementForm.visibleUntil}}" placeholder="结束展示（可空） YYYY-MM-DD HH:mm" />
+        <label class="switch-label"><switch checked="{{announcementPinned}}" bindchange="changeAnnouncementPinned" />置顶</label>
+        <input wx:if="{{announcementForm.announcementId}}" class="form-input" name="reason" value="{{announcementForm.reason}}" maxlength="200" placeholder="修改原因（必填）" />
+        <button class="primary-button" form-type="submit" loading="{{busy}}" disabled="{{busy}}">{{announcementForm.announcementId ? '保存修改' : '创建草稿'}}</button>
+      </form>
+    </view>
+
+    <view class="card" wx:if="{{identity.role === 'manager'}}">
+      <text class="card-title">公告列表</text>
+      <input class="form-input" value="{{announcementStatusReason}}" bindinput="updateAnnouncementStatusReason" maxlength="200" placeholder="发布或停用原因（操作前填写）" />
+      <view class="content-row" wx:for="{{announcements}}" wx:key="id">
+        <view class="row-main" data-announcement-id="{{item.id}}" bindtap="editAnnouncement">
+          <view class="row-heading"><text class="item-name">{{item.title}}</text><text class="tag">{{item.statusText}}</text></view>
+          <text class="muted block">{{item.scheduleText}}</text>
+        </view>
+        <view class="action-row">
+          <button wx:if="{{item.status !== 'published'}}" class="mini-button primary-button" data-announcement-id="{{item.id}}" data-status="published" bindtap="setAnnouncementStatus" disabled="{{busy}}">发布</button>
+          <button wx:if="{{item.status !== 'disabled'}}" class="mini-button secondary-button" data-announcement-id="{{item.id}}" data-status="disabled" bindtap="setAnnouncementStatus" disabled="{{busy}}">停用</button>
+        </view>
+      </view>
+      <view class="empty" wx:if="{{announcements.length === 0}}">暂无公告</view>
+    </view>
+
+    <view class="card">
+      <text class="card-title">桌游运营状态</text>
+      <text class="muted block">顾客端只显示是否售罄；寄存人、缺件明细和内部备注不会公开。</text>
+      <view class="board-layout">
+        <view class="board-list">
+          <view
+            class="board-row {{selectedBoardGame && selectedBoardGame.id === item.id ? 'selected' : ''}}"
+            wx:for="{{boardGames}}"
+            wx:key="id"
+            data-board-game-id="{{item.id}}"
+            bindtap="selectBoardGame"
+          >
+            <text class="item-name">{{item.name}}</text>
+            <text class="muted block">{{item.statusText}}</text>
+            <text class="muted block">{{item.detailText}}</text>
+          </view>
+        </view>
+
+        <view class="board-editor" wx:if="{{selectedBoardGame}}">
+          <text class="section-label">{{selectedBoardGame.name}}</text>
+          <view class="switch-grid">
+            <label><switch checked="{{boardAvailable}}" bindchange="changeBoardAvailable" />可用</label>
+            <label><switch checked="{{boardCustomerConsigned}}" bindchange="changeBoardCustomerConsigned" />顾客寄存</label>
+            <label><switch checked="{{boardMissingPieces}}" bindchange="changeBoardMissingPieces" />缺件</label>
+            <label><switch checked="{{boardPrivate}}" bindchange="changeBoardPrivate" />不公开</label>
+          </view>
+          <input wx:if="{{boardCustomerConsigned}}" class="form-input" value="{{boardConsignorNickname}}" bindinput="updateBoardConsignorNickname" maxlength="100" placeholder="寄存人昵称（仅员工可见）" />
+          <input wx:if="{{boardMissingPieces}}" class="form-input" value="{{boardMissingParts}}" bindinput="updateBoardMissingParts" placeholder="缺件名称与数量，如 红色方块:2,卡牌:1" />
+          <textarea class="form-textarea small" value="{{boardCustomerNote}}" bindinput="updateBoardCustomerNote" maxlength="500" placeholder="顾客可见备注" />
+          <textarea class="form-textarea small" value="{{boardInternalNote}}" bindinput="updateBoardInternalNote" maxlength="1000" placeholder="内部备注（仅员工可见）" />
+          <input class="form-input" value="{{boardReason}}" bindinput="updateBoardReason" maxlength="200" placeholder="修改原因（必填）" />
+          <button class="primary-button" bindtap="saveBoardGameOperations" loading="{{busy}}" disabled="{{busy}}">保存桌游状态</button>
+        </view>
+      </view>
+      <view class="empty" wx:if="{{boardGames.length === 0}}">暂无桌游资料</view>
+    </view>
+  </block>
+
+  <view class="card empty" wx:else>请先在员工页面登录后再进入。</view>
+</view>

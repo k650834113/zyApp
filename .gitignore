@@ -1,0 +1,50 @@
+# Dependencies and generated artifacts
+node_modules/
+.pnpm-store/
+out/
+dist/
+dist-installer/
+coverage/
+*.tsbuildinfo
+
+# Local scratch, test artifacts, release output, and backups
+.tmp/
+.tmp-*/
+output/
+outputs/
+infra/deploy/backups/
+
+# Runtime data and logs
+*.log
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.dump
+*.bak
+
+# Secrets and machine-local configuration
+.env
+.env.*
+!.env.example
+config/public-endpoints.local.json
+infra/docker/cloud.env
+infra/deploy/production.env
+apps/miniapp/project.private.config.json
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+
+# Private project material that is not part of the source distribution
+.agents/
+docs/
+legacy-data/
+NEXT_SESSION_HANDOFF.md
+
+# Operating system files
+.DS_Store
+Thumbs.db

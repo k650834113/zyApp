@@ -1,0 +1,28 @@
+<view class="page">
+  <view class="hero compact">
+    <text class="hero-title">近期活动</text>
+    <text class="hero-subtitle">仅展示当前已经发布且在有效期内的活动</text>
+  </view>
+
+  <view class="card activity" wx:for="{{activities}}" wx:key="id">
+    <view class="activity-head">
+      <text class="card-title">{{item.title}}</text>
+      <text class="tag warn" wx:if="{{item.pinned}}">置顶</text>
+    </view>
+    <text class="muted block">{{item.summary}}</text>
+    <view class="time-box">
+      <text>{{item.startsAtText}}</text>
+      <text>至</text>
+      <text>{{item.endsAtText}}</text>
+    </view>
+    <view class="tag-row">
+      <text class="tag good" wx:for="{{item.tierTexts}}" wx:key="*this">{{item}}</text>
+    </view>
+    <text class="content">{{item.content}}</text>
+  </view>
+
+  <view class="empty" wx:if="{{!loading && activities.length === 0}}">
+    当前没有进行中的活动
+  </view>
+  <view class="empty" wx:if="{{loading}}">正在加载活动...</view>
+</view>

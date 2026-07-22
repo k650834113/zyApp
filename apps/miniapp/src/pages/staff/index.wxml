@@ -1,0 +1,316 @@
+<view class="page">
+  <view class="hero compact">
+    <text class="hero-title">员工联网模式</text>
+    <text class="hero-subtitle">移动端必须联网，PC 仍是唯一保证完整离线营业的终端</text>
+  </view>
+
+  <block wx:if="{{identity.role === 'staff' || identity.role === 'manager'}}">
+    <view class="card identity-card">
+      <view>
+        <text class="card-title">{{identity.displayName}}</text>
+        <text class="muted block">
+          当前身份：{{identity.role === 'manager' ? '店长' : '店员'}}
+        </text>
+      </view>
+      <button class="compact-button secondary-button" bindtap="logout">退出</button>
+    </view>
+
+    <button
+      class="primary-button"
+      wx:if="{{identity.role === 'manager'}}"
+      bindtap="openManager"
+    >进入店长工作台</button>
+    <button
+      class="secondary-button"
+      bindtap="openContent"
+    >内容与桌游状态</button>
+
+    <view class="capability-grid card">
+      <view class="capability">会员查询与新增</view>
+      <view class="capability">储值与月卡查看</view>
+      <view class="capability">移动收银</view>
+      <view class="capability" wx:if="{{identity.role === 'manager'}}">活动、公告与报表</view>
+    </view>
+
+    <form class="card" bindsubmit="searchMembers">
+      <text class="card-title">会员查询</text>
+      <text class="muted block">支持手机号、会员号或昵称</text>
+      <view class="inline-form">
+        <input class="form-input" name="query" placeholder="输入查询内容，留空显示最近会员" />
+        <button class="primary-button compact-button" form-type="submit" loading="{{memberBusy}}">查询</button>
+      </view>
+    </form>
+
+    <view class="member-layout">
+      <view class="card member-list">
+        <view class="detail-heading">
+          <text class="card-title">会员列表</text>
+          <button class="mini-button secondary-button" bindtap="selectGuest">选择散客</button>
+        </view>
+        <view
+          class="member-row {{selectedMember && selectedMember.memberId === item.memberId ? 'selected' : ''}}"
+          wx:for="{{members}}"
+          wx:key="memberId"
+          data-member-id="{{item.memberId}}"
+          bindtap="selectMember"
+        >
+          <view>
+            <text class="member-name">{{item.nickname}}</text>
+            <text class="muted block">{{item.phone}} · {{item.memberNumber}}</text>
+          </view>
+          <text class="member-balance">¥{{item.balanceText}}</text>
+        </view>
+        <view class="empty small-empty" wx:if="{{!memberBusy && members.length === 0}}">
+          没有匹配的会员
+        </view>
+      </view>
+
+      <view class="card member-detail" wx:if="{{selectedMember}}">
+        <view class="detail-heading">
+          <view>
+            <text class="card-title">{{selectedMember.nickname}}</text>
+            <text class="muted block">{{selectedMember.phone}} · {{selectedMember.memberNumber}}</text>
+          </view>
+          <text class="tag {{selectedMember.tier === 'advanced' ? 'good' : ''}}">
+            {{selectedMember.tier === 'advanced' ? '高级会员' : '普通会员'}}
+          </text>
+        </view>
+        <text class="money block">¥{{selectedMember.balanceText}}</text>
+        <text class="muted block">
+          本金 ¥{{selectedMember.principalText}} · 赠送 ¥{{selectedMember.giftText}}
+        </text>
+        <view class="detail-grid">
+          <view>
+            <text class="detail-label">月卡</text>
+            <text class="detail-value">{{selectedMember.monthlyCardText}}</text>
+          </view>
+          <view>
+            <text class="detail-label">月卡到期</text>
+            <text class="detail-value">{{selectedMember.monthlyCardExpiresText}}</text>
+          </view>
+          <view>
+            <text class="detail-label">生日</text>
+            <text class="detail-value">{{selectedMember.birthdayText}}</text>
+          </view>
+          <view>
+            <text class="detail-label">年龄资格</text>
+            <text class="detail-value">{{selectedMember.ageGateText}}</text>
+          </view>
+        </view>
+        <text class="muted block" wx:if="{{selectedMember.note}}">
+          备注：{{selectedMember.note}}
+        </text>
+      </view>
+    </view>
+
+    <view class="card finance-card" wx:if="{{selectedMember}}">
+      <view class="detail-heading">
+        <view>
+          <text class="card-title">储值与月卡</text>
+          <text class="muted block">当前会员：{{selectedMember.nickname}}</text>
+        </view>
+        <text class="money">¥{{selectedMember.balanceText}}</text>
+      </view>
+      <text class="muted block">
+        移动端只提交操作，赠送金额、会员升级和月卡有效期由门店 PC 按本地规则确认。
+      </text>
+
+      <form class="finance-form" bindsubmit="submitCashRecharge">
+        <text class="section-label">现金充值</text>
+        <input
+          class="form-input"
+          name="rechargeAmount"
+          type="digit"
+          placeholder="充值本金（元）"
+          disabled="{{financialBusy}}"
+        />
+        <input
+          class="form-input"
+          name="rechargeReason"
+          maxlength="200"
+          placeholder="备注（选填）"
+          disabled="{{financialBusy}}"
+        />
+        <button
+          class="primary-button"
+          form-type="submit"
+          loading="{{financialBusy && activeFinancialCommand && activeFinancialCommand.type === 'cash_recharge'}}"
+          disabled="{{financialBusy}}"
+        >提交现金充值</button>
+      </form>
+
+      <view class="monthly-panel">
+        <view class="detail-heading">
+          <view>
+            <text class="section-label">月卡</text>
+            <text class="muted block">
+              {{selectedMember.monthlyCardText}} · 售价 ¥{{selectedMember.monthlyCardPriceText}}
+            </text>
+          </view>
+          <text class="tag">{{selectedMember.monthlyCardExpiresText}}</text>
+        </view>
+        <input
+          class="form-input"
+          maxlength="200"
+          value="{{monthlyReason}}"
+          bindinput="updateMonthlyReason"
+          placeholder="暂停或恢复原因（必填）"
+          disabled="{{financialBusy}}"
+        />
+        <button
+          wx:if="{{selectedMember.monthlyCardStatus === 'none'}}"
+          class="primary-button"
+          data-action="purchase"
+          bindtap="submitMonthlyCardAction"
+          disabled="{{financialBusy}}"
+        >现金购买 30 天月卡</button>
+        <button
+          wx:elif="{{selectedMember.monthlyCardStatus === 'active'}}"
+          class="secondary-button"
+          data-action="pause"
+          bindtap="submitMonthlyCardAction"
+          disabled="{{financialBusy}}"
+        >暂停月卡</button>
+        <button
+          wx:elif="{{selectedMember.monthlyCardStatus === 'paused'}}"
+          class="primary-button"
+          data-action="resume"
+          bindtap="submitMonthlyCardAction"
+          disabled="{{financialBusy}}"
+        >恢复月卡</button>
+      </view>
+
+      <view
+        class="command-status {{activeFinancialCommand && activeFinancialCommand.status}}"
+        wx:if="{{activeFinancialCommand}}"
+      >
+        <text class="member-name">{{financialCommandStatusText}}</text>
+        <text class="muted block" wx:if="{{financialCommandResultText}}">
+          {{financialCommandResultText}}
+        </text>
+        <button
+          class="mini-button secondary-button"
+          wx:if="{{activeFinancialCommand.status === 'pending'}}"
+          bindtap="cancelFinancialCommand"
+        >取消等待</button>
+      </view>
+    </view>
+
+    <view class="card cashier-card">
+      <view class="detail-heading">
+        <view>
+          <text class="card-title">移动收银</text>
+          <text class="muted block">
+            {{selectedMember ? '当前顾客：' + selectedMember.nickname : '当前顾客：散客'}}
+          </text>
+        </view>
+        <text class="money">¥{{cartTotalText}}</text>
+      </view>
+      <text class="muted block">
+        最终价格、生日/月卡/重复入场权益和储值余额由门店 PC 执行时确认。
+      </text>
+
+      <view class="catalog-grid">
+        <view class="catalog-item" wx:for="{{catalog}}" wx:key="id">
+          <view>
+            <text class="member-name">{{item.name}}</text>
+            <text class="muted block">
+              {{item.itemTypeText}} · 普通 ¥{{item.regularPriceText}} · 高级 ¥{{item.advancedPriceText}}
+            </text>
+          </view>
+          <button
+            class="mini-button primary-button"
+            data-item-id="{{item.id}}"
+            bindtap="addCatalogItem"
+            disabled="{{cashierBusy}}"
+          >添加</button>
+        </view>
+      </view>
+
+      <form class="custom-form" bindsubmit="addCustomItem">
+        <input class="form-input" name="customName" maxlength="60" placeholder="自定义收款名称" />
+        <input class="form-input" name="customAmount" type="digit" placeholder="金额（元）" />
+        <button class="secondary-button" form-type="submit" disabled="{{cashierBusy}}">添加自定义收款</button>
+      </form>
+
+      <view class="cart-list" wx:if="{{cart.length > 0}}">
+        <view class="cart-line" wx:for="{{cart}}" wx:key="key">
+          <view class="cart-main">
+            <text class="member-name">{{item.name}}</text>
+            <text class="muted block">
+              单价 ¥{{item.unitPriceText}} · 小计 ¥{{item.lineTotalText}}
+            </text>
+            <button
+              wx:if="{{item.itemType === 'admission' && item.source === 'catalog'}}"
+              class="benefit-button {{item.personalAdmissionBenefit ? 'active' : ''}}"
+              data-key="{{item.key}}"
+              bindtap="toggleAdmissionBenefit"
+              disabled="{{cashierBusy}}"
+            >{{item.personalAdmissionBenefit ? '已启用本人权益' : '使用本人入场权益'}}</button>
+          </view>
+          <view class="quantity">
+            <button class="quantity-button" data-key="{{item.key}}" data-delta="-1" bindtap="changeQuantity" disabled="{{cashierBusy}}">-</button>
+            <text>{{item.quantity}}</text>
+            <button class="quantity-button" data-key="{{item.key}}" data-delta="1" bindtap="changeQuantity" disabled="{{cashierBusy}}">+</button>
+          </view>
+        </view>
+      </view>
+      <view class="empty small-empty" wx:else>请添加收费项目</view>
+
+      <view class="payment-row">
+        <button
+          class="payment-button {{paymentMethod === 'stored_value' ? 'active' : ''}}"
+          data-method="stored_value"
+          bindtap="setPaymentMethod"
+          disabled="{{cashierBusy}}"
+        >储值扣款</button>
+        <button
+          class="payment-button {{paymentMethod === 'cash' ? 'active' : ''}}"
+          data-method="cash"
+          bindtap="setPaymentMethod"
+          disabled="{{cashierBusy}}"
+        >现金收款</button>
+      </view>
+
+      <form bindsubmit="submitCashier">
+        <input class="form-input" name="orderNote" maxlength="500" placeholder="订单备注（选填）" />
+        <button
+          class="primary-button"
+          form-type="submit"
+          loading="{{cashierBusy}}"
+          disabled="{{cashierBusy || cart.length === 0}}"
+        >提交给门店 PC 收款</button>
+      </form>
+
+      <view class="command-status {{activeCommand && activeCommand.status}}" wx:if="{{activeCommand}}">
+        <text class="member-name">{{commandStatusText}}</text>
+        <text class="muted block" wx:if="{{activeCommand.result}}">
+          {{activeCommand.result.orderNumber}} · ¥{{commandTotalText}}
+        </text>
+        <button
+          class="mini-button secondary-button"
+          wx:if="{{activeCommand.status === 'pending'}}"
+          bindtap="cancelCashier"
+        >取消等待</button>
+      </view>
+    </view>
+
+    <form class="card" bindsubmit="createMember">
+      <text class="card-title">线下新增会员</text>
+      <text class="muted block">
+        员工线下操作默认已确认顾客满 14 周岁；手机号仍是会员唯一标识。
+      </text>
+      <input class="form-input" name="phone" type="number" maxlength="11" placeholder="手机号" />
+      <input class="form-input" name="nickname" maxlength="30" placeholder="会员昵称" />
+      <input class="form-input" name="note" maxlength="500" placeholder="备注（选填）" />
+      <button class="primary-button" form-type="submit" loading="{{memberBusy}}">新增会员</button>
+    </form>
+  </block>
+
+  <view wx:else class="card login-card">
+    <text class="card-title">暂无员工权限</text>
+    <text class="muted block">
+      当前微信账号未识别为门店员工，请返回首页使用会员功能。
+    </text>
+  </view>
+</view>

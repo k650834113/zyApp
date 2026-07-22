@@ -1,0 +1,33 @@
+{
+  "name": "zyapp",
+  "version": "0.22.2",
+  "private": true,
+  "description": "Board-game shop desktop management and cashier system",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @zyapp/merchant-desktop dev",
+    "cloud:build": "pnpm --filter @zyapp/cloud-db build && pnpm --filter @zyapp/api build && pnpm --filter @zyapp/worker build",
+    "cloud:migrate": "pnpm --filter @zyapp/cloud-db migrate",
+    "cloud:up": "powershell -NoProfile -ExecutionPolicy Bypass -File ./infra/scripts/cloud-up.ps1",
+    "cloud:down": "powershell -NoProfile -ExecutionPolicy Bypass -File ./infra/scripts/cloud-down.ps1",
+    "cloud:status": "powershell -NoProfile -ExecutionPolicy Bypass -File ./infra/scripts/cloud-status.ps1",
+    "miniapp:build": "pnpm --filter @zyapp/miniapp build",
+    "miniapp:dev": "pnpm --filter @zyapp/miniapp dev",
+    "miniapp:test": "pnpm --filter @zyapp/miniapp test",
+    "miniapp:typecheck": "pnpm --filter @zyapp/miniapp typecheck",
+    "release:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./infra/scripts/prepare-desktop-release.ps1",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./infra/scripts/package-win.ps1"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.8"
+  }
+}

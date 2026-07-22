@@ -1,0 +1,100 @@
+.compact { padding: 28rpx; }
+.block { display: block; margin-top: 8rpx; }
+.card { margin-top: 22rpx; }
+.section-heading, .activity-title-row, .item-row, .summary-row, .action-row, .switch-row, .date-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+.section-heading { align-items: flex-start; }
+.mini-button {
+  width: auto;
+  min-width: 104rpx;
+  margin: 0;
+  padding: 0 18rpx;
+  font-size: 23rpx;
+  line-height: 2.3;
+}
+.date-row { margin-top: 20rpx; }
+.date-row picker { flex: 1; }
+.date-picker, .picker-field {
+  margin-top: 14rpx;
+  border: 1rpx solid #d7ccbc;
+  border-radius: 14rpx;
+  padding: 18rpx 20rpx;
+  background: #fff;
+  font-size: 25rpx;
+}
+.report-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
+  margin-top: 20rpx;
+}
+.metric { border-radius: 16rpx; padding: 20rpx; background: #f2ece2; }
+.metric.primary { color: #fff; background: #3f5a4b; }
+.metric-label, .metric-value { display: block; }
+.metric-label { font-size: 22rpx; }
+.metric-value { margin-top: 8rpx; font-size: 30rpx; font-weight: 800; }
+.summary-row {
+  margin-top: 20rpx;
+  border-radius: 14rpx;
+  padding: 18rpx;
+  color: #5f5548;
+  background: #f7f2e9;
+  font-size: 23rpx;
+}
+.item-row { margin-top: 16rpx; border-top: 1rpx solid #e5dccf; padding-top: 16rpx; }
+.item-name, .item-amount { font-weight: 800; }
+.item-amount { color: #3f5a4b; }
+.form-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 220rpx;
+  margin-top: 14rpx;
+  border: 1rpx solid #d7ccbc;
+  border-radius: 14rpx;
+  padding: 18rpx 20rpx;
+  background: #fff;
+  font-size: 27rpx;
+}
+.price-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; }
+.switch-row {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  margin-top: 20rpx;
+  color: #5f5548;
+  font-size: 23rpx;
+}
+.switch-row label { display: flex; align-items: center; gap: 8rpx; }
+.activity-row {
+  margin-top: 18rpx;
+  border: 1rpx solid #e1d7c8;
+  border-radius: 18rpx;
+  padding: 20rpx;
+  background: #fff;
+}
+.activity-main { min-width: 0; }
+.action-row { justify-content: flex-end; margin-top: 18rpx; }
+.apply-button {
+  color: #fff;
+  background: #8b5f2d;
+}
+.command-status {
+  margin-top: 16rpx;
+  border: 1rpx solid #d7ccbc;
+  border-radius: 16rpx;
+  padding: 18rpx;
+  background: #f7f2e9;
+}
+.command-status.completed {
+  border-color: #9ab8a4;
+  background: #edf5ef;
+}
+.command-status.failed,
+.command-status.expired {
+  border-color: #d7a29b;
+  background: #fff0ed;
+}
+.command-cancel { margin-top: 14rpx; }

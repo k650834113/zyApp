@@ -1,0 +1,131 @@
+name: zyapp-local-cloud
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-zyapp_test}
+      POSTGRES_USER: ${POSTGRES_USER:-zyapp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - zyapp-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-zyapp} -d postgres"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  postgres-init-test:
+    image: postgres:17-alpine
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-zyapp}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+      POSTGRES_DB: ${POSTGRES_DB:-zyapp_test}
+    command:
+      [
+        "sh",
+        "-ec",
+        "case \"$${POSTGRES_DB}\" in ''|*[!a-zA-Z0-9_]*) echo 'POSTGRES_DB must contain only letters, digits, and underscores' >&2; exit 1;; esac; exists=$$(psql --dbname postgres --tuples-only --command \"SELECT 1 FROM pg_database WHERE datname = '$${POSTGRES_DB}'\" | tr -d '[:space:]'); if [ \"$${exists}\" != \"1\" ]; then escaped=$$(printf '%s' \"$${POSTGRES_DB}\" | sed 's/\"/\"\"/g'); psql --dbname postgres --command \"CREATE DATABASE \\\"$${escaped}\\\"\"; fi"
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:63799:6379"
+    volumes:
+      - zyapp-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/cloud.Dockerfile
+    command: ["pnpm", "--filter", "@zyapp/cloud-db", "migrate"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://zyapp:local-development-only@postgres:5432/zyapp_test}
+    depends_on:
+      postgres-init-test:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/cloud.Dockerfile
+    command: ["node", "apps/api/dist/main.js"]
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-test}
+      API_PORT: 3100
+      DATABASE_URL: ${DATABASE_URL:-postgres://zyapp:local-development-only@postgres:5432/zyapp_test}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DEVICE_ENROLLMENT_SECRET: ${DEVICE_ENROLLMENT_SECRET:-replace-this-local-secret-before-first-enrollment}
+      DESKTOP_UPDATE_DIRECTORY: ${DESKTOP_UPDATE_DIRECTORY:-/app/updates/windows}
+      PHONE_VERIFICATION_SECRET: ${PHONE_VERIFICATION_SECRET:-replace-this-local-phone-verification-secret}
+      PHONE_VERIFICATION_MODE: ${PHONE_VERIFICATION_MODE:-mock}
+      WECHAT_PAYMENT_MODE: ${WECHAT_PAYMENT_MODE:-mock}
+      MINIAPP_DEVELOPMENT_AUTH_ENABLED: ${MINIAPP_DEVELOPMENT_AUTH_ENABLED:-true}
+      MINIAPP_WECHAT_AUTH_MODE: ${MINIAPP_WECHAT_AUTH_MODE:-mock}
+      WECHAT_MINIAPP_APP_ID: ${WECHAT_MINIAPP_APP_ID:-}
+      WECHAT_MINIAPP_APP_SECRET: ${WECHAT_MINIAPP_APP_SECRET:-}
+      MINIAPP_TEST_VIRTUAL_PHONE: ${MINIAPP_TEST_VIRTUAL_PHONE:-}
+    volumes:
+      - ../../apps/merchant-desktop/dist-installer:/app/updates/windows:ro
+    ports:
+      - "127.0.0.1:3100:3100"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3100/v1/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/cloud.Dockerfile
+    command: ["node", "apps/worker/dist/main.js"]
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgres://zyapp:local-development-only@postgres:5432/zyapp_test}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      WORKER_QUEUE_NAME: ${WORKER_QUEUE_NAME:-zyapp-maintenance}
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  zyapp-postgres-data:
+  zyapp-redis-data:

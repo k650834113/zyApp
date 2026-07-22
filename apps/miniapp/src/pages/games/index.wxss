@@ -1,0 +1,59 @@
+.search-row {
+  display: grid;
+  grid-template-columns: 1fr 150rpx;
+  gap: 14rpx;
+}
+
+.search-input {
+  margin-top: 0;
+}
+
+.search-button {
+  margin: 0;
+  border-radius: 14rpx;
+  color: #fff;
+  background: #3f5a4b;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.game {
+  margin-top: 20rpx;
+}
+
+.game-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stock {
+  border-radius: 999rpx;
+  padding: 7rpx 14rpx;
+  font-size: 21rpx;
+  font-weight: 800;
+}
+
+.stock.available {
+  color: #2d6940;
+  background: #e5f3e8;
+}
+
+.stock.sold-out {
+  color: #82534a;
+  background: #f4e7e3;
+}
+
+.block,
+.customer-note {
+  display: block;
+  margin-top: 14rpx;
+}
+
+.customer-note {
+  border-left: 6rpx solid #c7b48e;
+  padding-left: 16rpx;
+  color: #6e6253;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
