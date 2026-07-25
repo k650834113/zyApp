@@ -140,7 +140,16 @@ services:
       DESKTOP_UPDATE_DIRECTORY: /app/updates/windows
       PHONE_VERIFICATION_SECRET: ${TEST_PHONE_VERIFICATION_SECRET:?TEST_PHONE_VERIFICATION_SECRET is required}
       PHONE_VERIFICATION_MODE: disabled
-      WECHAT_PAYMENT_MODE: disabled
+      WECHAT_PAYMENT_MODE: ${TEST_WECHAT_PAYMENT_MODE:-disabled}
+      WECHAT_PAY_MERCHANT_ID: ${WECHAT_PAY_MERCHANT_ID:-}
+      WECHAT_PAY_MERCHANT_CERTIFICATE_SERIAL: ${WECHAT_PAY_MERCHANT_CERTIFICATE_SERIAL:-}
+      WECHAT_PAY_MERCHANT_PRIVATE_KEY_FILE: /run/secrets/wechatpay/apiclient_key.pem
+      WECHAT_PAY_PUBLIC_KEY_ID: ${WECHAT_PAY_PUBLIC_KEY_ID:-}
+      WECHAT_PAY_PUBLIC_KEY_FILE: /run/secrets/wechatpay/wechatpay_public_key.pem
+      WECHAT_PAY_API_V3_KEY_FILE: /run/secrets/wechatpay/apiv3.key
+      WECHAT_PAY_NOTIFY_URL: https://judian.icu/test/v1/payments/wechat/recharge/notify
+      WECHAT_PAY_OUT_TRADE_NO_PREFIX: ZYT-
+      WECHAT_PAYMENT_TEST_AMOUNT_FEN: "1"
       MINIAPP_DEVELOPMENT_AUTH_ENABLED: "false"
       MINIAPP_WECHAT_AUTH_MODE: ${TEST_MINIAPP_WECHAT_AUTH_MODE:-disabled}
       WECHAT_MINIAPP_APP_ID: ${WECHAT_MINIAPP_APP_ID:-}
@@ -148,6 +157,7 @@ services:
       MINIAPP_TEST_VIRTUAL_PHONE: ${TEST_MINIAPP_VIRTUAL_PHONE:-}
     volumes:
       - ./updates/test/windows:/app/updates/windows:ro
+      - ${WECHATPAY_SECRETS_DIRECTORY:-/opt/zyapp/secrets/wechatpay}:/run/secrets/wechatpay:ro
     depends_on:
       migrate-test:
         condition: service_completed_successfully
@@ -209,14 +219,15 @@ services:
   caddy:
     image: caddy:2-alpine
     environment:
-      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+      APP_IP: ${APP_IP:?APP_IP is required}
+      MINIAPP_DOMAIN: ${MINIAPP_DOMAIN:?MINIAPP_DOMAIN is required}
       ACME_CA: ${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ${CADDYFILE_PATH:-./Caddyfile}:/etc/caddy/Caddyfile:ro
+      - ${CADDYFILE_PATH:-./Caddyfile.dual-https}:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:

@@ -25,11 +25,35 @@ corepack pnpm miniapp:dev
 - 店长：活动、公告、营业状态和经营摘要。
 - 内容：桌游运营状态维护。
 
-仓库未填写本机端点配置时，默认构建生成纯前端 Mock 包，不访问网络。连接真实测试 API 前，需复制并填写 `config/public-endpoints.local.json`；该文件已被 Git 忽略。真实微信登录仍要求测试 API 配置对应 AppID/AppSecret，并完成合法请求域名与隐私设置。微信支付验签/解密、主动查单、退款和提审仍需平台资源与后端适配。
+仓库未填写本机端点配置时，默认构建生成纯前端 Mock 包，不访问网络。连接真实测试 API 前，需复制并填写 `config/public-endpoints.local.json`；该文件已被 Git 忽略。真实微信登录要求测试 API 配置对应 AppID/AppSecret，并完成合法请求域名与隐私设置。
 
 测试构建与 PC 测试端应在本机配置中填写同一个测试门店；登录会话按 API 地址和门店分别保存，切换门店后不会误用旧门店的会员身份。
 
-ICP备案审核期间，默认 `test-wechat` 构建临时把“一键登录”接到测试 API 配置的虚拟号码 `18888888888`。微信会话、会员幂等绑定、资料、余额、月卡和后续业务仍走真实测试库链路；生产环境禁止启用。备案和微信手机号能力通过后，设置 `ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED=false` 并移除服务端 `TEST_MINIAPP_VIRTUAL_PHONE` 即恢复真实 `getPhoneNumber`。
+## 正式测试版
+
+正式测试版使用真实微信登录、真实手机号授权和真实微信支付，但会员、余额、月卡和历史数据只写入隔离测试库。小额支付测试固定为 0.01 元：资金会真实进入商户号，测试钱包只增加本金 1 分，不产生赠送余额或高级会员资格。
+
+构建前在被 Git 忽略的 `config/public-endpoints.local.json` 中配置测试门店 ID，API 地址必须是 `https://judian.icu/test`。也可以通过环境变量构建：
+
+```powershell
+$env:ZYAPP_MINIAPP_MODE='production-test-wechat'
+$env:ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED='false'
+$env:ZYAPP_MINIAPP_API_BASE_URL='https://judian.icu/test'
+$env:ZYAPP_MINIAPP_STORE_ID='替换为测试门店 UUID'
+corepack pnpm miniapp:build
+```
+
+微信公众平台“小程序后台 → 开发管理 → 开发设置 → 服务器域名”只需把 `https://judian.icu` 填入 request 合法域名。当前功能不使用 WebSocket、文件上传或文件下载，对应域名留空。
+
+只有账号管理员能完成以下平台和真机操作：
+
+- 确认小程序 AppID、隐私保护指引和手机号能力；
+- 确认商户平台微信支付公钥切换已完成；
+- 使用体验版完成手机号授权和 0.01 元真实支付；
+- 在商户平台核对交易，并确认测试钱包只入账一次；
+- 最终提交微信审核和发布。
+
+APIv3 密钥必须保存在本机单行文件中，部署时只提供文件绝对路径，禁止粘贴到聊天、环境变量、代码、日志或截图中。商户私钥和微信支付公钥同样只通过只读密钥目录挂载到测试 API。生产 API 的微信支付保持禁用。
 
 ## 文档入口
 

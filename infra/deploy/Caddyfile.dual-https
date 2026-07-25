@@ -1,0 +1,43 @@
+{
+	default_sni {$APP_IP}
+}
+
+(zyapp_routes) {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=604800"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+		-X-Powered-By
+	}
+
+	handle_path /test/* {
+		reverse_proxy api-test:3100
+	}
+
+	handle {
+		reverse_proxy api:3100
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+{$APP_IP} {
+	tls {
+		issuer acme {
+			dir {$ACME_CA}
+			profile shortlived
+		}
+	}
+	import zyapp_routes
+}
+
+{$MINIAPP_DOMAIN} {
+	import zyapp_routes
+}
