@@ -10,6 +10,7 @@ coverage/
 # Local scratch, test artifacts, release output, and backups
 .tmp/
 .tmp-*/
+.worktrees/
 output/
 outputs/
 infra/deploy/backups/
