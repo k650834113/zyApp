@@ -21,6 +21,7 @@ import type {
   EmployeeMobileMemberSummary,
   MemberSelfServiceSummary,
   MemberSelfServiceHistory,
+  MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   CreateMemberRechargeOrderRequest,
   MiniappHomeSnapshot,
@@ -55,6 +56,7 @@ export interface MiniappClient {
   listGames(query?: string): Promise<PublicBoardGameSummary[]>
   getMemberSummary(): Promise<MemberSelfServiceSummary | null>
   getMemberHistory(): Promise<MemberSelfServiceHistory>
+  getRechargeConfiguration(): Promise<MemberRechargeConfiguration>
   requestPhoneVerification(phone: string): Promise<PhoneVerificationChallenge>
   registerMember(input: MemberRegistrationInput): Promise<MemberSelfServiceSummary>
   loginWithWechatProfile(

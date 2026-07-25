@@ -129,6 +129,12 @@
     <text>快捷充值</text>
     <text class="section-note">{{member.canRecharge ? '微信支付' : '暂不可用'}}</text>
   </view>
+  <view
+    wx:if="{{member && rechargeConfiguration.testAmountFen === 1}}"
+    class="real-payment-warning"
+  >
+    真实扣款，资金进入商户号；余额仅写入测试库。
+  </view>
   <view wx:if="{{member}}" class="package-grid">
     <button
       wx:for="{{rechargePackages}}"

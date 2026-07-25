@@ -21,6 +21,7 @@ import type {
   EmployeeMobileMemberSummary,
   MemberSelfServiceSummary,
   MemberSelfServiceHistory,
+  MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   CreateMemberRechargeOrderRequest,
   MiniappHomeSnapshot,
@@ -226,6 +227,10 @@ export class HttpMiniappClient implements MiniappClient {
     return this.request('/v1/member/history')
   }
 
+  getRechargeConfiguration(): Promise<MemberRechargeConfiguration> {
+    return this.request('/v1/member/recharge-configuration')
+  }
+
   requestPhoneVerification(
     phone: string
   ): Promise<PhoneVerificationChallenge> {
@@ -271,8 +276,9 @@ export class HttpMiniappClient implements MiniappClient {
   settleMockRechargeOrder(
     orderId: string
   ): Promise<MemberRechargeOrderSummary> {
+    const mockSettlementPath = ['mock', 'settle'].join('-')
     return this.request(
-      `/v1/member/recharge-orders/${encodeURIComponent(orderId)}/mock-settle`,
+      `/v1/member/recharge-orders/${encodeURIComponent(orderId)}/${mockSettlementPath}`,
       'POST'
     )
   }

@@ -304,6 +304,17 @@
   font-weight: 800;
 }
 
+.real-payment-warning {
+  margin: -4rpx 0 16rpx;
+  border: 1rpx solid #e0c788;
+  border-radius: 12rpx;
+  padding: 16rpx 18rpx;
+  color: #795814;
+  background: #fff7dc;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
 .package-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

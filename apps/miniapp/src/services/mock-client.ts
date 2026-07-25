@@ -21,6 +21,7 @@ import type {
   EmployeeMobileMemberSummary,
   MemberSelfServiceSummary,
   MemberSelfServiceHistory,
+  MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   CreateMemberRechargeOrderRequest,
   MiniappHomeSnapshot,
@@ -418,6 +419,10 @@ export class MockMiniappClient implements MiniappClient {
   async getMemberHistory(): Promise<MemberSelfServiceHistory> {
     if (!member) throw new Error('请先注册会员')
     return memberHistory
+  }
+
+  async getRechargeConfiguration(): Promise<MemberRechargeConfiguration> {
+    return { providerMode: 'mock', testAmountFen: null }
   }
 
   async requestPhoneVerification(

@@ -1,4 +1,5 @@
 import type {
+  MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   MemberSelfServiceHistory,
   MemberSelfServiceSummary,
@@ -22,6 +23,11 @@ import {
   phoneVerificationHint,
   type PhoneNumberEvent
 } from '../../services/member-login'
+import {
+  parseWechatPaymentParameters,
+  pollRechargeOrder,
+  requestWechatPayment
+} from '../../services/wechat-payment'
 
 type MemberView = MemberSelfServiceSummary & {
   avatarText: string
@@ -43,6 +49,7 @@ type RechargePackageView = {
   priceText: string
   giftText: string
   totalText: string
+  testOnly?: boolean
 }
 
 type RechargeOrderView = MemberRechargeOrderSummary & {
@@ -179,7 +186,7 @@ function giftFor(
   return giftFen + (remainderTier?.giftFen ?? 0)
 }
 
-function buildRechargePackages(
+function buildRegularRechargePackages(
   activities: PublicActivitySummary[]
 ): RechargePackageView[] {
   return quickRechargeFen.map((principalFen) => {
@@ -193,6 +200,26 @@ function buildRechargePackages(
       totalText: `到账 ${formatMoney(principalFen + giftFen)}`
     }
   })
+}
+
+function buildRechargePackages(
+  activities: PublicActivitySummary[],
+  configuration: MemberRechargeConfiguration | null
+): RechargePackageView[] {
+  const regularPackages = buildRegularRechargePackages(activities)
+  if (configuration?.testAmountFen !== 1) return regularPackages
+  return [
+    {
+      id: 'recharge-live-test-1',
+      label: '真实支付测试',
+      principalFen: 1,
+      priceText: '¥0.01',
+      giftText: '无赠送',
+      totalText: '测试库到账 ¥0.01',
+      testOnly: true
+    },
+    ...regularPackages
+  ]
 }
 
 function toRechargeOrderView(
@@ -302,6 +329,7 @@ Page({
     loading: true,
     home: null as MiniappHomeSnapshot | null,
     member: null as MemberView | null,
+    rechargeConfiguration: null as MemberRechargeConfiguration | null,
     rechargePackages: [] as RechargePackageView[],
     rechargeOrder: null as RechargeOrderView | null,
     recentRecords: [] as RecentRecordView[],
@@ -333,13 +361,20 @@ Page({
       if (redirecting) return
 
       const member = await getMiniappClient().getMemberSummary()
-      const history = member
-        ? await getMiniappClient().getMemberHistory().catch(() => emptyHistory)
-        : emptyHistory
+      const [history, rechargeConfiguration] = member
+        ? await Promise.all([
+            getMiniappClient().getMemberHistory().catch(() => emptyHistory),
+            getMiniappClient().getRechargeConfiguration()
+          ])
+        : [emptyHistory, null]
       this.setData({
         home,
         member: member ? toMemberView(member) : null,
-        rechargePackages: buildRechargePackages(home.activities),
+        rechargeConfiguration,
+        rechargePackages: buildRechargePackages(
+          home.activities,
+          rechargeConfiguration
+        ),
         recentRecords: toRecentRecords(history)
       })
     } catch (error) {
@@ -439,12 +474,18 @@ Page({
         nickname: normalizeNickname(this.data.loginNickname),
         confirmedAtLeast14: this.data.loginConfirmedAtLeast14
       })
-      const history = await getMiniappClient()
-        .getMemberHistory()
-        .catch(() => emptyHistory)
+      const [history, rechargeConfiguration] = await Promise.all([
+        getMiniappClient().getMemberHistory().catch(() => emptyHistory),
+        getMiniappClient().getRechargeConfiguration()
+      ])
       this.setData({
         member: toMemberView(member),
         recentRecords: toRecentRecords(history),
+        rechargeConfiguration,
+        rechargePackages: buildRechargePackages(
+          this.data.home?.activities ?? [],
+          rechargeConfiguration
+        ),
         loginFallbackVisible: false,
         loginChallengeId: null,
         loginCode: '',
@@ -491,12 +532,18 @@ Page({
         phoneCode,
         confirmedAtLeast14: defaultConfirmedAtLeast14
       })
-      const history = await getMiniappClient()
-        .getMemberHistory()
-        .catch(() => emptyHistory)
+      const [history, rechargeConfiguration] = await Promise.all([
+        getMiniappClient().getMemberHistory().catch(() => emptyHistory),
+        getMiniappClient().getRechargeConfiguration()
+      ])
       this.setData({
         member: toMemberView(member),
-        recentRecords: toRecentRecords(history)
+        recentRecords: toRecentRecords(history),
+        rechargeConfiguration,
+        rechargePackages: buildRechargePackages(
+          this.data.home?.activities ?? [],
+          rechargeConfiguration
+        )
       })
       wx.showToast({ title: '登录成功', icon: 'success' })
     } catch (error) {
@@ -526,12 +573,58 @@ Page({
     }
     this.setData({ busy: true })
     try {
+      const stableRequestId = requestId('home-recharge')
       const order = await getMiniappClient().createRechargeOrder({
-        requestId: requestId('home-recharge'),
+        requestId: stableRequestId,
         principalFen
       })
       this.setData({ rechargeOrder: toRechargeOrderView(order) })
-      wx.showToast({ title: '充值单已创建', icon: 'success' })
+      if (order.providerMode === 'mock') {
+        wx.showToast({ title: '充值单已创建', icon: 'success' })
+        return
+      }
+
+      let paymentFailure: Error | null = null
+      try {
+        const parameters = parseWechatPaymentParameters(
+          order.clientPaymentParameters
+        )
+        await requestWechatPayment(parameters)
+      } catch (error) {
+        paymentFailure =
+          error instanceof Error ? error : new Error('微信支付调用失败')
+      }
+
+      const confirmed = await pollRechargeOrder({
+        orderId: order.orderId,
+        getOrder: (orderId) =>
+          getMiniappClient().getRechargeOrder(orderId)
+      })
+      this.setData({ rechargeOrder: toRechargeOrderView(confirmed) })
+      if (confirmed.status === 'settled') {
+        const [member, history] = await Promise.all([
+          getMiniappClient().getMemberSummary(),
+          getMiniappClient().getMemberHistory()
+        ])
+        this.setData({
+          member: member ? toMemberView(member) : null,
+          recentRecords: toRecentRecords(history)
+        })
+        wx.showToast({ title: '充值已到账', icon: 'success' })
+        return
+      }
+      if (confirmed.status === 'pending_payment') {
+        wx.showToast({
+          title: '支付结果确认中',
+          icon: 'none',
+          duration: 3000
+        })
+        return
+      }
+      if (paymentFailure) throw paymentFailure
+      throw new Error(
+        confirmed.errorMessage || '支付未完成，请稍后重试'
+      )
     } catch (error) {
       wx.showToast({
         title: error instanceof Error ? error.message : '充值失败',

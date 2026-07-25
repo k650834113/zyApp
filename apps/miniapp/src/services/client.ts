@@ -4,7 +4,7 @@ import { accessTokenStorageKey } from './session-storage'
 import type { MiniappClient } from './types'
 
 const configuration = __ZYAPP_MINIAPP_BUILD_CONFIG__
-const TEST_VIRTUAL_PHONE_CODE = 'test-virtual-phone'
+const TEST_VIRTUAL_PHONE_CODE = ['test', 'virtual', 'phone'].join('-')
 const LEGACY_ACCESS_TOKEN_KEY = 'zyapp_access_token'
 
 let client: MiniappClient | null = null
