@@ -14,11 +14,39 @@ export type CreatedWechatRechargePayment = {
   clientPaymentParameters: Record<string, string>
 }
 
+export type WechatPaymentState =
+  | { state: 'pending'; outTradeNo: string }
+  | { state: 'closed'; outTradeNo: string }
+  | {
+      state: 'success'
+      outTradeNo: string
+      transactionId: string
+      amountFen: number
+      currency: 'CNY'
+      appId: string
+      merchantId: string
+      payerOpenId: string
+      paidAt: string
+    }
+
+export type VerifiedWechatPaymentNotification = {
+  eventId: string
+  eventType: 'TRANSACTION.SUCCESS'
+  payload: unknown
+  payment: Extract<WechatPaymentState, { state: 'success' }>
+}
+
 export interface WechatPaymentProvider {
-  readonly mode: 'mock' | 'disabled'
+  readonly mode: 'mock' | 'wechat' | 'disabled'
   createRechargePayment(
     input: CreateWechatRechargePaymentInput
   ): Promise<CreatedWechatRechargePayment>
+  queryRechargePayment(outTradeNo: string): Promise<WechatPaymentState>
+  closeRechargePayment(outTradeNo: string): Promise<'closed' | 'paid'>
+  verifyNotification(input: {
+    headers: Record<string, string | string[] | undefined>
+    rawBody: string
+  }): VerifiedWechatPaymentNotification
 }
 
 export class MockWechatPaymentProvider implements WechatPaymentProvider {
@@ -40,6 +68,20 @@ export class MockWechatPaymentProvider implements WechatPaymentProvider {
       }
     }
   }
+
+  async queryRechargePayment(
+    outTradeNo: string
+  ): Promise<WechatPaymentState> {
+    return { state: 'pending', outTradeNo }
+  }
+
+  async closeRechargePayment(): Promise<'closed'> {
+    return 'closed'
+  }
+
+  verifyNotification(): VerifiedWechatPaymentNotification {
+    throw new Error('Mock WeChat payment notifications are unsupported')
+  }
 }
 
 export class DisabledWechatPaymentProvider implements WechatPaymentProvider {
@@ -47,5 +89,17 @@ export class DisabledWechatPaymentProvider implements WechatPaymentProvider {
 
   async createRechargePayment(): Promise<CreatedWechatRechargePayment> {
     throw new Error('微信支付商户配置尚未启用')
+  }
+
+  async queryRechargePayment(): Promise<WechatPaymentState> {
+    throw new Error('WeChat payment is disabled')
+  }
+
+  async closeRechargePayment(): Promise<'closed' | 'paid'> {
+    throw new Error('WeChat payment is disabled')
+  }
+
+  verifyNotification(): VerifiedWechatPaymentNotification {
+    throw new Error('WeChat payment is disabled')
   }
 }

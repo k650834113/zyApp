@@ -8,17 +8,84 @@ import {
 import { checkCloudDatabase, createPostgresPool } from '@zyapp/cloud-db'
 import type { Pool } from '@zyapp/cloud-db'
 import Redis from 'ioredis'
+import { readFileSync } from 'node:fs'
 import { readApiConfig, type ApiConfig } from './config'
+import { readSingleLineSecret } from './secret-file'
 import {
   DisabledWechatPaymentProvider,
   MockWechatPaymentProvider,
   type WechatPaymentProvider
 } from './wechat-payment-provider'
+import { WechatPayProvider } from './wechatpay-provider'
 
 export const API_CONFIG = Symbol('API_CONFIG')
 export const POSTGRES_POOL = Symbol('POSTGRES_POOL')
 export const REDIS_CLIENT = Symbol('REDIS_CLIENT')
 export const WECHAT_PAYMENT_PROVIDER = Symbol('WECHAT_PAYMENT_PROVIDER')
+
+function requiredPaymentConfig(
+  value: string | null | undefined,
+  name: string
+): string {
+  if (!value) throw new Error(`${name} is required`)
+  return value
+}
+
+function createWechatPaymentProvider(
+  config: ApiConfig
+): WechatPaymentProvider {
+  if (config.wechatPaymentMode === 'mock') {
+    return new MockWechatPaymentProvider()
+  }
+  if (config.wechatPaymentMode === 'disabled') {
+    return new DisabledWechatPaymentProvider()
+  }
+
+  const merchantPrivateKeyPath = requiredPaymentConfig(
+    config.wechatPayMerchantPrivateKeyPath,
+    'WECHAT_PAY_MERCHANT_PRIVATE_KEY_FILE'
+  )
+  const publicKeyPath = requiredPaymentConfig(
+    config.wechatPayPublicKeyPath,
+    'WECHAT_PAY_PUBLIC_KEY_FILE'
+  )
+  const apiV3KeyPath = requiredPaymentConfig(
+    config.wechatPayApiV3KeyPath,
+    'WECHAT_PAY_API_V3_KEY_FILE'
+  )
+  return new WechatPayProvider({
+    appId: requiredPaymentConfig(
+      config.wechatMiniappAppId,
+      'WECHAT_MINIAPP_APP_ID'
+    ),
+    merchantId: requiredPaymentConfig(
+      config.wechatPayMerchantId,
+      'WECHAT_PAY_MERCHANT_ID'
+    ),
+    merchantCertificateSerial: requiredPaymentConfig(
+      config.wechatPayMerchantCertificateSerial,
+      'WECHAT_PAY_MERCHANT_CERTIFICATE_SERIAL'
+    ),
+    merchantPrivateKeyPem: readFileSync(
+      merchantPrivateKeyPath,
+      'utf8'
+    ),
+    publicKeyId: requiredPaymentConfig(
+      config.wechatPayPublicKeyId,
+      'WECHAT_PAY_PUBLIC_KEY_ID'
+    ),
+    publicKeyPem: readFileSync(publicKeyPath, 'utf8'),
+    apiV3Key: readSingleLineSecret(
+      apiV3KeyPath,
+      'WECHAT_PAY_API_V3_KEY_FILE',
+      32
+    ),
+    notifyUrl: requiredPaymentConfig(
+      config.wechatPayNotifyUrl,
+      'WECHAT_PAY_NOTIFY_URL'
+    )
+  })
+}
 
 @Injectable()
 export class InfrastructureLifecycle implements OnApplicationShutdown {
@@ -83,10 +150,7 @@ export class InfrastructureHealthService {
     {
       provide: WECHAT_PAYMENT_PROVIDER,
       inject: [API_CONFIG],
-      useFactory: (config: ApiConfig): WechatPaymentProvider =>
-        config.wechatPaymentMode === 'mock'
-          ? new MockWechatPaymentProvider()
-          : new DisabledWechatPaymentProvider()
+      useFactory: createWechatPaymentProvider
     },
     InfrastructureLifecycle,
     InfrastructureHealthService
