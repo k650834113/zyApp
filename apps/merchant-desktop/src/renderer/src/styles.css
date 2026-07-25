@@ -715,6 +715,12 @@ footer {
   letter-spacing: -1px;
 }
 
+.page-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .release-tag {
   border: 1px solid #d6cbb8;
   border-radius: 999px;
