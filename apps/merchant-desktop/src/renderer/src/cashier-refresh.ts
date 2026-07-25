@@ -14,6 +14,7 @@ type CashierRefreshApi = Pick<
   | 'listCashierMembers'
   | 'getWalletDetails'
   | 'getMonthlyCardDetails'
+  | 'refreshCashierData'
 >
 
 export type CashierSnapshot = {
@@ -29,6 +30,7 @@ export async function refreshCashierSnapshot(
   api: CashierRefreshApi,
   selectedMemberId: string | null
 ): Promise<CashierSnapshot> {
+  await api.refreshCashierData()
   const [catalog, orders, members] = await Promise.all([
     api.listCatalogItems(),
     api.listRecentOrders({ limit: 20 }),

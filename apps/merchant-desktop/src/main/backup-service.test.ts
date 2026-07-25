@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { bootstrapStore, migrateDatabase, openLocalDatabase } from '@zyapp/local-db'
+import {
+  bootstrapStore,
+  LATEST_SCHEMA_VERSION,
+  migrateDatabase,
+  openLocalDatabase
+} from '@zyapp/local-db'
 import {
   createDatabaseBackup,
   createPreUpgradeBackup,
@@ -52,13 +57,13 @@ describe('desktop backup service', () => {
     expect(result.backup).toMatchObject({
       kind: 'manual',
       createdAt: '2026-06-13T01:00:00.000Z',
-      schemaVersion: 25,
+      schemaVersion: LATEST_SCHEMA_VERSION,
       integrityOk: true,
       secondaryCopy: true
     })
     expect(result.secondaryPath).toBeTruthy()
     expect(inspection).toMatchObject({
-      schemaVersion: 25,
+      schemaVersion: LATEST_SCHEMA_VERSION,
       integrityOk: true,
       storeCount: 1
     })

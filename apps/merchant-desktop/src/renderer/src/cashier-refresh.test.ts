@@ -47,6 +47,7 @@ describe('cashier manual refresh', () => {
       events: []
     }
     const api = {
+      refreshCashierData: vi.fn().mockResolvedValue(undefined),
       listCatalogItems: vi.fn().mockResolvedValue([]),
       listRecentOrders: vi.fn().mockResolvedValue([]),
       listCashierMembers: vi.fn().mockResolvedValue([member]),
@@ -56,6 +57,10 @@ describe('cashier manual refresh', () => {
 
     const result = await refreshCashierSnapshot(api, member.id)
 
+    expect(api.refreshCashierData).toHaveBeenCalledOnce()
+    expect(api.refreshCashierData.mock.invocationCallOrder[0]).toBeLessThan(
+      api.listCatalogItems.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+    )
     expect(api.listCatalogItems).toHaveBeenCalledOnce()
     expect(api.listRecentOrders).toHaveBeenCalledWith({ limit: 20 })
     expect(api.listCashierMembers).toHaveBeenCalledOnce()
@@ -73,6 +78,7 @@ describe('cashier manual refresh', () => {
 
   it('clears stale selection when the member no longer exists', async () => {
     const api = {
+      refreshCashierData: vi.fn().mockResolvedValue(undefined),
       listCatalogItems: vi.fn().mockResolvedValue([]),
       listRecentOrders: vi.fn().mockResolvedValue([]),
       listCashierMembers: vi.fn().mockResolvedValue([]),

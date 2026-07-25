@@ -1415,8 +1415,8 @@ async function refreshCloudResourceMirror(
   return eventCursor
 }
 
-async function refreshCloudResourceBeforeRead(
-  resource: CloudMirrorResource
+async function refreshCloudResourcesBeforeRead(
+  resources: CloudMirrorResource[]
 ): Promise<void> {
   if (!cloudConnection || !localDatabase || cloudSyncInProgress) return
   const context = getStoreContext(localDatabase.connection)
@@ -1424,12 +1424,14 @@ async function refreshCloudResourceBeforeRead(
   const runtime = getCloudRuntimeState(localDatabase.connection, context)
   if (!runtime.cloudPrimaryActivated) return
   try {
-    await refreshCloudResourceMirror(
-      cloudConnection,
-      localDatabase,
-      context,
-      resource
-    )
+    for (const resource of resources) {
+      await refreshCloudResourceMirror(
+        cloudConnection,
+        localDatabase,
+        context,
+        resource
+      )
+    }
     await runCloudSyncOnce()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -1441,10 +1443,16 @@ async function refreshCloudResourceBeforeRead(
       { reachable: isCloudConfigurationFailure(error), error: message }
     )
     logger?.write('error', 'cloud_read_fell_back_to_local_mirror', {
-      resource,
+      resources,
       message
     })
   }
+}
+
+async function refreshCloudResourceBeforeRead(
+  resource: CloudMirrorResource
+): Promise<void> {
+  return refreshCloudResourcesBeforeRead([resource])
 }
 
 function isSamePath(left: string, right: string): boolean {
@@ -4496,6 +4504,19 @@ function registerIpcHandlers(): void {
       return listRecentOrders(database.connection, context, limit)
     }
   )
+  ipcMain.handle(IPC_CHANNELS.cashierRefresh, async (event) => {
+    requireSession(event, PERMISSIONS.orderCreate)
+    await refreshCloudResourcesBeforeRead([
+      'members',
+      'catalog',
+      'orders',
+      'order_items',
+      'wallet_accounts',
+      'wallet_ledger',
+      'monthly_cards',
+      'monthly_card_events'
+    ])
+  })
   ipcMain.handle(
     IPC_CHANNELS.transactionSalesList,
     async (event, request?: ListTransactionRecordsRequest) => {

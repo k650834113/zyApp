@@ -7,6 +7,7 @@ import {
   createMember,
   findEmployeeRecordById,
   getStoreContext,
+  LATEST_SCHEMA_VERSION,
   openLocalDatabase
 } from '@zyapp/local-db'
 import {
@@ -47,7 +48,7 @@ describe('empty cloud-primary cutover', () => {
     })
     expect((mirror.connection.prepare('SELECT COUNT(*) count FROM employee').get() as { count: number }).count)
       .toBe(0)
-    expect(mirror.schemaVersion).toBe(25)
+    expect(mirror.schemaVersion).toBe(LATEST_SCHEMA_VERSION)
     mirror.close()
   })
 

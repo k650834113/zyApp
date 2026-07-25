@@ -1967,6 +1967,7 @@ export const IPC_CHANNELS = {
   boardGameReadImage: 'board-game:read-image',
   orderCreate: 'order:create',
   orderRecent: 'order:recent',
+  cashierRefresh: 'cashier:refresh',
   transactionSalesList: 'transaction:sales:list',
   transactionRechargeList: 'transaction:recharge:list',
   refundFindOrder: 'refund:find-order',
@@ -2109,6 +2110,7 @@ export type DesktopApi = {
   ): Promise<string | null>
   createSalesOrder(request: CreateSalesOrderRequest): Promise<SalesOrderSummary>
   listRecentOrders(request?: ListRecentOrdersRequest): Promise<SalesOrderSummary[]>
+  refreshCashierData(): Promise<void>
   listSalesTransactions(
     request?: ListTransactionRecordsRequest
   ): Promise<SalesOrderSummary[]>

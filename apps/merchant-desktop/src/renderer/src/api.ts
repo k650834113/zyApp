@@ -1701,6 +1701,7 @@ const previewApi: DesktopApi = {
     return order
   },
   listRecentOrders: async (request) => previewOrders.slice(0, request?.limit ?? 20),
+  refreshCashierData: async () => undefined,
   listSalesTransactions: async (request) => {
     const query = request?.query?.trim().toLocaleLowerCase() ?? ''
     const from = request?.from ? new Date(request.from).getTime() : Number.NEGATIVE_INFINITY

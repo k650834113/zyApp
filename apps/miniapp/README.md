@@ -43,7 +43,16 @@ $env:ZYAPP_MINIAPP_STORE_ID='替换为测试门店 UUID'
 corepack pnpm miniapp:build
 ```
 
-微信公众平台“小程序后台 → 开发管理 → 开发设置 → 服务器域名”只需把 `https://judian.icu` 填入 request 合法域名。当前功能不使用 WebSocket、文件上传或文件下载，对应域名留空。
+微信公众平台“小程序后台 → 开发管理 → 开发设置 → 服务器域名”需要保存以下配置：
+
+```text
+request 合法域名：https://judian.icu
+uploadFile 合法域名：https://judian.icu
+downloadFile 合法域名：https://judian.icu
+socket 合法域名：留空
+```
+
+保存后等待平台配置生效，在开发者工具中开启合法域名校验并重新编译。头像上传和重新进入后的头像显示必须使用真机验证；当前不使用 WebSocket、UDP、TCP 或 DNS 预解析，对应配置留空。
 
 只有账号管理员能完成以下平台和真机操作：
 
