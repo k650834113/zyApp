@@ -67,9 +67,6 @@ function applyCustomerOnlyOutput() {
     `${JSON.stringify(filterCustomerAppManifest(appManifest), null, 2)}\n`,
     'utf8'
   )
-  for (const directory of ['staff', 'manager', 'content']) {
-    rmSync(join(output, 'pages', directory), { recursive: true, force: true })
-  }
 }
 
 async function buildProject() {

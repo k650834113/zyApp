@@ -99,12 +99,12 @@ test('rejects virtual phone login in the production test build', () => {
   )
 })
 
-test('removes employee routes from the customer-only app manifest', () => {
+test('keeps only the approved member pages in the customer app manifest', () => {
   assert.deepEqual(
     filterCustomerAppManifest({
       pages: [
         'pages/home/index',
-        'pages/activities/index',
+        'pages/history/index',
         'pages/member/index',
         'pages/staff/index',
         'pages/manager/index',
@@ -115,12 +115,28 @@ test('removes employee routes from the customer-only app manifest', () => {
     {
       pages: [
         'pages/home/index',
-        'pages/activities/index',
+        'pages/history/index',
         'pages/member/index'
       ],
       window: { navigationBarTitleText: '桌游吧' }
     }
   )
+})
+
+test('source app manifest exposes only home, history, and member pages', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const app = JSON.parse(
+    await readFile(new URL('../src/app.json', import.meta.url), 'utf8')
+  )
+
+  assert.deepEqual(app.pages, [
+    'pages/home/index',
+    'pages/history/index',
+    'pages/member/index'
+  ])
+  assert.equal(JSON.stringify(app).includes('staff'), false)
+  assert.equal(JSON.stringify(app).includes('manager'), false)
+  assert.equal(JSON.stringify(app).includes('activities'), false)
 })
 
 test('keeps Mock mode available only when explicitly selected', () => {

@@ -1,138 +1,127 @@
 page {
   min-height: 100%;
-  color: #2f332f;
-  background: #f5f1e8;
+  color: #1e2b26;
+  background: #fbf7ef;
   font-family: -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
 }
 
-.page {
-  padding: 30rpx;
+button::after {
+  border: 0;
 }
 
-.hero,
-.card {
-  border: 1rpx solid #ddd2c2;
-  border-radius: 24rpx;
-  background: #fffcf6;
-  box-shadow: 0 14rpx 40rpx rgba(63, 49, 34, 0.06);
-}
-
-.hero {
-  padding: 34rpx;
-  color: #fffaf0;
-  background: #32453b;
-}
-
-.hero-title {
-  display: block;
-  font-size: 42rpx;
-  font-weight: 800;
-}
-
-.hero-subtitle {
-  display: block;
-  margin-top: 12rpx;
-  color: #d8e0da;
-  font-size: 25rpx;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 38rpx 0 18rpx;
-}
-
-.section-title text:first-child {
-  font-size: 32rpx;
-  font-weight: 800;
-}
-
-.section-link {
-  color: #587162;
-  font-size: 24rpx;
+.page-shell {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 28rpx 28rpx 150rpx;
 }
 
 .card {
-  margin-bottom: 18rpx;
-  padding: 26rpx;
-}
-
-.card-title {
-  display: block;
-  font-size: 30rpx;
-  font-weight: 800;
-}
-
-.muted {
-  color: #817462;
-  font-size: 24rpx;
-  line-height: 1.65;
-}
-
-.tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10rpx;
-  margin-top: 18rpx;
-}
-
-.tag {
-  border-radius: 999rpx;
-  padding: 7rpx 14rpx;
-  color: #5f5548;
-  background: #eee7dc;
-  font-size: 21rpx;
-  font-weight: 700;
-}
-
-.tag.good {
-  color: #2d6940;
-  background: #e5f3e8;
-}
-
-.tag.warn {
-  color: #7b581a;
-  background: #f8eabd;
-}
-
-.primary-button,
-.secondary-button {
-  margin-top: 20rpx;
-  border-radius: 16rpx;
-  font-size: 27rpx;
-  font-weight: 800;
+  box-sizing: border-box;
+  border: 1rpx solid #e8dece;
+  border-radius: 28rpx;
+  background: #fffdf8;
+  box-shadow: 0 16rpx 44rpx rgba(52, 43, 29, 0.07);
 }
 
 .primary-button {
+  min-height: 92rpx;
+  border-radius: 24rpx;
   color: #fff;
-  background: #3f5a4b;
+  background: linear-gradient(135deg, #174f3b, #246449);
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 92rpx;
 }
 
 .secondary-button {
-  color: #3f5a4b;
-  background: #ebe4d8;
+  min-height: 88rpx;
+  border: 1rpx solid #d8cdbd;
+  border-radius: 22rpx;
+  color: #174f3b;
+  background: #fffdf8;
+  font-size: 28rpx;
+  line-height: 88rpx;
 }
 
-.empty {
-  padding: 70rpx 20rpx;
-  color: #8b7d69;
+.muted {
+  color: #7f817b;
+  font-size: 24rpx;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 38rpx 4rpx 18rpx;
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.section-link {
+  color: #6f756f;
+  font-size: 24rpx;
+}
+
+.empty-state {
+  padding: 52rpx 24rpx;
+  color: #8a877f;
   text-align: center;
 }
 
-.money {
-  color: #3f5a4b;
-  font-size: 36rpx;
-  font-weight: 800;
+.bottom-nav {
+  position: fixed;
+  z-index: 20;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  box-sizing: border-box;
+  height: calc(112rpx + env(safe-area-inset-bottom));
+  border-top: 1rpx solid #e8dece;
+  padding: 12rpx 16rpx env(safe-area-inset-bottom);
+  background: rgba(255, 253, 248, 0.97);
+  box-shadow: 0 -10rpx 30rpx rgba(52, 43, 29, 0.05);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #737873;
+  font-size: 22rpx;
+}
+
+.nav-icon {
+  margin-bottom: 4rpx;
+  font-size: 34rpx;
+  line-height: 1;
+}
+
+.nav-item.active {
+  color: #174f3b;
+  font-weight: 700;
+}
+
+.form-label {
+  display: block;
+  margin: 26rpx 0 12rpx;
+  color: #334039;
+  font-size: 26rpx;
+  font-weight: 600;
 }
 
 .form-input {
   box-sizing: border-box;
   width: 100%;
-  margin-top: 14rpx;
-  border: 1rpx solid #d7ccbc;
-  border-radius: 14rpx;
-  padding: 18rpx 20rpx;
+  min-height: 88rpx;
+  border: 1rpx solid #ddd3c4;
+  border-radius: 20rpx;
+  padding: 0 24rpx;
   background: #fff;
-  font-size: 27rpx;
+  font-size: 28rpx;
 }
