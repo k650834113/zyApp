@@ -71,6 +71,7 @@ import {
   type ExtendMonthlyCardRequest,
   type RestoreDatabaseRequest,
   type ListRecentOrdersRequest,
+  type ListTransactionRecordsRequest,
   type ListFinancialRefundsRequest,
   type ListRefundsRequest,
   type LoginRequest,
@@ -175,6 +176,8 @@ import {
   listAnnouncements,
   listBoardGames,
   listRecentOrders,
+  listRechargeTransactions,
+  listSalesTransactions,
   listPendingSyncBatch,
   listPendingCashierCommandReports,
   listPendingEmployeeFinancialCommandReports,
@@ -4491,6 +4494,31 @@ function registerIpcHandlers(): void {
           ? 20
           : requireInteger(request.limit, '订单数量', { min: 1, max: 100 })
       return listRecentOrders(database.connection, context, limit)
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.transactionSalesList,
+    async (event, request?: ListTransactionRecordsRequest) => {
+      requireSession(event, PERMISSIONS.orderCreate)
+      await refreshCloudResourceBeforeRead('orders')
+      await refreshCloudResourceBeforeRead('order_items')
+      const database = requireDatabase()
+      const context = getStoreContext(database.connection)
+      if (!context) throw new Error('门店配置缺失')
+      return listSalesTransactions(database.connection, context, request)
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.transactionRechargeList,
+    async (event, request?: ListTransactionRecordsRequest) => {
+      requireSession(event, PERMISSIONS.memberRead)
+      await refreshCloudResourceBeforeRead('wechat_recharge_orders')
+      await refreshCloudResourceBeforeRead('members')
+      await refreshCloudResourceBeforeRead('wallet_ledger')
+      const database = requireDatabase()
+      const context = getStoreContext(database.connection)
+      if (!context) throw new Error('门店配置缺失')
+      return listRechargeTransactions(database.connection, context, request)
     }
   )
   ipcMain.handle(IPC_CHANNELS.refundFindOrder, async (event, request) => {

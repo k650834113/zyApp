@@ -1395,6 +1395,29 @@ export type ListRecentOrdersRequest = {
   limit?: number
 }
 
+export type ListTransactionRecordsRequest = {
+  query?: string
+  from?: string
+  to?: string
+  limit?: number
+}
+
+export type RechargeTransactionSummary = {
+  id: Identifier
+  orderNumber: string
+  memberId: Identifier
+  memberNickname: string
+  phoneMasked: string
+  channel: 'cash' | 'wechat'
+  principalFen: number
+  giftFen: number
+  totalCreditFen: number
+  status: 'pending_payment' | 'settled' | 'failed' | 'expired'
+  providerTransactionId: string | null
+  createdAt: string
+  settledAt: string | null
+}
+
 export type RefundStatus = 'pending' | 'completed' | 'rejected'
 
 export type RefundableOrderItemSummary = SalesOrderItemSummary & {
@@ -1944,6 +1967,8 @@ export const IPC_CHANNELS = {
   boardGameReadImage: 'board-game:read-image',
   orderCreate: 'order:create',
   orderRecent: 'order:recent',
+  transactionSalesList: 'transaction:sales:list',
+  transactionRechargeList: 'transaction:recharge:list',
   refundFindOrder: 'refund:find-order',
   refundCreate: 'refund:create',
   refundApprove: 'refund:approve',
@@ -2084,6 +2109,12 @@ export type DesktopApi = {
   ): Promise<string | null>
   createSalesOrder(request: CreateSalesOrderRequest): Promise<SalesOrderSummary>
   listRecentOrders(request?: ListRecentOrdersRequest): Promise<SalesOrderSummary[]>
+  listSalesTransactions(
+    request?: ListTransactionRecordsRequest
+  ): Promise<SalesOrderSummary[]>
+  listRechargeTransactions(
+    request?: ListTransactionRecordsRequest
+  ): Promise<RechargeTransactionSummary[]>
   findRefundableOrder(request: FindRefundableOrderRequest): Promise<RefundableOrderSummary>
   createRefundRequest(request: CreateRefundRequest): Promise<RefundSummary>
   approveRefund(request: ApproveRefundRequest): Promise<RefundSummary>

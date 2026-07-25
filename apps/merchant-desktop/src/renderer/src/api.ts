@@ -1701,6 +1701,26 @@ const previewApi: DesktopApi = {
     return order
   },
   listRecentOrders: async (request) => previewOrders.slice(0, request?.limit ?? 20),
+  listSalesTransactions: async (request) => {
+    const query = request?.query?.trim().toLocaleLowerCase() ?? ''
+    const from = request?.from ? new Date(request.from).getTime() : Number.NEGATIVE_INFINITY
+    const to = request?.to
+      ? new Date(`${request.to}${/^\d{4}-\d{2}-\d{2}$/.test(request.to) ? 'T23:59:59.999+08:00' : ''}`).getTime()
+      : Number.POSITIVE_INFINITY
+    return previewOrders
+      .filter((order) => {
+        const completedAt = new Date(order.completedAt).getTime()
+        return (
+          completedAt >= from &&
+          completedAt <= to &&
+          (!query ||
+            order.orderNumber.toLocaleLowerCase().includes(query) ||
+            order.memberNickname?.toLocaleLowerCase().includes(query))
+        )
+      })
+      .slice(0, request?.limit ?? 100)
+  },
+  listRechargeTransactions: async () => [],
   findRefundableOrder: async (request) => previewRefundableOrder(request.query),
   createRefundRequest: async (request) =>
     createPreviewRefund(
