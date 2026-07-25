@@ -25,6 +25,15 @@ function config(): ApiConfig {
     phoneVerificationSecret: 'b'.repeat(32),
     phoneVerificationMode: 'mock',
     wechatPaymentMode: 'mock',
+    wechatPayMerchantId: null,
+    wechatPayMerchantCertificateSerial: null,
+    wechatPayMerchantPrivateKeyPath: null,
+    wechatPayPublicKeyId: null,
+    wechatPayPublicKeyPath: null,
+    wechatPayApiV3KeyPath: null,
+    wechatPayNotifyUrl: null,
+    wechatPayOutTradeNoPrefix: 'ZY-',
+    wechatPaymentTestAmountFen: null,
     miniappDevelopmentAuthEnabled: true
   }
 }

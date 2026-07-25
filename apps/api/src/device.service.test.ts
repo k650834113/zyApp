@@ -14,6 +14,15 @@ describe('device enrollment', () => {
     phoneVerificationMode: 'mock' as const,
     phoneVerificationSecret: 'phone-secret',
     wechatPaymentMode: 'disabled' as const,
+    wechatPayMerchantId: null,
+    wechatPayMerchantCertificateSerial: null,
+    wechatPayMerchantPrivateKeyPath: null,
+    wechatPayPublicKeyId: null,
+    wechatPayPublicKeyPath: null,
+    wechatPayApiV3KeyPath: null,
+    wechatPayNotifyUrl: null,
+    wechatPayOutTradeNoPrefix: 'ZY-',
+    wechatPaymentTestAmountFen: null,
     miniappDevelopmentAuthEnabled: false
   }
 
@@ -229,17 +238,7 @@ describe('device enrollment', () => {
       connect: vi.fn(async () => client)
     } as unknown as Pool
     const service = new DeviceService(pool, {
-      nodeEnv: 'test',
-      deploymentEnvironment: 'test',
-      port: 3100,
-      databaseUrl: 'postgres://test',
-      redisUrl: 'redis://test',
-      deviceEnrollmentSecret: 'enrollment-secret',
-      desktopUpdateDirectory: '/tmp/updates',
-      phoneVerificationMode: 'mock',
-      phoneVerificationSecret: 'phone-secret',
-      wechatPaymentMode: 'disabled',
-      miniappDevelopmentAuthEnabled: false
+      ...config
     })
 
     await service.enroll(
@@ -264,17 +263,7 @@ describe('device enrollment', () => {
   it('rejects enrollment for a different deployment environment', async () => {
     const pool = { connect: vi.fn() } as unknown as Pool
     const service = new DeviceService(pool, {
-      nodeEnv: 'test',
-      deploymentEnvironment: 'test',
-      port: 3100,
-      databaseUrl: 'postgres://test',
-      redisUrl: 'redis://test',
-      deviceEnrollmentSecret: 'enrollment-secret',
-      desktopUpdateDirectory: '/tmp/updates',
-      phoneVerificationMode: 'mock',
-      phoneVerificationSecret: 'phone-secret',
-      wechatPaymentMode: 'disabled',
-      miniappDevelopmentAuthEnabled: false
+      ...config
     })
 
     await expect(
@@ -304,17 +293,7 @@ describe('device enrollment', () => {
       return { rows: [] }
     })
     const service = new DeviceService({ query } as unknown as Pool, {
-      nodeEnv: 'test',
-      deploymentEnvironment: 'test',
-      port: 3100,
-      databaseUrl: 'postgres://test',
-      redisUrl: 'redis://test',
-      deviceEnrollmentSecret: 'enrollment-secret',
-      desktopUpdateDirectory: '/tmp/updates',
-      phoneVerificationMode: 'mock',
-      phoneVerificationSecret: 'phone-secret',
-      wechatPaymentMode: 'disabled',
-      miniappDevelopmentAuthEnabled: false
+      ...config
     })
     await expect(
       service.claimOfflineFinancialLease(

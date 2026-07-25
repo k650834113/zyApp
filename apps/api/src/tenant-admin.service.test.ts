@@ -13,6 +13,15 @@ const config = {
   phoneVerificationMode: 'mock' as const,
   phoneVerificationSecret: 'phone-secret',
   wechatPaymentMode: 'disabled' as const,
+  wechatPayMerchantId: null,
+  wechatPayMerchantCertificateSerial: null,
+  wechatPayMerchantPrivateKeyPath: null,
+  wechatPayPublicKeyId: null,
+  wechatPayPublicKeyPath: null,
+  wechatPayApiV3KeyPath: null,
+  wechatPayNotifyUrl: null,
+  wechatPayOutTradeNoPrefix: 'ZY-',
+  wechatPaymentTestAmountFen: null,
   miniappDevelopmentAuthEnabled: false
 }
 

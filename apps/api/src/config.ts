@@ -8,7 +8,16 @@ export type ApiConfig = {
   desktopUpdateDirectory: string
   phoneVerificationSecret: string
   phoneVerificationMode: 'mock' | 'disabled'
-  wechatPaymentMode: 'mock' | 'disabled'
+  wechatPaymentMode: 'mock' | 'wechat' | 'disabled'
+  wechatPayMerchantId: string | null
+  wechatPayMerchantCertificateSerial: string | null
+  wechatPayMerchantPrivateKeyPath: string | null
+  wechatPayPublicKeyId: string | null
+  wechatPayPublicKeyPath: string | null
+  wechatPayApiV3KeyPath: string | null
+  wechatPayNotifyUrl: string | null
+  wechatPayOutTradeNoPrefix: string
+  wechatPaymentTestAmountFen: number | null
   miniappDevelopmentAuthEnabled: boolean
   miniappWechatAuthMode?: 'mock' | 'wechat' | 'disabled'
   wechatMiniappAppId?: string | null
@@ -51,6 +60,18 @@ function booleanValue(
 function optionalText(value: string | undefined): string | null {
   const normalized = value?.trim()
   return normalized ? normalized : null
+}
+
+function optionalPositiveInteger(
+  value: string | undefined,
+  name: string
+): number | null {
+  if (value === undefined || value.trim() === '') return null
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive safe integer`)
+  }
+  return parsed
 }
 
 export function readApiConfig(
@@ -101,11 +122,108 @@ export function readApiConfig(
   const wechatPaymentMode =
     environment.WECHAT_PAYMENT_MODE ??
     (nodeEnv === 'production' ? 'disabled' : 'mock')
-  if (wechatPaymentMode !== 'mock' && wechatPaymentMode !== 'disabled') {
-    throw new Error('WECHAT_PAYMENT_MODE must be mock or disabled')
+  if (
+    wechatPaymentMode !== 'mock' &&
+    wechatPaymentMode !== 'wechat' &&
+    wechatPaymentMode !== 'disabled'
+  ) {
+    throw new Error('WECHAT_PAYMENT_MODE must be mock, wechat, or disabled')
   }
   if (nodeEnv === 'production' && wechatPaymentMode === 'mock') {
     throw new Error('WECHAT_PAYMENT_MODE=mock is forbidden in production')
+  }
+  const wechatPayMerchantId = optionalText(
+    environment.WECHAT_PAY_MERCHANT_ID
+  )
+  const wechatPayMerchantCertificateSerial = optionalText(
+    environment.WECHAT_PAY_MERCHANT_CERTIFICATE_SERIAL
+  )
+  const wechatPayMerchantPrivateKeyPath = optionalText(
+    environment.WECHAT_PAY_MERCHANT_PRIVATE_KEY_FILE
+  )
+  const wechatPayPublicKeyId = optionalText(
+    environment.WECHAT_PAY_PUBLIC_KEY_ID
+  )
+  const wechatPayPublicKeyPath = optionalText(
+    environment.WECHAT_PAY_PUBLIC_KEY_FILE
+  )
+  const wechatPayApiV3KeyPath = optionalText(
+    environment.WECHAT_PAY_API_V3_KEY_FILE
+  )
+  const wechatPayNotifyUrl = optionalText(
+    environment.WECHAT_PAY_NOTIFY_URL
+  )
+  const wechatPayOutTradeNoPrefix =
+    optionalText(environment.WECHAT_PAY_OUT_TRADE_NO_PREFIX) ?? 'ZY-'
+  const wechatPaymentTestAmountFen = optionalPositiveInteger(
+    environment.WECHAT_PAYMENT_TEST_AMOUNT_FEN,
+    'WECHAT_PAYMENT_TEST_AMOUNT_FEN'
+  )
+  if (wechatPaymentMode === 'wechat') {
+    required(wechatPayMerchantId ?? undefined, 'WECHAT_PAY_MERCHANT_ID')
+    required(
+      wechatPayMerchantCertificateSerial ?? undefined,
+      'WECHAT_PAY_MERCHANT_CERTIFICATE_SERIAL'
+    )
+    required(
+      wechatPayMerchantPrivateKeyPath ?? undefined,
+      'WECHAT_PAY_MERCHANT_PRIVATE_KEY_FILE'
+    )
+    required(
+      wechatPayPublicKeyId ?? undefined,
+      'WECHAT_PAY_PUBLIC_KEY_ID'
+    )
+    required(
+      wechatPayPublicKeyPath ?? undefined,
+      'WECHAT_PAY_PUBLIC_KEY_FILE'
+    )
+    required(
+      wechatPayApiV3KeyPath ?? undefined,
+      'WECHAT_PAY_API_V3_KEY_FILE'
+    )
+    required(wechatPayNotifyUrl ?? undefined, 'WECHAT_PAY_NOTIFY_URL')
+  }
+  if (wechatPayMerchantId && !/^\d+$/.test(wechatPayMerchantId)) {
+    throw new Error('WECHAT_PAY_MERCHANT_ID must contain only digits')
+  }
+  if (
+    wechatPayMerchantCertificateSerial &&
+    !/^[0-9A-F]+$/i.test(wechatPayMerchantCertificateSerial)
+  ) {
+    throw new Error(
+      'WECHAT_PAY_MERCHANT_CERTIFICATE_SERIAL must be hexadecimal'
+    )
+  }
+  if (
+    wechatPayPublicKeyId &&
+    !/^PUB_KEY_ID_[0-9A-Za-z]+$/.test(wechatPayPublicKeyId)
+  ) {
+    throw new Error('WECHAT_PAY_PUBLIC_KEY_ID must start with PUB_KEY_ID_')
+  }
+  if (
+    !/^[A-Z0-9-]{1,8}$/.test(wechatPayOutTradeNoPrefix)
+  ) {
+    throw new Error(
+      'WECHAT_PAY_OUT_TRADE_NO_PREFIX must contain 1 to 8 uppercase letters, digits, or hyphens'
+    )
+  }
+  if (
+    wechatPayNotifyUrl &&
+    deploymentEnvironment === 'test' &&
+    wechatPayNotifyUrl !==
+      'https://judian.icu/test/v1/payments/wechat/recharge/notify'
+  ) {
+    throw new Error(
+      'Test WECHAT_PAY_NOTIFY_URL must be https://judian.icu/test/v1/payments/wechat/recharge/notify'
+    )
+  }
+  if (
+    wechatPaymentTestAmountFen !== null &&
+    (deploymentEnvironment !== 'test' || wechatPaymentMode !== 'wechat')
+  ) {
+    throw new Error(
+      'WECHAT_PAYMENT_TEST_AMOUNT_FEN is only allowed in the test deployment with real WeChat payment'
+    )
   }
   const wechatMiniappAppId = optionalText(environment.WECHAT_MINIAPP_APP_ID)
   const wechatMiniappAppSecret = optionalText(
@@ -157,6 +275,15 @@ export function readApiConfig(
       'MINIAPP_TEST_VIRTUAL_PHONE requires MINIAPP_WECHAT_AUTH_MODE=wechat'
     )
   }
+  if (
+    miniappTestVirtualPhone &&
+    wechatPaymentMode === 'wechat' &&
+    wechatPaymentTestAmountFen !== null
+  ) {
+    throw new Error(
+      'Real test payment forbids MINIAPP_TEST_VIRTUAL_PHONE'
+    )
+  }
   return {
     nodeEnv,
     deploymentEnvironment,
@@ -170,6 +297,15 @@ export function readApiConfig(
     phoneVerificationSecret,
     phoneVerificationMode,
     wechatPaymentMode,
+    wechatPayMerchantId,
+    wechatPayMerchantCertificateSerial,
+    wechatPayMerchantPrivateKeyPath,
+    wechatPayPublicKeyId,
+    wechatPayPublicKeyPath,
+    wechatPayApiV3KeyPath,
+    wechatPayNotifyUrl,
+    wechatPayOutTradeNoPrefix,
+    wechatPaymentTestAmountFen,
     miniappDevelopmentAuthEnabled: booleanValue(
       environment.MINIAPP_DEVELOPMENT_AUTH_ENABLED,
       nodeEnv !== 'production',
