@@ -8,6 +8,7 @@ import type {
 } from '@zyapp/contracts'
 import {
   getMiniappClient,
+  isCustomerOnlyBuild,
   isTestVirtualPhoneLoginEnabled,
   testVirtualPhoneCode
 } from '../../services/client'
@@ -284,6 +285,7 @@ function toRecentRecords(history: MemberSelfServiceHistory): RecentRecordView[] 
 }
 
 function redirectForEmployee(identity: MiniappIdentity): boolean {
+  if (isCustomerOnlyBuild()) return false
   if (identity.role === 'manager') {
     wx.redirectTo({ url: '/pages/manager/index' })
     return true

@@ -6,11 +6,15 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  writeFileSync,
   watch
 } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { build } from 'esbuild'
-import { readBuildConfiguration } from './build-configuration.mjs'
+import {
+  filterCustomerAppManifest,
+  readBuildConfiguration
+} from './build-configuration.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const workspaceRoot = resolve(root, '../..')
@@ -55,6 +59,19 @@ function copyAssets(directory) {
   }
 }
 
+function applyCustomerOnlyOutput() {
+  const appManifestPath = join(output, 'app.json')
+  const appManifest = JSON.parse(readFileSync(appManifestPath, 'utf8'))
+  writeFileSync(
+    appManifestPath,
+    `${JSON.stringify(filterCustomerAppManifest(appManifest), null, 2)}\n`,
+    'utf8'
+  )
+  for (const directory of ['staff', 'manager', 'content']) {
+    rmSync(join(output, 'pages', directory), { recursive: true, force: true })
+  }
+}
+
 async function buildProject() {
   const { mode, configuration } = readBuildConfiguration(
     process.env,
@@ -76,6 +93,7 @@ async function buildProject() {
   })
   if (!existsSync(output)) mkdirSync(output, { recursive: true })
   copyAssets(source)
+  if (configuration.customerOnly) applyCustomerOnlyOutput()
   console.log(`[miniapp] built ${mode} mode`)
 }
 

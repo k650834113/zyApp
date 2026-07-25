@@ -1,5 +1,5 @@
 {
-  "appid": "touristappid",
+  "appid": "wx31ab6acf49352ce3",
   "projectname": "zyapp-miniapp",
   "description": "桌游吧顾客与员工微信小程序",
   "miniprogramRoot": "dist/",
@@ -9,7 +9,7 @@
     "enhance": true,
     "postcss": true,
     "minified": false,
-    "urlCheck": false,
+    "urlCheck": true,
     "compileWorklet": false,
     "uglifyFileName": false,
     "uploadWithSourceMap": true,

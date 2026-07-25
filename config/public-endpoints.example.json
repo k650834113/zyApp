@@ -2,5 +2,6 @@
   "desktopProductionApiBaseUrl": "",
   "desktopTestApiBaseUrl": "",
   "miniappTestApiBaseUrl": "",
-  "miniappTestStoreId": ""
+  "miniappTestStoreId": "",
+  "miniappAppId": ""
 }

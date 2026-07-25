@@ -5,6 +5,19 @@ function booleanValue(value, defaultValue, name) {
   throw new Error(`${name} must be true or false`)
 }
 
+const employeePages = new Set([
+  'pages/staff/index',
+  'pages/manager/index',
+  'pages/content/index'
+])
+
+export function filterCustomerAppManifest(manifest) {
+  return {
+    ...manifest,
+    pages: manifest.pages.filter((page) => !employeePages.has(page))
+  }
+}
+
 export function readBuildConfiguration(
   environment = process.env,
   publicEndpoints = {}
@@ -16,20 +29,29 @@ export function readBuildConfiguration(
   const mode =
     environment.ZYAPP_MINIAPP_MODE?.trim() ||
     (configuredTestEnvironment ? 'test-wechat' : 'mock')
-  if (!['mock', 'development-http', 'test-wechat'].includes(mode)) {
+  if (
+    ![
+      'mock',
+      'development-http',
+      'test-wechat',
+      'production-test-wechat'
+    ].includes(mode)
+  ) {
     throw new Error(
-      'ZYAPP_MINIAPP_MODE must be mock, development-http, or test-wechat'
+      'ZYAPP_MINIAPP_MODE must be mock, development-http, test-wechat, or production-test-wechat'
     )
   }
+  const productionTest = mode === 'production-test-wechat'
 
   const defaultApiBaseUrl =
-    mode === 'test-wechat'
+    mode === 'test-wechat' || productionTest
       ? publicEndpoints.miniappTestApiBaseUrl?.trim() || ''
       : ''
   const apiBaseUrl =
     environment.ZYAPP_MINIAPP_API_BASE_URL?.trim() || defaultApiBaseUrl
   const defaultAuthMode =
     mode === 'test-wechat' ||
+    productionTest ||
     (mode === 'development-http' && apiBaseUrl.startsWith('https://'))
       ? 'wechat'
       : 'development'
@@ -40,8 +62,11 @@ export function readBuildConfiguration(
       'ZYAPP_MINIAPP_AUTH_MODE must be development or wechat'
     )
   }
-  if (mode === 'test-wechat' && authMode !== 'wechat') {
-    throw new Error('test-wechat mode must use WeChat authentication')
+  if (
+    (mode === 'test-wechat' || productionTest) &&
+    authMode !== 'wechat'
+  ) {
+    throw new Error(`${mode} mode must use WeChat authentication`)
   }
   const testVirtualPhoneEnabled = booleanValue(
     environment.ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED,
@@ -49,8 +74,16 @@ export function readBuildConfiguration(
     'ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED'
   )
   if (testVirtualPhoneEnabled && mode !== 'test-wechat') {
+    if (productionTest) {
+      throw new Error('production-test-wechat forbids virtual phone login')
+    }
     throw new Error(
       'ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED is only allowed in test-wechat mode'
+    )
+  }
+  if (productionTest && apiBaseUrl !== 'https://judian.icu/test') {
+    throw new Error(
+      'production-test-wechat must use https://judian.icu/test'
     )
   }
 
@@ -64,8 +97,12 @@ export function readBuildConfiguration(
       publicEndpoints.miniappTestStoreId?.trim() ||
       '',
     developmentProviderSubject:
-      environment.ZYAPP_MINIAPP_DEVELOPMENT_SUBJECT?.trim() ||
-      'local-miniapp-user'
+      productionTest
+        ? ''
+        : environment.ZYAPP_MINIAPP_DEVELOPMENT_SUBJECT?.trim() ||
+          'local-miniapp-user',
+    customerOnly: productionTest,
+    realWechatPayment: productionTest
   }
   if (!configuration.useMock) {
     if (!configuration.apiBaseUrl) {

@@ -40,6 +40,14 @@ export function isTestVirtualPhoneLoginEnabled(): boolean {
   return configuration.testVirtualPhoneEnabled
 }
 
+export function isCustomerOnlyBuild(): boolean {
+  return configuration.customerOnly
+}
+
+export function isRealWechatPaymentBuild(): boolean {
+  return configuration.realWechatPayment
+}
+
 export function testVirtualPhoneCode(): string {
   if (!configuration.testVirtualPhoneEnabled) {
     throw new Error('测试虚拟号码登录未启用')
