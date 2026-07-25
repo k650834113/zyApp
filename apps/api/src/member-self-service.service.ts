@@ -16,6 +16,7 @@ import type {
   MemberSelfServiceHistory,
   PhoneVerificationChallenge,
   RegisterMiniappMemberRequest,
+  UpdateMemberProfileRequest,
   WechatOneTapMemberLoginRequest
 } from '@zyapp/contracts'
 import type { Pool, PoolClient } from '@zyapp/cloud-db'
@@ -35,6 +36,7 @@ import {
   validateMemberRegistrationRequest,
   validateFillBirthdayRequest,
   validatePhoneVerificationRequest,
+  validateUpdateMemberProfileRequest,
   wechatOneTapLoginRequestHash
 } from './member-self-service'
 import {
@@ -60,6 +62,7 @@ type MemberSummaryRow = {
   phone: string
   nickname: string
   avatar_url: string | null
+  profile_completed: boolean
   tier: 'ordinary' | 'advanced'
   birthday_month: number | null
   birthday_day: number | null
@@ -75,6 +78,8 @@ type MemberProjectionRow = {
   member_number: string
   phone: string
   nickname: string
+  avatar_url: string | null
+  profile_completed: boolean
   tier: 'ordinary' | 'advanced'
   status: 'active' | 'disabled'
   birthday_month: number | null
@@ -122,6 +127,7 @@ function memberSummary(row: MemberSummaryRow): MemberSelfServiceSummary {
     memberId: row.id,
     nickname: row.nickname,
     avatarUrl: row.avatar_url ?? null,
+    profileCompleted: row.profile_completed === true,
     phoneMasked: maskPhone(row.phone),
     tier: row.tier,
     principalBalanceFen: safeFen(row.principal_balance_fen),
@@ -318,6 +324,160 @@ export class MemberSelfService {
     return this.loadMemberSummary(this.pool, principal.tenantId, principal.memberId)
   }
 
+  async updateProfile(
+    principal: MiniappPrincipal,
+    rawInput: unknown
+  ): Promise<MemberSelfServiceSummary> {
+    const memberId = this.requireMemberId(principal)
+    let input: UpdateMemberProfileRequest
+    try {
+      input = validateUpdateMemberProfileRequest(rawInput)
+    } catch (error) {
+      throw badRequest(error)
+    }
+
+    const client = await this.pool.connect()
+    try {
+      await client.query('BEGIN')
+      const idempotencyKey =
+        `miniapp-member-profile:${principal.identityId}:${input.requestId}`
+      const requestHash = createHash('sha256')
+        .update(JSON.stringify({ nickname: input.nickname }))
+        .digest('hex')
+      const reserved = await client.query<{ key: string }>(
+        `INSERT INTO api_idempotency
+         (tenant_id, key, request_hash, expires_at)
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP + INTERVAL '24 hours')
+         ON CONFLICT (tenant_id, key) DO NOTHING
+         RETURNING key`,
+        [principal.tenantId, idempotencyKey, requestHash]
+      )
+      if (!reserved.rows[0]) {
+        const previous = await client.query<{
+          request_hash: string
+          response_json: MemberSelfServiceSummary | null
+        }>(
+          `SELECT request_hash, response_json
+           FROM api_idempotency
+           WHERE tenant_id = $1 AND key = $2
+           FOR UPDATE`,
+          [principal.tenantId, idempotencyKey]
+        )
+        const row = previous.rows[0]
+        if (!row || row.request_hash !== requestHash) {
+          throw new ConflictException(
+            'Idempotency key was used for another request'
+          )
+        }
+        if (!row.response_json) {
+          throw new ConflictException('Profile request is still in progress')
+        }
+        await client.query('COMMIT')
+        return row.response_json
+      }
+
+      const memberResult = await client.query<{
+        id: string
+        nickname: string
+        avatar_url: string | null
+        profile_completed: boolean
+        status: 'active' | 'disabled'
+      }>(
+        `SELECT id, nickname, avatar_url, profile_completed, status
+         FROM cloud_member
+         WHERE tenant_id = $1 AND id = $2
+         FOR UPDATE`,
+        [principal.tenantId, memberId]
+      )
+      const before = memberResult.rows[0]
+      if (!before || before.status !== 'active') {
+        throw new NotFoundException('Member was not found')
+      }
+
+      const timestamp = new Date().toISOString()
+      const event = await client.query<{ sequence: number | string }>(
+        `INSERT INTO cloud_event
+         (event_id, tenant_id, store_id, aggregate_type, aggregate_id,
+          event_type, payload_json, occurred_at)
+         VALUES ($1, $2, $3, 'member', $4, 'member.profile_updated',
+                 $5::jsonb, $6)
+         RETURNING sequence`,
+        [
+          randomUUID(),
+          principal.tenantId,
+          principal.storeId,
+          memberId,
+          JSON.stringify({
+            action: 'member.profile_updated',
+            memberId,
+            before: {
+              nickname: before.nickname,
+              avatarUrl: before.avatar_url,
+              profileCompleted: before.profile_completed
+            },
+            after: {
+              nickname: input.nickname,
+              avatarUrl: before.avatar_url,
+              profileCompleted: true
+            },
+            reason: 'customer profile self-service update'
+          }),
+          timestamp
+        ]
+      )
+      const serverVersion = Number(event.rows[0]?.sequence)
+      if (!Number.isSafeInteger(serverVersion) || serverVersion < 1) {
+        throw new Error('Cloud event did not return a valid sequence')
+      }
+      await client.query(
+        `UPDATE cloud_member
+         SET nickname = $3, profile_completed = TRUE,
+             server_version = $4, updated_at = $5
+         WHERE tenant_id = $1 AND id = $2`,
+        [
+          principal.tenantId,
+          memberId,
+          input.nickname,
+          serverVersion,
+          timestamp
+        ]
+      )
+      await client.query(
+        `INSERT INTO cloud_audit_log
+         (id, tenant_id, store_id, actor_id, action, aggregate_type,
+          aggregate_id, metadata_json, occurred_at)
+         VALUES ($1, $2, $3, NULL, 'member.profile_updated', 'member',
+                 $4, $5::jsonb, $6)`,
+        [
+          randomUUID(),
+          principal.tenantId,
+          principal.storeId,
+          memberId,
+          JSON.stringify({ identityId: principal.identityId }),
+          timestamp
+        ]
+      )
+      const summary = await this.loadMemberSummary(
+        client,
+        principal.tenantId,
+        memberId
+      )
+      await client.query(
+        `UPDATE api_idempotency
+         SET response_status = 200, response_json = $3::jsonb
+         WHERE tenant_id = $1 AND key = $2`,
+        [principal.tenantId, idempotencyKey, JSON.stringify(summary)]
+      )
+      await client.query('COMMIT')
+      return summary
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
   async fillBirthday(
     principal: MiniappPrincipal,
     rawInput: unknown
@@ -369,7 +529,8 @@ export class MemberSelfService {
       }
 
       const memberResult = await client.query<MemberProjectionRow>(
-        `SELECT id, member_number, phone, nickname, tier, status,
+        `SELECT id, member_number, phone, nickname, avatar_url,
+                profile_completed, tier, status,
                 birthday_month, birthday_day, birthday_source, note, source,
                 age_gate_status, created_at, updated_at
          FROM cloud_member
@@ -579,6 +740,8 @@ export class MemberSelfService {
     row: MemberProjectionRow,
     overrides: Partial<{
       nickname: string
+      avatarUrl: string | null
+      profileCompleted: boolean
       tier: 'ordinary' | 'advanced'
       status: 'active' | 'disabled'
       birthdayMonth: number | null
@@ -595,6 +758,10 @@ export class MemberSelfService {
       memberNumber: row.member_number,
       phone: row.phone,
       nickname: overrides.nickname ?? row.nickname,
+      avatarUrl:
+        'avatarUrl' in overrides ? overrides.avatarUrl ?? null : row.avatar_url,
+      profileCompleted:
+        overrides.profileCompleted ?? row.profile_completed,
       tier: overrides.tier ?? row.tier,
       status: overrides.status ?? row.status,
       birthdayMonth:
@@ -625,8 +792,21 @@ export class MemberSelfService {
     const ageGate: MemberAgeGate = input.confirmedAtLeast14
       ? 'confirmed_at_least_14'
       : 'recharge_disabled'
+    const preserveCompletedProfile = before.profile_completed === true
+    const nickname = preserveCompletedProfile
+      ? before.nickname
+      : input.nickname
+    const avatarUrl = preserveCompletedProfile
+      ? before.avatar_url
+      : input.avatarUrl ?? null
+    const profileCompleted =
+      preserveCompletedProfile ||
+      input.nickname !== '微信用户' ||
+      Boolean(input.avatarUrl)
     const after = this.memberSnapshot(before, {
-      nickname: input.nickname,
+      nickname,
+      avatarUrl,
+      profileCompleted,
       tier: 'ordinary',
       status: 'active',
       birthdayMonth: null,
@@ -670,16 +850,18 @@ export class MemberSelfService {
     )
     await client.query(
       `UPDATE cloud_member
-       SET nickname = $3, avatar_url = $4, tier = 'ordinary',
+       SET nickname = $3, avatar_url = $4, profile_completed = $5,
+           tier = 'ordinary',
            status = 'active', birthday_month = NULL, birthday_day = NULL,
            birthday_source = NULL, note = NULL, source = 'miniapp',
-           age_gate_status = $5, server_version = $6, updated_at = $7
+           age_gate_status = $6, server_version = $7, updated_at = $8
        WHERE tenant_id = $1 AND id = $2`,
       [
         principal.tenantId,
         before.id,
-        input.nickname,
-        input.avatarUrl ?? null,
+        nickname,
+        avatarUrl,
+        profileCompleted,
         ageGate,
         serverVersion,
         timestamp
@@ -728,7 +910,8 @@ export class MemberSelfService {
       }
       if (currentIdentity.member_id) {
         const existingMember = await client.query<MemberProjectionRow>(
-          `SELECT id, member_number, phone, nickname, tier, status,
+          `SELECT id, member_number, phone, nickname, avatar_url,
+                  profile_completed, tier, status,
                   birthday_month, birthday_day, birthday_source, note, source,
                   age_gate_status, created_at, updated_at
            FROM cloud_member
@@ -791,7 +974,8 @@ export class MemberSelfService {
       }
 
       const existingMember = await client.query<MemberProjectionRow>(
-        `SELECT id, member_number, phone, nickname, tier, status,
+        `SELECT id, member_number, phone, nickname, avatar_url,
+                profile_completed, tier, status,
                 birthday_month, birthday_day, birthday_source, note, source,
                 age_gate_status, created_at, updated_at
          FROM cloud_member
@@ -884,7 +1068,8 @@ export class MemberSelfService {
       }
       if (currentIdentity.member_id) {
         const existingMember = await client.query<MemberProjectionRow>(
-          `SELECT id, member_number, phone, nickname, tier, status,
+          `SELECT id, member_number, phone, nickname, avatar_url,
+                  profile_completed, tier, status,
                   birthday_month, birthday_day, birthday_source, note, source,
                   age_gate_status, created_at, updated_at
            FROM cloud_member
@@ -990,7 +1175,8 @@ export class MemberSelfService {
       }
 
       const existingMember = await client.query<MemberProjectionRow>(
-        `SELECT id, member_number, phone, nickname, tier, status,
+        `SELECT id, member_number, phone, nickname, avatar_url,
+                profile_completed, tier, status,
                 birthday_month, birthday_day, birthday_source, note, source,
                 age_gate_status, created_at, updated_at
          FROM cloud_member
@@ -1081,6 +1267,8 @@ export class MemberSelfService {
       phone: input.phone,
       nickname: input.nickname,
       avatarUrl: input.avatarUrl ?? null,
+      profileCompleted:
+        input.nickname !== '微信用户' || Boolean(input.avatarUrl),
       tier: 'ordinary' as const,
       status: 'active' as const,
       birthdayMonth: null,
@@ -1121,10 +1309,10 @@ export class MemberSelfService {
     await client.query(
       `INSERT INTO cloud_member
        (id, tenant_id, store_id, member_number, phone, nickname, tier, status,
-        avatar_url, birthday_month, birthday_day, birthday_source, note,
+        avatar_url, profile_completed, birthday_month, birthday_day, birthday_source, note,
         source, age_gate_status, server_version, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, 'ordinary', 'active',
-               $7, NULL, NULL, NULL, NULL, 'miniapp', $8, $9, $10, $10)`,
+               $7, $8, NULL, NULL, NULL, NULL, 'miniapp', $9, $10, $11, $11)`,
       [
         memberId,
         principal.tenantId,
@@ -1133,6 +1321,7 @@ export class MemberSelfService {
         input.phone,
         input.nickname,
         input.avatarUrl ?? null,
+        member.profileCompleted,
         ageGate,
         serverVersion,
         timestamp
@@ -1147,7 +1336,7 @@ export class MemberSelfService {
   ): Promise<MemberSelfServiceSummary> {
     const result = await queryable.query<MemberSummaryRow>(
       `SELECT m.id, m.phone, m.nickname, m.tier, m.birthday_month,
-              m.avatar_url, m.birthday_day, m.age_gate_status,
+              m.avatar_url, m.profile_completed, m.birthday_day, m.age_gate_status,
               w.principal_balance_fen, w.gift_balance_fen,
               card.status monthly_card_status,
               card.expires_at monthly_card_expires_at

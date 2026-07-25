@@ -1214,6 +1214,7 @@ export type MemberSelfServiceSummary = {
   memberId: Identifier
   nickname: string
   avatarUrl: string | null
+  profileCompleted: boolean
   phoneMasked: string
   tier: MemberTier
   principalBalanceFen: number
@@ -1224,6 +1225,11 @@ export type MemberSelfServiceSummary = {
   birthdayDay: number | null
   birthdayCanBeFilled: boolean
   ageGate: MemberAgeGate
+}
+
+export type UpdateMemberProfileRequest = {
+  requestId: string
+  nickname: string
 }
 
 export type FillMemberBirthdayRequest = {

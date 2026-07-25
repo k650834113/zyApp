@@ -98,6 +98,80 @@ function fakeRedis(setResult: 'OK' | null = 'OK'): Redis {
 }
 
 describe('member self-service transactions', () => {
+  it('updates only the authenticated member profile and marks it complete', async () => {
+    const { pool, calls } = fakePool((sql) => {
+      if (sql.includes('INSERT INTO api_idempotency')) {
+        return [{ key: 'reserved' }]
+      }
+      if (sql.includes('FROM cloud_member') && sql.includes('FOR UPDATE')) {
+        return [
+          {
+            id: memberPrincipal().memberId,
+            member_number: 'M5555555555',
+            phone: '13800138000',
+            nickname: '微信用户',
+            tier: 'ordinary',
+            status: 'active',
+            birthday_month: null,
+            birthday_day: null,
+            birthday_source: null,
+            note: null,
+            source: 'miniapp',
+            age_gate_status: 'confirmed_at_least_14',
+            created_at: '2026-06-14T00:00:00.000Z',
+            updated_at: '2026-06-14T00:00:00.000Z'
+          }
+        ]
+      }
+      if (sql.includes('INSERT INTO cloud_event')) {
+        return [{ sequence: 606 }]
+      }
+      if (sql.includes('LEFT JOIN cloud_wallet_account')) {
+        return [
+          {
+            id: memberPrincipal().memberId,
+            phone: '13800138000',
+            nickname: '林小满',
+            avatar_url: null,
+            profile_completed: true,
+            tier: 'ordinary',
+            birthday_month: null,
+            birthday_day: null,
+            age_gate_status: 'confirmed_at_least_14',
+            principal_balance_fen: 0,
+            gift_balance_fen: 0,
+            monthly_card_status: null,
+            monthly_card_expires_at: null
+          }
+        ]
+      }
+      return []
+    })
+    const service = new MemberSelfService(pool, fakeRedis(), config())
+
+    const result = await service.updateProfile(memberPrincipal(), {
+      requestId: 'profile-20260725-1',
+      nickname: ' 林小满 '
+    })
+
+    expect(result).toMatchObject({
+      memberId: memberPrincipal().memberId,
+      nickname: '林小满',
+      profileCompleted: true
+    })
+    const update = calls.find(
+      (call) =>
+        call.sql.includes('UPDATE cloud_member') &&
+        call.sql.includes('profile_completed = TRUE')
+    )
+    expect(update?.parameters[1]).toBe(memberPrincipal().memberId)
+    expect(update?.parameters[2]).toBe('林小满')
+    const event = calls.find((call) =>
+      call.sql.includes('INSERT INTO cloud_event')
+    )
+    expect(event?.parameters[4]).toContain('"action":"member.profile_updated"')
+  })
+
   it('returns a mock code without storing the plaintext code', async () => {
     const { pool, calls } = fakePool(() => [])
     const service = new MemberSelfService(pool, fakeRedis(), config())
@@ -397,6 +471,8 @@ describe('member self-service transactions', () => {
             member_number: 'M6666666666',
             phone: '13900139002',
             nickname: '旧微信玩家',
+            avatar_url: 'https://example.test/member-avatar.webp',
+            profile_completed: true,
             tier: 'advanced',
             status: 'disabled',
             birthday_month: 1,
@@ -418,8 +494,9 @@ describe('member self-service transactions', () => {
           {
             id: disabledMemberId,
             phone: '13900139002',
-            nickname: '新微信玩家',
-            avatar_url: 'wxfile://new-avatar',
+            nickname: '旧微信玩家',
+            avatar_url: 'https://example.test/member-avatar.webp',
+            profile_completed: true,
             tier: 'ordinary',
             birthday_month: null,
             birthday_day: null,
@@ -444,7 +521,9 @@ describe('member self-service transactions', () => {
     })
 
     expect(result).toMatchObject({
-      nickname: '新微信玩家',
+      nickname: '旧微信玩家',
+      avatarUrl: 'https://example.test/member-avatar.webp',
+      profileCompleted: true,
       tier: 'ordinary',
       phoneMasked: '139****9002'
     })
@@ -459,7 +538,8 @@ describe('member self-service transactions', () => {
       call.sql.includes('UPDATE cloud_member') && call.sql.includes("status = 'active'")
     )
     expect(update?.parameters[1]).toBe(disabledMemberId)
-    expect(update?.parameters[2]).toBe('新微信玩家')
+    expect(update?.parameters[2]).toBe('旧微信玩家')
+    expect(update?.parameters[3]).toBe('https://example.test/member-avatar.webp')
   })
 
   it('rejects mock WeChat phone codes outside the mock verification mode', async () => {

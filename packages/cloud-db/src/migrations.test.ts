@@ -27,4 +27,17 @@ describe('cloud migrations', () => {
     expect(migrations[0]?.name).toBe('first')
     expect(migrations[0]?.checksum).toHaveLength(64)
   })
+
+  it('includes member profile completion after the avatar migration', () => {
+    const migrations = discoverCloudMigrations(
+      join(import.meta.dirname, '..', 'migrations')
+    )
+
+    expect(migrations.slice(-2).map((migration) => migration.version)).toEqual([
+      16,
+      17
+    ])
+    expect(migrations.at(-1)?.name).toBe('member_profile_completion')
+    expect(migrations.at(-1)?.sql).toContain('profile_completed')
+  })
 })

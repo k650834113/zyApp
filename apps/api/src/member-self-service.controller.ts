@@ -68,6 +68,14 @@ export class MemberSelfServiceController {
     return this.members.getSelf(principal(request))
   }
 
+  @Post('profile')
+  updateProfile(
+    @Req() request: MiniappRequest,
+    @Body() body: unknown
+  ): Promise<MemberSelfServiceSummary> {
+    return this.members.updateProfile(principal(request), body)
+  }
+
   @Post('birthday')
   birthday(
     @Req() request: MiniappRequest,

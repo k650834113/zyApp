@@ -203,6 +203,7 @@ export const cloudMembers = pgTable(
     phone: text('phone').notNull(),
     nickname: text('nickname').notNull(),
     avatarUrl: text('avatar_url'),
+    profileCompleted: boolean('profile_completed').notNull().default(false),
     tier: text('tier').notNull(),
     status: text('status').notNull(),
     birthdayMonth: integer('birthday_month'),

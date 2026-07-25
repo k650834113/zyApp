@@ -8,6 +8,7 @@ import type {
   FillMemberBirthdayRequest,
   RegisterMiniappMemberRequest,
   RequestPhoneVerificationRequest,
+  UpdateMemberProfileRequest,
   WechatOneTapMemberLoginRequest
 } from '@zyapp/contracts'
 
@@ -128,6 +129,20 @@ export function validateWechatOneTapMemberLoginRequest(
       max: 2048
     }),
     confirmedAtLeast14: input.confirmedAtLeast14
+  }
+}
+
+export function validateUpdateMemberProfileRequest(
+  value: unknown
+): UpdateMemberProfileRequest {
+  const input = object(value, 'Member profile request')
+  const requestId = text(input.requestId, 'requestId', { min: 8, max: 100 })
+  if (!REQUEST_ID_PATTERN.test(requestId)) {
+    throw new Error('requestId contains unsupported characters')
+  }
+  return {
+    requestId,
+    nickname: text(input.nickname, 'nickname', { min: 2, max: 12 })
   }
 }
 

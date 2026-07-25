@@ -466,6 +466,7 @@ export class MockMiniappClient implements MiniappClient {
       memberId: 'mock-member',
       nickname: input.nickname.trim(),
       avatarUrl: null,
+      profileCompleted: true,
       phoneMasked: `${input.phone.slice(0, 3)}****${input.phone.slice(-4)}`,
       tier: 'ordinary',
       principalBalanceFen: 0,
@@ -512,6 +513,8 @@ export class MockMiniappClient implements MiniappClient {
         memberId: 'mock-member',
         nickname,
         avatarUrl: input.avatarUrl ?? null,
+        profileCompleted:
+          nickname !== '微信用户' || Boolean(input.avatarUrl),
         phoneMasked: `${phone.slice(0, 3)}****${phone.slice(-4)}`,
         tier: canRecharge ? 'advanced' : 'ordinary',
         principalBalanceFen: canRecharge ? 30_000 : 0,
