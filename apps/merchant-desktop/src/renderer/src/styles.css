@@ -3114,6 +3114,220 @@ footer {
   background: #32453b;
 }
 
+.transaction-workspace {
+  margin-top: 28px;
+  padding: 22px;
+}
+
+.transaction-tabs {
+  margin-bottom: 16px;
+}
+
+.transaction-filter {
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) 160px 160px auto;
+  gap: 12px;
+  align-items: end;
+  border: 1px solid #e7dfd2;
+  border-radius: 14px;
+  padding: 16px;
+  background: #fffaf2;
+}
+
+.transaction-filter label {
+  margin: 0;
+}
+
+.transaction-result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 2px 10px;
+}
+
+.transaction-result-heading span {
+  color: #8a7d6b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.transaction-layout {
+  display: grid;
+  grid-template-columns: minmax(620px, 1.7fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  min-height: 360px;
+}
+
+.transaction-table {
+  overflow: hidden;
+  align-self: start;
+  border: 1px solid #e2dace;
+  border-radius: 14px;
+  background: #fffdf8;
+}
+
+.transaction-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(190px, 1.5fr) minmax(110px, 1fr) 105px 100px;
+  gap: 14px;
+  align-items: center;
+  min-height: 64px;
+  border: 0;
+  border-bottom: 1px solid #eee7dc;
+  padding: 11px 15px;
+  color: #403a32;
+  background: transparent;
+  text-align: left;
+}
+
+.transaction-row.recharge {
+  grid-template-columns:
+    minmax(190px, 1.4fr) minmax(130px, 1fr) 95px 90px 100px;
+}
+
+.transaction-row:not(.table-head):hover,
+.transaction-row.selected {
+  background: #f2f6ef;
+}
+
+.transaction-row.selected {
+  box-shadow: inset 3px 0 #567565;
+}
+
+.transaction-row.table-head {
+  min-height: 42px;
+  color: #7d7161;
+  background: #f5efe5;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.transaction-row > span,
+.transaction-row > strong {
+  min-width: 0;
+}
+
+.transaction-row span strong,
+.transaction-row span small {
+  display: block;
+}
+
+.transaction-row small {
+  overflow: hidden;
+  margin-top: 4px;
+  color: #8b7e6c;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transaction-status {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: #6d5d3f;
+  background: #f4ead1;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.transaction-status.settled {
+  color: #2f6745;
+  background: #e1f1e5;
+}
+
+.transaction-status.failed,
+.transaction-status.expired {
+  color: #8b4438;
+  background: #f8e4df;
+}
+
+.transaction-detail {
+  position: sticky;
+  top: 18px;
+  align-self: start;
+  min-height: 240px;
+  border: 1px solid #dcd3c5;
+  border-radius: 16px;
+  padding: 20px;
+  background: #fffaf1;
+}
+
+.transaction-detail h2 {
+  overflow-wrap: anywhere;
+  margin: 5px 0 18px;
+  color: #33483d;
+  font-size: 18px;
+}
+
+.transaction-detail dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.transaction-detail dl div,
+.transaction-line-items div {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.transaction-detail dt {
+  color: #887b69;
+  font-size: 11px;
+}
+
+.transaction-detail dd {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #3e4f46;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.transaction-line-items {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  border-top: 1px solid #e5ddcf;
+  padding-top: 16px;
+  font-size: 12px;
+}
+
+.transaction-note {
+  margin: 16px 0 0;
+  color: #766a59;
+  font-size: 11px;
+}
+
+.transaction-empty,
+.transaction-detail-placeholder {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  padding: 24px;
+  color: #968a78;
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .transaction-filter {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .transaction-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .transaction-detail {
+    position: static;
+  }
+}
+
 .content-card-grid,
 .board-game-grid {
   display: grid;
