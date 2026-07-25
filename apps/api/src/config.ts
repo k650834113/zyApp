@@ -6,6 +6,8 @@ export type ApiConfig = {
   redisUrl: string
   deviceEnrollmentSecret: string
   desktopUpdateDirectory: string
+  memberAvatarDirectory?: string
+  miniappPublicBaseUrl?: string
   phoneVerificationSecret: string
   phoneVerificationMode: 'mock' | 'disabled'
   wechatPaymentMode: 'mock' | 'wechat' | 'disabled'
@@ -62,6 +64,26 @@ function optionalText(value: string | undefined): string | null {
   return normalized ? normalized : null
 }
 
+function miniappPublicBaseUrl(value: string | undefined): string {
+  const normalized = required(value, 'MINIAPP_PUBLIC_BASE_URL').replace(
+    /\/+$/,
+    ''
+  )
+  let parsed: URL
+  try {
+    parsed = new URL(normalized)
+  } catch {
+    throw new Error('MINIAPP_PUBLIC_BASE_URL must be a valid URL')
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error('MINIAPP_PUBLIC_BASE_URL must use HTTPS')
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error('MINIAPP_PUBLIC_BASE_URL cannot contain query or hash')
+  }
+  return normalized
+}
+
 function optionalPositiveInteger(
   value: string | undefined,
   name: string
@@ -96,6 +118,9 @@ export function readApiConfig(
     throw new Error('DEPLOYMENT_ENVIRONMENT must be production or test')
   }
   const redisUrl = required(environment.REDIS_URL, 'REDIS_URL')
+  const publicBaseUrl = miniappPublicBaseUrl(
+    environment.MINIAPP_PUBLIC_BASE_URL ?? 'https://localhost'
+  )
   const deviceEnrollmentSecret = enrollmentSecret(
     environment.DEVICE_ENROLLMENT_SECRET
   )
@@ -294,6 +319,10 @@ export function readApiConfig(
     desktopUpdateDirectory:
       environment.DESKTOP_UPDATE_DIRECTORY?.trim() ||
       './var/desktop-updates/windows',
+    memberAvatarDirectory:
+      environment.MEMBER_AVATAR_DIRECTORY?.trim() ||
+      `./var/member-avatars/${deploymentEnvironment}`,
+    miniappPublicBaseUrl: publicBaseUrl,
     phoneVerificationSecret,
     phoneVerificationMode,
     wechatPaymentMode,

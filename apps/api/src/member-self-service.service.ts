@@ -324,9 +324,25 @@ export class MemberSelfService {
     return this.loadMemberSummary(this.pool, principal.tenantId, principal.memberId)
   }
 
-  async updateProfile(
+  updateProfile(
     principal: MiniappPrincipal,
     rawInput: unknown
+  ): Promise<MemberSelfServiceSummary> {
+    return this.updateProfileTransaction(principal, rawInput)
+  }
+
+  updateProfileWithAvatar(
+    principal: MiniappPrincipal,
+    rawInput: unknown,
+    avatarUrl: string
+  ): Promise<MemberSelfServiceSummary> {
+    return this.updateProfileTransaction(principal, rawInput, avatarUrl)
+  }
+
+  private async updateProfileTransaction(
+    principal: MiniappPrincipal,
+    rawInput: unknown,
+    avatarUrl?: string
   ): Promise<MemberSelfServiceSummary> {
     const memberId = this.requireMemberId(principal)
     let input: UpdateMemberProfileRequest
@@ -342,7 +358,12 @@ export class MemberSelfService {
       const idempotencyKey =
         `miniapp-member-profile:${principal.identityId}:${input.requestId}`
       const requestHash = createHash('sha256')
-        .update(JSON.stringify({ nickname: input.nickname }))
+        .update(
+          JSON.stringify({
+            nickname: input.nickname,
+            ...(avatarUrl ? { avatarUrl } : {})
+          })
+        )
         .digest('hex')
       const reserved = await client.query<{ key: string }>(
         `INSERT INTO api_idempotency
@@ -395,6 +416,7 @@ export class MemberSelfService {
       }
 
       const timestamp = new Date().toISOString()
+      const nextAvatarUrl = avatarUrl ?? before.avatar_url
       const event = await client.query<{ sequence: number | string }>(
         `INSERT INTO cloud_event
          (event_id, tenant_id, store_id, aggregate_type, aggregate_id,
@@ -417,7 +439,7 @@ export class MemberSelfService {
             },
             after: {
               nickname: input.nickname,
-              avatarUrl: before.avatar_url,
+              avatarUrl: nextAvatarUrl,
               profileCompleted: true
             },
             reason: 'customer profile self-service update'
@@ -431,13 +453,14 @@ export class MemberSelfService {
       }
       await client.query(
         `UPDATE cloud_member
-         SET nickname = $3, profile_completed = TRUE,
-             server_version = $4, updated_at = $5
+         SET nickname = $3, avatar_url = $4, profile_completed = TRUE,
+             server_version = $5, updated_at = $6
          WHERE tenant_id = $1 AND id = $2`,
         [
           principal.tenantId,
           memberId,
           input.nickname,
+          nextAvatarUrl,
           serverVersion,
           timestamp
         ]

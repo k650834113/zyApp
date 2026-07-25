@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,8 +7,11 @@ import {
   Param,
   Post,
   Req,
+  UploadedFile,
+  UseInterceptors,
   UseGuards
 } from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
 import type {
   MemberSelfServiceSummary,
   MemberSelfServiceHistory,
@@ -19,6 +23,10 @@ import {
 } from './miniapp-auth.guard'
 import { MemberSelfService } from './member-self-service.service'
 import { MemberRechargeService } from './member-recharge.service'
+import {
+  MemberAvatarService,
+  type MemberAvatarUpload
+} from './member-avatar.service'
 
 function principal(request: MiniappRequest) {
   if (!request.zyappMiniapp) {
@@ -34,7 +42,9 @@ export class MemberSelfServiceController {
     @Inject(MemberSelfService)
     private readonly members: MemberSelfService,
     @Inject(MemberRechargeService)
-    private readonly recharges: MemberRechargeService
+    private readonly recharges: MemberRechargeService,
+    @Inject(MemberAvatarService)
+    private readonly avatars: MemberAvatarService
   ) {}
 
   @Post('verification/request')
@@ -74,6 +84,28 @@ export class MemberSelfServiceController {
     @Body() body: unknown
   ): Promise<MemberSelfServiceSummary> {
     return this.members.updateProfile(principal(request), body)
+  }
+
+  @Post('profile-with-avatar')
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      limits: { fileSize: 2 * 1024 * 1024, files: 1 }
+    })
+  )
+  async updateProfileWithAvatar(
+    @Req() request: MiniappRequest,
+    @Body() body: unknown,
+    @UploadedFile() file?: MemberAvatarUpload
+  ): Promise<MemberSelfServiceSummary> {
+    if (!file) {
+      throw new BadRequestException('Avatar image is required')
+    }
+    const stored = await this.avatars.store(file)
+    return this.members.updateProfileWithAvatar(
+      principal(request),
+      body,
+      stored.publicUrl
+    )
   }
 
   @Post('birthday')
