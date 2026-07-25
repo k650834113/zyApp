@@ -1507,6 +1507,44 @@ const migrations: Migration[] = [
              customer_note, internal_note, consignor_nickname, updated_at
       FROM board_game;
     `
+  },
+  {
+    version: 26,
+    name: 'wechat-recharge-order-mirror',
+    sql: `
+      CREATE TABLE wechat_recharge_order_mirror (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        store_id TEXT NOT NULL REFERENCES store(id),
+        member_id TEXT NOT NULL REFERENCES member(id),
+        identity_id TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        out_trade_no TEXT NOT NULL,
+        provider_mode TEXT NOT NULL CHECK (provider_mode IN ('mock', 'wechat')),
+        provider_prepay_id TEXT,
+        provider_transaction_id TEXT,
+        principal_fen INTEGER NOT NULL CHECK (principal_fen > 0),
+        gift_fen INTEGER NOT NULL CHECK (gift_fen >= 0),
+        status TEXT NOT NULL CHECK (status IN (
+          'creating', 'pending_payment', 'settled', 'failed', 'expired'
+        )),
+        error_message TEXT,
+        expires_at TEXT NOT NULL,
+        paid_at TEXT,
+        settled_at TEXT,
+        wallet_operation_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (tenant_id, out_trade_no)
+      ) STRICT;
+
+      CREATE INDEX idx_wechat_recharge_order_mirror_member
+        ON wechat_recharge_order_mirror
+          (tenant_id, member_id, created_at DESC);
+      CREATE INDEX idx_wechat_recharge_order_mirror_status
+        ON wechat_recharge_order_mirror
+          (tenant_id, status, updated_at DESC);
+    `
   }
 ]
 

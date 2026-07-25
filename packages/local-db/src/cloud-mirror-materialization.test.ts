@@ -16,6 +16,141 @@ afterEach(() => {
 })
 
 describe('cloud mirror materialization', () => {
+  it('stores settled and pending WeChat recharge orders without writing wallet entries', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-recharge-mirror-'))
+    directories.push(directory)
+    const local = openLocalDatabase(join(directory, 'mirror.db'))
+    try {
+      bootstrapStore(local.connection, {
+        storeName: 'Mirror Store',
+        managerUsername: 'manager',
+        managerPasswordHash: 'scrypt$test',
+        managerDisplayName: 'Manager',
+        deviceName: 'Second Device'
+      })
+      const context = getStoreContext(local.connection)
+      if (!context) throw new Error('Missing context')
+      const now = '2026-07-25T10:00:00.000Z'
+      const memberId = '11111111-1111-4111-8111-111111111111'
+      applyCloudMirrorPage(local.connection, context, {
+        resource: 'members',
+        rows: [{
+          id: memberId,
+          payload: {
+            id: memberId,
+            member_number: 'M0001',
+            phone: '13800138000',
+            nickname: 'Cloud Member',
+            status: 'active',
+            birthday_month: null,
+            birthday_day: null,
+            birthday_source: null,
+            tier: 'ordinary',
+            age_gate_status: 'confirmed_at_least_14',
+            note: null,
+            source: 'miniapp',
+            created_at: now,
+            updated_at: now
+          }
+        }],
+        nextCursor: null,
+        eventCursor: '20',
+        serverTime: now
+      })
+
+      applyCloudMirrorPage(local.connection, context, {
+        resource: 'wechat_recharge_orders',
+        rows: [
+          {
+            id: '22222222-2222-4222-8222-222222222222',
+            payload: {
+              id: '22222222-2222-4222-8222-222222222222',
+              store_id: context.storeId,
+              member_id: memberId,
+              identity_id: '33333333-3333-4333-8333-333333333333',
+              request_id: 'recharge-settled',
+              out_trade_no: 'ZYT-SETTLED',
+              provider_mode: 'wechat',
+              provider_prepay_id: 'wx-prepay-settled',
+              provider_transaction_id: 'wx-transaction-settled',
+              principal_fen: 100,
+              gift_fen: 10,
+              status: 'settled',
+              error_message: null,
+              expires_at: '2026-07-25T10:15:00.000Z',
+              paid_at: '2026-07-25T10:01:00.000Z',
+              settled_at: '2026-07-25T10:01:00.000Z',
+              wallet_operation_id:
+                '44444444-4444-4444-8444-444444444444',
+              created_at: now,
+              updated_at: '2026-07-25T10:01:00.000Z'
+            }
+          },
+          {
+            id: '55555555-5555-4555-8555-555555555555',
+            payload: {
+              id: '55555555-5555-4555-8555-555555555555',
+              store_id: context.storeId,
+              member_id: memberId,
+              identity_id: '33333333-3333-4333-8333-333333333333',
+              request_id: 'recharge-pending',
+              out_trade_no: 'ZYT-PENDING',
+              provider_mode: 'wechat',
+              provider_prepay_id: 'wx-prepay-pending',
+              provider_transaction_id: null,
+              principal_fen: 200,
+              gift_fen: 20,
+              status: 'pending_payment',
+              error_message: null,
+              expires_at: '2026-07-25T10:15:00.000Z',
+              paid_at: null,
+              settled_at: null,
+              wallet_operation_id: null,
+              created_at: now,
+              updated_at: now
+            }
+          }
+        ],
+        nextCursor: null,
+        eventCursor: '21',
+        serverTime: now
+      })
+
+      expect(
+        local.connection
+          .prepare(
+            `SELECT out_trade_no, status, provider_transaction_id,
+                    wallet_operation_id
+             FROM wechat_recharge_order_mirror
+             ORDER BY out_trade_no`
+          )
+          .all()
+      ).toEqual([
+        {
+          out_trade_no: 'ZYT-PENDING',
+          status: 'pending_payment',
+          provider_transaction_id: null,
+          wallet_operation_id: null
+        },
+        {
+          out_trade_no: 'ZYT-SETTLED',
+          status: 'settled',
+          provider_transaction_id: 'wx-transaction-settled',
+          wallet_operation_id: '44444444-4444-4444-8444-444444444444'
+        }
+      ])
+      expect(
+        local.connection
+          .prepare(
+            'SELECT COUNT(*) count FROM wallet_ledger'
+          )
+          .get()
+      ).toEqual({ count: 0 })
+    } finally {
+      local.close()
+    }
+  })
+
   it('materializes members, wallet balances and completed orders into the business mirror', () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-cloud-materialize-'))
     directories.push(directory)

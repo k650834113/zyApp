@@ -575,6 +575,60 @@ function applyMonthlyCardEvent(database: DatabaseSync, context: StoreContext, ro
   )
 }
 
+function applyWechatRechargeOrder(
+  database: DatabaseSync,
+  context: StoreContext,
+  row: Json
+): void {
+  const id = text(row.id, 'wechat_recharge_order.id')
+  const occurrenceStoreId = nullableText(row.store_id) ?? context.storeId
+  database.prepare(
+    `INSERT INTO wechat_recharge_order_mirror
+     (id, tenant_id, store_id, member_id, identity_id, request_id,
+      out_trade_no, provider_mode, provider_prepay_id,
+      provider_transaction_id, principal_fen, gift_fen, status,
+      error_message, expires_at, paid_at, settled_at, wallet_operation_id,
+      created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET
+       store_id = excluded.store_id,
+       member_id = excluded.member_id,
+       provider_prepay_id = excluded.provider_prepay_id,
+       provider_transaction_id = excluded.provider_transaction_id,
+       principal_fen = excluded.principal_fen,
+       gift_fen = excluded.gift_fen,
+       status = excluded.status,
+       error_message = excluded.error_message,
+       expires_at = excluded.expires_at,
+       paid_at = excluded.paid_at,
+       settled_at = excluded.settled_at,
+       wallet_operation_id = excluded.wallet_operation_id,
+       updated_at = excluded.updated_at
+     WHERE wechat_recharge_order_mirror.tenant_id = excluded.tenant_id`
+  ).run(
+    id,
+    context.tenantId,
+    occurrenceStoreId,
+    text(row.member_id, 'wechat_recharge_order.member_id'),
+    text(row.identity_id, 'wechat_recharge_order.identity_id'),
+    text(row.request_id, 'wechat_recharge_order.request_id'),
+    text(row.out_trade_no, 'wechat_recharge_order.out_trade_no'),
+    text(row.provider_mode, 'wechat_recharge_order.provider_mode'),
+    nullableText(row.provider_prepay_id),
+    nullableText(row.provider_transaction_id),
+    integer(row.principal_fen, 'wechat_recharge_order.principal_fen'),
+    integer(row.gift_fen, 'wechat_recharge_order.gift_fen'),
+    text(row.status, 'wechat_recharge_order.status'),
+    nullableText(row.error_message),
+    text(row.expires_at, 'wechat_recharge_order.expires_at'),
+    nullableText(row.paid_at),
+    nullableText(row.settled_at),
+    nullableText(row.wallet_operation_id),
+    text(row.created_at, 'wechat_recharge_order.created_at'),
+    text(row.updated_at, 'wechat_recharge_order.updated_at')
+  )
+}
+
 function applyBusinessTemplate(database: DatabaseSync, context: StoreContext, row: Json): void {
   const id = text(row.id, 'business_template.id')
   database.prepare(
@@ -993,6 +1047,7 @@ export function applyCloudMirrorPage(
       else if (page.resource === 'wallet_ledger') applyWalletLedger(database, context, row)
       else if (page.resource === 'monthly_cards') applyMonthlyCard(database, context, row)
       else if (page.resource === 'monthly_card_events') applyMonthlyCardEvent(database, context, row)
+      else if (page.resource === 'wechat_recharge_orders') applyWechatRechargeOrder(database, context, row)
       else if (page.resource === 'business_templates') applyBusinessTemplate(database, context, row)
       else if (page.resource === 'orders') applyOrder(database, context, row)
       else if (page.resource === 'refunds') applyRefund(database, context, row)

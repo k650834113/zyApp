@@ -37,7 +37,7 @@ describe('local database', () => {
       .all()
       .map((row) => (row as { name: string }).name)
 
-    expect(localDatabase.schemaVersion).toBe(25)
+    expect(localDatabase.schemaVersion).toBe(26)
     expect(localDatabase.journalMode.toLowerCase()).toBe('wal')
     expect(tableNames).toContain('audit_log')
     expect(tableNames).toContain('outbox_operation')
@@ -50,6 +50,7 @@ describe('local database', () => {
     expect(tableNames).toContain('recharge_gift_rule_state')
     expect(tableNames).toContain('monthly_card')
     expect(tableNames).toContain('monthly_card_event')
+    expect(tableNames).toContain('wechat_recharge_order_mirror')
     expect(tableNames).toContain('catalog_item')
     expect(tableNames).toContain('sales_order')
     expect(tableNames).toContain('sales_order_item')
@@ -85,7 +86,7 @@ describe('local database', () => {
       .prepare('SELECT COUNT(*) AS count FROM schema_migrations')
       .get() as { count: number }
 
-    expect(migrationCount.count).toBe(25)
+    expect(migrationCount.count).toBe(26)
     reopened.close()
   })
 
@@ -392,7 +393,7 @@ describe('local database', () => {
     connection.close()
 
     const upgraded = openLocalDatabase(filePath)
-    expect(upgraded.schemaVersion).toBe(25)
+    expect(upgraded.schemaVersion).toBe(26)
     expect(
       upgraded.connection
         .prepare(
@@ -435,7 +436,7 @@ describe('local database', () => {
     const restored = openLocalDatabase(backupPath)
 
     expect(result.sha256).toMatch(/^[a-f0-9]{64}$/)
-    expect(restored.schemaVersion).toBe(25)
+    expect(restored.schemaVersion).toBe(26)
     restored.close()
     localDatabase.close()
   })

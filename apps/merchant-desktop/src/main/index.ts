@@ -1384,6 +1384,7 @@ const CLOUD_MIRROR_REFRESH_ORDER: CloudMirrorResource[] = [
   'wallet_ledger',
   'monthly_cards',
   'monthly_card_events',
+  'wechat_recharge_orders',
   'business_templates',
   'orders',
   'order_items',

@@ -51,6 +51,30 @@ describe('desktop cloud mirror read model', () => {
     ).rejects.toThrow('Unsupported')
   })
 
+  it('mirrors complete WeChat recharge orders for desktop reconciliation', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ sequence: 42 }] })
+    const service = new DesktopMirrorService({ query } as unknown as Pool)
+
+    await expect(
+      service.page(
+        principal,
+        'wechat_recharge_orders',
+        undefined,
+        '200'
+      )
+    ).resolves.toMatchObject({
+      resource: 'wechat_recharge_orders',
+      eventCursor: '42'
+    })
+    expect(query.mock.calls[0]?.[0]).toContain('wechat_recharge_order')
+    expect(query.mock.calls[0]?.[0]).not.toContain(
+      'model.store_id = $2'
+    )
+  })
+
   it('refuses an empty-epoch cutover when cloud business rows exist', async () => {
     const client = {
       query: vi.fn(async (sql: string) => {
