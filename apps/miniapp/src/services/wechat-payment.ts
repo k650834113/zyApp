@@ -46,10 +46,12 @@ type RequestPayment = (
   options: WechatMiniprogram.RequestPaymentOption
 ) => unknown
 
+export type WechatPaymentRequestResult = 'completed' | 'cancelled'
+
 export function requestWechatPayment(
   parameters: WechatJsapiPaymentParameters,
   invoke: RequestPayment = wx.requestPayment.bind(wx)
-): Promise<'completed' | 'cancelled'> {
+): Promise<WechatPaymentRequestResult> {
   return new Promise((resolve, reject) => {
     invoke({
       ...parameters,
