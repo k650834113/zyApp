@@ -91,6 +91,11 @@ export class MemberSelfServiceController {
     return this.recharges.createOrder(principal(request), body)
   }
 
+  @Get('recharge-configuration')
+  rechargeConfiguration(@Req() request: MiniappRequest) {
+    return this.recharges.getConfiguration(principal(request))
+  }
+
   @Get('recharge-orders/:orderId')
   getRechargeOrder(
     @Req() request: MiniappRequest,

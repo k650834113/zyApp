@@ -5,7 +5,7 @@ import { API_CONFIG } from './infrastructure.module'
 import type { ApiConfig } from './config'
 import { redirectLegacyDesktopUpdate } from './desktop-update-legacy'
 
-const app = await NestFactory.create(AppModule)
+const app = await NestFactory.create(AppModule, { rawBody: true })
 const config = app.get<ApiConfig>(API_CONFIG)
 app.enableShutdownHooks()
 app.use('/desktop-updates/windows', redirectLegacyDesktopUpdate)

@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Pool } from '@zyapp/cloud-db'
 import type { MiniappPrincipal } from './miniapp-auth'
 import { MemberRechargeService } from './member-recharge.service'
-import { MockWechatPaymentProvider } from './wechat-payment-provider'
+import {
+  MockWechatPaymentProvider,
+  type VerifiedWechatPaymentNotification,
+  type WechatPaymentProvider
+} from './wechat-payment-provider'
+import type { ApiConfig } from './config'
 
 type QueryCall = { sql: string; parameters: unknown[] }
 
@@ -25,6 +30,90 @@ function principal(): MiniappPrincipal {
       phoneMasked: '138****8000',
       tier: 'ordinary'
     }
+  }
+}
+
+function apiConfig(
+  overrides: Partial<ApiConfig> = {}
+): ApiConfig {
+  return {
+    nodeEnv: 'production',
+    deploymentEnvironment: 'test',
+    port: 3100,
+    databaseUrl: 'postgres://test',
+    redisUrl: 'redis://test',
+    deviceEnrollmentSecret: 'enrollment-secret',
+    desktopUpdateDirectory: '/tmp/updates',
+    phoneVerificationMode: 'disabled',
+    phoneVerificationSecret: 'phone-secret',
+    wechatPaymentMode: 'wechat',
+    wechatPayMerchantId: '1748654937',
+    wechatPayMerchantCertificateSerial: 'ABCD',
+    wechatPayMerchantPrivateKeyPath: '/run/private.pem',
+    wechatPayPublicKeyId: 'PUB_KEY_ID_TEST',
+    wechatPayPublicKeyPath: '/run/public.pem',
+    wechatPayApiV3KeyPath: '/run/apiv3.key',
+    wechatPayNotifyUrl:
+      'https://judian.icu/test/v1/payments/wechat/recharge/notify',
+    wechatPayOutTradeNoPrefix: 'ZYT-',
+    wechatPaymentTestAmountFen: 1,
+    miniappDevelopmentAuthEnabled: false,
+    miniappWechatAuthMode: 'wechat',
+    wechatMiniappAppId: 'wx-test-appid',
+    wechatMiniappAppSecret: 'test-secret',
+    miniappTestVirtualPhone: null,
+    ...overrides
+  }
+}
+
+function realPaymentProvider(
+  overrides: Partial<WechatPaymentProvider> = {}
+): WechatPaymentProvider {
+  return {
+    mode: 'wechat',
+    createRechargePayment: vi.fn(async () => ({
+      providerMode: 'wechat' as const,
+      prepayId: 'wx-prepay',
+      clientPaymentParameters: {
+        timeStamp: '1784952000',
+        nonceStr: 'fixednonce',
+        package: 'prepay_id=wx-prepay',
+        signType: 'RSA',
+        paySign: 'signature'
+      }
+    })),
+    queryRechargePayment: vi.fn(async (outTradeNo: string) => ({
+      state: 'pending' as const,
+      outTradeNo
+    })),
+    closeRechargePayment: vi.fn(async () => 'closed' as const),
+    verifyNotification: vi.fn(),
+    ...overrides
+  }
+}
+
+function notification(
+  overrides: Partial<
+    VerifiedWechatPaymentNotification['payment']
+  > = {}
+): VerifiedWechatPaymentNotification {
+  const payment = {
+    state: 'success' as const,
+    outTradeNo: 'ZYT-ORDER-1',
+    transactionId: '4200000001202607250000000001',
+    amountFen: 1,
+    currency: 'CNY' as const,
+    appId: 'wx-test-appid',
+    merchantId: '1748654937',
+    payerOpenId: 'openid-test',
+    paidAt: '2026-07-25T12:01:00+08:00',
+    ...overrides
+  }
+  return {
+    eventId: 'event-1',
+    eventType: 'TRANSACTION.SUCCESS',
+    payload: { id: 'event-1', payment },
+    payment
   }
 }
 
@@ -73,6 +162,203 @@ function orderRow(
 }
 
 describe('member WeChat recharge orders', () => {
+  it('exposes the isolated one-cent real-payment configuration', () => {
+    const service = new MemberRechargeService(
+      {} as Pool,
+      realPaymentProvider(),
+      apiConfig()
+    )
+
+    expect(service.getConfiguration(principal())).toEqual({
+      providerMode: 'wechat',
+      testAmountFen: 1
+    })
+  })
+
+  it('creates the one-cent test order without gift credit', async () => {
+    const { pool, calls } = fakePool((sql, parameters) => {
+      if (
+        sql.includes('FROM wechat_recharge_order') &&
+        !sql.includes('FOR UPDATE')
+      ) return []
+      if (sql.includes('SELECT status, age_gate_status')) {
+        return [{
+          status: 'active',
+          age_gate_status: 'confirmed_at_least_14'
+        }]
+      }
+      if (sql.includes('FROM cloud_recharge_gift_tier')) {
+        return [{ id: 'bad-tier', principal_fen: 1, gift_fen: 999 }]
+      }
+      if (sql.includes('INSERT INTO wechat_recharge_order')) {
+        return [{ id: parameters[0] }]
+      }
+      if (
+        sql.includes('UPDATE wechat_recharge_order') &&
+        sql.includes("status = 'pending_payment'")
+      ) {
+        return [orderRow({
+          id: parameters[0],
+          out_trade_no: 'ZYT-ORDER-1',
+          provider_mode: 'wechat',
+          principal_fen: 1,
+          gift_fen: 0,
+          client_payment_json: JSON.parse(String(parameters[3]))
+        })]
+      }
+      return []
+    })
+    const service = new MemberRechargeService(
+      pool,
+      realPaymentProvider(),
+      apiConfig()
+    )
+
+    const result = await service.createOrder(principal(), {
+      requestId: 'one-cent-test-1',
+      principalFen: 1
+    })
+
+    expect(result).toMatchObject({
+      principalFen: 1,
+      giftFen: 0,
+      totalCreditFen: 1,
+      providerMode: 'wechat'
+    })
+    const insert = calls.find((call) =>
+      call.sql.includes('INSERT INTO wechat_recharge_order')
+    )
+    expect(insert?.parameters[9]).toBe(0)
+    expect(insert?.parameters[7]).toMatch(/^ZYT-[0-9a-f]{28}$/)
+  })
+
+  it('rejects one-cent orders when the live test tier is disabled', async () => {
+    const service = new MemberRechargeService(
+      {} as Pool,
+      realPaymentProvider(),
+      apiConfig({ wechatPaymentTestAmountFen: null })
+    )
+
+    await expect(
+      service.createOrder(principal(), {
+        requestId: 'one-cent-disabled',
+        principalFen: 1
+      })
+    ).rejects.toThrow(/test recharge amount is not enabled/)
+  })
+
+  it('keeps a queried WeChat order pending before its expiry', async () => {
+    const { pool, calls } = fakePool((sql) => {
+      if (
+        sql.includes('FROM wechat_recharge_order') &&
+        !sql.includes('FOR UPDATE')
+      ) {
+        return [orderRow({
+          provider_mode: 'wechat',
+          out_trade_no: 'ZYT-ORDER-1',
+          principal_fen: 1,
+          gift_fen: 0,
+          expires_at: new Date(Date.now() + 60_000)
+        })]
+      }
+      return []
+    })
+    const closeRechargePayment = vi.fn(async () => 'closed' as const)
+    const service = new MemberRechargeService(
+      pool,
+      realPaymentProvider({ closeRechargePayment }),
+      apiConfig()
+    )
+
+    const result = await service.getOrder(
+      principal(),
+      '55555555-5555-4555-8555-555555555555'
+    )
+
+    expect(result.status).toBe('pending_payment')
+    expect(closeRechargePayment).not.toHaveBeenCalled()
+    expect(
+      calls.some((call) => call.sql.includes("status = 'expired'"))
+    ).toBe(false)
+  })
+
+  it('closes and expires an unpaid WeChat order after local expiry', async () => {
+    const { pool } = fakePool((sql) => {
+      if (
+        sql.includes('FROM wechat_recharge_order') &&
+        !sql.includes('FOR UPDATE')
+      ) {
+        return [orderRow({
+          provider_mode: 'wechat',
+          out_trade_no: 'ZYT-ORDER-1',
+          principal_fen: 1,
+          gift_fen: 0,
+          expires_at: '2026-07-25T03:00:00.000Z'
+        })]
+      }
+      if (
+        sql.includes('UPDATE wechat_recharge_order') &&
+        sql.includes("status = 'expired'")
+      ) {
+        return [orderRow({
+          provider_mode: 'wechat',
+          principal_fen: 1,
+          gift_fen: 0,
+          status: 'expired',
+          expires_at: '2026-07-25T03:00:00.000Z'
+        })]
+      }
+      return []
+    })
+    const closeRechargePayment = vi.fn(async () => 'closed' as const)
+    const service = new MemberRechargeService(
+      pool,
+      realPaymentProvider({ closeRechargePayment }),
+      apiConfig()
+    )
+
+    const result = await service.getOrder(
+      principal(),
+      '55555555-5555-4555-8555-555555555555'
+    )
+
+    expect(result.status).toBe('expired')
+    expect(closeRechargePayment).toHaveBeenCalledWith('ZYT-ORDER-1')
+  })
+
+  it('leaves an order pending when active payment query is unavailable', async () => {
+    const { pool } = fakePool((sql) => {
+      if (
+        sql.includes('FROM wechat_recharge_order') &&
+        !sql.includes('FOR UPDATE')
+      ) {
+        return [orderRow({
+          provider_mode: 'wechat',
+          out_trade_no: 'ZYT-ORDER-1',
+          principal_fen: 1,
+          gift_fen: 0
+        })]
+      }
+      return []
+    })
+    const service = new MemberRechargeService(
+      pool,
+      realPaymentProvider({
+        queryRechargePayment: vi.fn(async () => {
+          throw new Error('network unavailable')
+        })
+      }),
+      apiConfig()
+    )
+
+    await expect(
+      service.getOrder(
+        principal(),
+        '55555555-5555-4555-8555-555555555555'
+      )
+    ).resolves.toMatchObject({ status: 'pending_payment' })
+  })
+
   it('freezes the maximum gift calculation into a pending payment order', async () => {
     const { pool, calls } = fakePool((sql, parameters) => {
       if (
@@ -115,7 +401,11 @@ describe('member WeChat recharge orders', () => {
     })
     const service = new MemberRechargeService(
       pool,
-      new MockWechatPaymentProvider()
+      new MockWechatPaymentProvider(),
+      apiConfig({
+        wechatPaymentMode: 'mock',
+        wechatPaymentTestAmountFen: null
+      })
     )
 
     const order = await service.createOrder(principal(), {
@@ -154,7 +444,11 @@ describe('member WeChat recharge orders', () => {
     })
     const service = new MemberRechargeService(
       pool,
-      new MockWechatPaymentProvider()
+      new MockWechatPaymentProvider(),
+      apiConfig({
+        wechatPaymentMode: 'mock',
+        wechatPaymentTestAmountFen: null
+      })
     )
 
     await expect(
@@ -205,7 +499,11 @@ describe('member WeChat recharge orders', () => {
     })
     const service = new MemberRechargeService(
       pool,
-      new MockWechatPaymentProvider()
+      new MockWechatPaymentProvider(),
+      apiConfig({
+        wechatPaymentMode: 'mock',
+        wechatPaymentTestAmountFen: null
+      })
     )
 
     const order = await service.createOrder(principal(), {
@@ -291,7 +589,11 @@ describe('member WeChat recharge orders', () => {
     })
     const service = new MemberRechargeService(
       pool,
-      new MockWechatPaymentProvider()
+      new MockWechatPaymentProvider(),
+      apiConfig({
+        wechatPaymentMode: 'mock',
+        wechatPaymentTestAmountFen: null
+      })
     )
 
     const first = await service.settleMockOrder(
@@ -360,7 +662,11 @@ describe('member WeChat recharge orders', () => {
     })
     const service = new MemberRechargeService(
       pool,
-      new MockWechatPaymentProvider()
+      new MockWechatPaymentProvider(),
+      apiConfig({
+        wechatPaymentMode: 'mock',
+        wechatPaymentTestAmountFen: null
+      })
     )
 
     const order = await service.settleMockOrder(
@@ -372,6 +678,133 @@ describe('member WeChat recharge orders', () => {
     expect(calls.filter((call) => call.sql === 'COMMIT')).toHaveLength(1)
     expect(
       calls.some((call) => call.sql.includes('INSERT INTO cloud_wallet_ledger'))
+    ).toBe(false)
+  })
+
+  it('settles a verified successful payment even after local expiry', async () => {
+    let settled = false
+    const { pool, calls } = fakePool((sql) => {
+      if (
+        sql.includes('FROM wechat_recharge_order') &&
+        sql.includes('FOR UPDATE')
+      ) {
+        return [orderRow(settled ? {
+          status: 'settled',
+          settled_at: '2026-07-25T04:01:00.000Z',
+          provider_mode: 'wechat',
+          provider_transaction_id:
+            '4200000001202607250000000001',
+          provider_subject: 'openid:openid-test',
+          principal_fen: 1,
+          gift_fen: 0
+        } : {
+          out_trade_no: 'ZYT-ORDER-1',
+          provider_mode: 'wechat',
+          provider_subject: 'openid:openid-test',
+          principal_fen: 1,
+          gift_fen: 0,
+          expires_at: '2026-07-25T03:00:00.000Z'
+        })]
+      }
+      if (sql.includes('INSERT INTO payment_callback_inbox')) {
+        return [{ event_id: 'event-1' }]
+      }
+      if (sql.includes('SELECT id FROM cloud_member')) {
+        return [{ id: principal().memberId }]
+      }
+      if (sql.includes('FROM cloud_wallet_account')) {
+        return [{
+          id: '66666666-6666-4666-8666-666666666666',
+          status: 'active',
+          principal_balance_fen: 10,
+          gift_balance_fen: 0
+        }]
+      }
+      if (sql.includes('INSERT INTO cloud_event')) {
+        return [{ sequence: 101 }]
+      }
+      if (
+        sql.includes('UPDATE wechat_recharge_order') &&
+        sql.includes("status = 'settled'")
+      ) {
+        settled = true
+        return [orderRow({
+          out_trade_no: 'ZYT-ORDER-1',
+          provider_mode: 'wechat',
+          principal_fen: 1,
+          gift_fen: 0,
+          status: 'settled',
+          settled_at: '2026-07-25T04:01:00.000Z'
+        })]
+      }
+      return []
+    })
+    const service = new MemberRechargeService(
+      pool,
+      realPaymentProvider(),
+      apiConfig()
+    )
+
+    const result = await service.handleWechatNotification(notification())
+
+    expect(result.status).toBe('settled')
+    expect(
+      calls.filter((call) =>
+        call.sql.includes('INSERT INTO cloud_wallet_ledger')
+      )
+    ).toHaveLength(1)
+    expect(
+      calls.some((call) =>
+        call.sql.includes('INSERT INTO cloud_membership_grant')
+      )
+    ).toBe(false)
+    const settlement = calls.find((call) =>
+      call.sql.includes("status = 'settled'")
+    )
+    expect(settlement?.parameters[2]).toBe(
+      '2026-07-25T12:01:00+08:00'
+    )
+  })
+
+  it.each([
+    ['amount', notification({ amountFen: 2 })],
+    ['AppID', notification({ appId: 'wx-wrong' })],
+    ['merchant', notification({ merchantId: '9999999999' })],
+    ['payer', notification({ payerOpenId: 'another-openid' })],
+    ['order', notification({ outTradeNo: 'ZYT-WRONG' })]
+  ])('rejects a verified %s mismatch before ledger writes', async (
+    _name,
+    verified
+  ) => {
+    const { pool, calls } = fakePool((sql) => {
+      if (
+        sql.includes('FROM wechat_recharge_order') &&
+        sql.includes('FOR UPDATE')
+      ) {
+        return [orderRow({
+          out_trade_no: 'ZYT-ORDER-1',
+          provider_mode: 'wechat',
+          provider_subject: 'openid:openid-test',
+          principal_fen: 1,
+          gift_fen: 0
+        })]
+      }
+      return []
+    })
+    const service = new MemberRechargeService(
+      pool,
+      realPaymentProvider(),
+      apiConfig()
+    )
+
+    await expect(
+      service.handleWechatNotification(verified)
+    ).rejects.toThrow(/verified WeChat payment does not match/)
+    expect(
+      calls.some((call) =>
+        call.sql.includes('INSERT INTO payment_callback_inbox') ||
+        call.sql.includes('INSERT INTO cloud_wallet_ledger')
+      )
     ).toBe(false)
   })
 })

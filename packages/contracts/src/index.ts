@@ -1290,6 +1290,19 @@ export type CreateMemberRechargeOrderRequest = {
   principalFen: number
 }
 
+export type MemberRechargeConfiguration = {
+  providerMode: 'mock' | 'wechat'
+  testAmountFen: number | null
+}
+
+export type WechatJsapiPaymentParameters = {
+  timeStamp: string
+  nonceStr: string
+  package: string
+  signType: 'RSA'
+  paySign: string
+}
+
 export type OrderPaymentMethod = 'cash' | 'stored_value'
 export type OrderPricingTier = 'regular' | 'advanced'
 export type OrderBenefitType =

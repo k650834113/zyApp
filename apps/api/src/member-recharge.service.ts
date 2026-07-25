@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common'
 import type {
   CreateMemberRechargeOrderRequest,
+  MemberRechargeConfiguration,
   MemberRechargeOrderSummary
 } from '@zyapp/contracts'
 import type { Pool, PoolClient } from '@zyapp/cloud-db'
@@ -20,10 +21,16 @@ import {
 import { createHash, randomUUID } from 'node:crypto'
 import type { MiniappPrincipal } from './miniapp-auth'
 import {
+  API_CONFIG,
   POSTGRES_POOL,
   WECHAT_PAYMENT_PROVIDER
 } from './infrastructure.module'
-import type { WechatPaymentProvider } from './wechat-payment-provider'
+import type { ApiConfig } from './config'
+import type {
+  VerifiedWechatPaymentNotification,
+  WechatPaymentProvider,
+  WechatPaymentState
+} from './wechat-payment-provider'
 
 type RechargeOrderRow = {
   id: string
@@ -47,6 +54,8 @@ type LockedRechargeOrderRow = RechargeOrderRow & {
   store_id: string
   member_id: string
   identity_id: string
+  provider_transaction_id: string | null
+  provider_subject: string
 }
 
 function safeFen(value: number | string, name: string): number {
@@ -126,8 +135,24 @@ export class MemberRechargeService {
   constructor(
     @Inject(POSTGRES_POOL) private readonly pool: Pool,
     @Inject(WECHAT_PAYMENT_PROVIDER)
-    private readonly paymentProvider: WechatPaymentProvider
+    private readonly paymentProvider: WechatPaymentProvider,
+    @Inject(API_CONFIG) private readonly config: ApiConfig
   ) {}
+
+  getConfiguration(
+    principal: MiniappPrincipal
+  ): MemberRechargeConfiguration {
+    this.requireMember(principal)
+    if (this.paymentProvider.mode === 'disabled') {
+      throw new ServiceUnavailableException(
+        'WeChat payment is disabled'
+      )
+    }
+    return {
+      providerMode: this.paymentProvider.mode,
+      testAmountFen: this.config.wechatPaymentTestAmountFen
+    }
+  }
 
   async createOrder(
     principal: MiniappPrincipal,
@@ -145,6 +170,17 @@ export class MemberRechargeService {
         error instanceof Error ? error.message : 'Invalid recharge order'
       )
     }
+    if (
+      input.principalFen === 1 &&
+      this.config.wechatPaymentTestAmountFen !== 1
+    ) {
+      throw new BadRequestException(
+        'The one-cent test recharge amount is not enabled'
+      )
+    }
+    const isLiveTestOrder =
+      this.config.wechatPaymentTestAmountFen !== null &&
+      input.principalFen === this.config.wechatPaymentTestAmountFen
 
     const hash = requestHash(input)
     const existing = await this.pool.query<RechargeOrderRow>(
@@ -167,7 +203,13 @@ export class MemberRechargeService {
     }
 
     const orderId = randomUUID()
-    const outTradeNo = orderId.replaceAll('-', '')
+    const compactOrderId = orderId.replaceAll('-', '')
+    const outTradeNo =
+      this.config.wechatPayOutTradeNoPrefix +
+      compactOrderId.slice(
+        0,
+        32 - this.config.wechatPayOutTradeNoPrefix.length
+      )
     const expiresAt = new Date(Date.now() + 15 * 60 * 1_000)
     const client = await this.pool.connect()
     let giftFen = 0
@@ -251,15 +293,24 @@ export class MemberRechargeService {
         nonNegativeFen(input.principalFen),
         domainTiers
       )
-      giftFen = allocation.gift
-      giftSnapshot = {
-        tiers: resolvedTiers.map((tier) => ({
-          id: tier.id,
-          principalFen: safeFen(tier.principal_fen, 'tier.principalFen'),
-          giftFen: safeFen(tier.gift_fen, 'tier.giftFen')
-        })),
-        allocation
-      }
+      giftFen = isLiveTestOrder ? 0 : allocation.gift
+      giftSnapshot = isLiveTestOrder
+        ? {
+            livePaymentTest: true,
+            principalFen: input.principalFen,
+            giftFen: 0
+          }
+        : {
+            tiers: resolvedTiers.map((tier) => ({
+              id: tier.id,
+              principalFen: safeFen(
+                tier.principal_fen,
+                'tier.principalFen'
+              ),
+              giftFen: safeFen(tier.gift_fen, 'tier.giftFen')
+            })),
+            allocation
+          }
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO wechat_recharge_order
          (id, tenant_id, store_id, member_id, identity_id, request_id,
@@ -361,6 +412,13 @@ export class MemberRechargeService {
     principal: MiniappPrincipal,
     orderId: string
   ): Promise<MemberRechargeOrderSummary> {
+    return this.refreshWechatOrder(principal, orderId)
+  }
+
+  async refreshWechatOrder(
+    principal: MiniappPrincipal,
+    orderId: string
+  ): Promise<MemberRechargeOrderSummary> {
     this.requireMember(principal)
     const result = await this.pool.query<RechargeOrderRow>(
       `SELECT id, request_id, request_hash, out_trade_no, provider_mode,
@@ -380,7 +438,73 @@ export class MemberRechargeService {
     )
     const row = result.rows[0]
     if (!row) throw new NotFoundException('Recharge order was not found')
-    return summarize(row)
+    if (
+      row.provider_mode !== 'wechat' ||
+      (row.status !== 'pending_payment' && row.status !== 'creating')
+    ) {
+      return summarize(row)
+    }
+    try {
+      const payment = await this.paymentProvider.queryRechargePayment(
+        row.out_trade_no
+      )
+      if (payment.state === 'success') {
+        return this.settleVerifiedWechatPayment(
+          {
+            eventId: `query:${payment.transactionId}`,
+            eventType: 'TRANSACTION.SUCCESS',
+            payload: { source: 'active-query', payment },
+            payment
+          },
+          principal.identityId
+        )
+      }
+      if (
+        payment.state === 'pending' &&
+        new Date(row.expires_at).getTime() > Date.now()
+      ) {
+        return summarize(row)
+      }
+      if (payment.state === 'pending') {
+        const closeResult =
+          await this.paymentProvider.closeRechargePayment(row.out_trade_no)
+        if (closeResult === 'paid') {
+          const paid =
+            await this.paymentProvider.queryRechargePayment(row.out_trade_no)
+          if (paid.state === 'success') {
+            return this.settleVerifiedWechatPayment(
+              {
+                eventId: `query:${paid.transactionId}`,
+                eventType: 'TRANSACTION.SUCCESS',
+                payload: { source: 'active-query-after-close', payment: paid },
+                payment: paid
+              },
+              principal.identityId
+            )
+          }
+          return summarize(row)
+        }
+      }
+      const expired = await this.pool.query<RechargeOrderRow>(
+        `UPDATE wechat_recharge_order
+         SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND status IN ('creating', 'pending_payment')
+         RETURNING id, request_id, request_hash, out_trade_no, provider_mode,
+                   principal_fen, gift_fen, gift_rule_snapshot_json,
+                   client_payment_json, status, error_message, expires_at,
+                   settled_at, created_at`,
+        [row.id]
+      )
+      return summarize(expired.rows[0] ?? row)
+    } catch {
+      return summarize(row)
+    }
+  }
+
+  async handleWechatNotification(
+    notification: VerifiedWechatPaymentNotification
+  ): Promise<MemberRechargeOrderSummary> {
+    return this.settleVerifiedWechatPayment(notification)
   }
 
   async settleMockOrder(
@@ -408,58 +532,60 @@ export class MemberRechargeService {
     })
   }
 
+  private settleVerifiedWechatPayment(
+    notification: VerifiedWechatPaymentNotification,
+    expectedIdentityId?: string
+  ): Promise<MemberRechargeOrderSummary> {
+    return this.settlePaidOrder({
+      provider: 'wechat',
+      eventId: notification.eventId,
+      payload: notification.payload,
+      outTradeNo: notification.payment.outTradeNo,
+      transactionId: notification.payment.transactionId,
+      paidAt: notification.payment.paidAt,
+      verifiedPayment: notification.payment,
+      expectedIdentityId
+    })
+  }
+
   private async settlePaidOrder(input: {
     provider: string
     eventId: string
     payload: unknown
-    orderId: string
+    orderId?: string
+    outTradeNo?: string
     transactionId: string
-    expectedIdentityId?: string
+    paidAt?: string
+    verifiedPayment?: Extract<
+      WechatPaymentState,
+      { state: 'success' }
+    >
+    expectedIdentityId?: string | undefined
   }): Promise<MemberRechargeOrderSummary> {
     const payloadHash = callbackHash(input.payload)
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
-      const reserved = await client.query(
-        `INSERT INTO payment_callback_inbox
-         (provider, event_id, payload_hash, order_id, status, payload_json)
-         VALUES ($1, $2, $3, $4, 'received', $5::jsonb)
-         ON CONFLICT (provider, event_id) DO NOTHING
-         RETURNING event_id`,
-        [
-          input.provider,
-          input.eventId,
-          payloadHash,
-          input.orderId,
-          JSON.stringify(input.payload)
-        ]
-      )
-      if (!reserved.rows[0]) {
-        const previous = await client.query<{
-          payload_hash: string
-        }>(
-          `SELECT payload_hash
-           FROM payment_callback_inbox
-           WHERE provider = $1 AND event_id = $2
-           FOR UPDATE`,
-          [input.provider, input.eventId]
-        )
-        if (previous.rows[0]?.payload_hash !== payloadHash) {
-          throw new ConflictException(
-            'Payment callback id was reused with different data'
-          )
-        }
-      }
-
       const orderResult = await client.query<LockedRechargeOrderRow>(
-        `SELECT id, tenant_id, store_id, member_id, identity_id, request_id,
-                request_hash, out_trade_no, provider_mode, principal_fen,
-                gift_fen, gift_rule_snapshot_json, client_payment_json,
-                status, error_message, expires_at, settled_at, created_at
-         FROM wechat_recharge_order
-         WHERE id = $1
+        `SELECT recharge.id, recharge.tenant_id, recharge.store_id,
+                recharge.member_id, recharge.identity_id,
+                recharge.request_id, recharge.request_hash,
+                recharge.out_trade_no, recharge.provider_mode,
+                recharge.provider_transaction_id, recharge.principal_fen,
+                recharge.gift_fen, recharge.gift_rule_snapshot_json,
+                recharge.client_payment_json, recharge.status,
+                recharge.error_message, recharge.expires_at,
+                recharge.settled_at, recharge.created_at,
+                identity.provider_subject
+         FROM wechat_recharge_order recharge
+         JOIN miniapp_identity identity ON identity.id = recharge.identity_id
+         WHERE ${
+           input.outTradeNo
+             ? 'recharge.out_trade_no = $1'
+             : 'recharge.id = $1'
+         }
          FOR UPDATE`,
-        [input.orderId]
+        [input.outTradeNo ?? input.orderId]
       )
       const order = orderResult.rows[0]
       if (!order) throw new NotFoundException('Recharge order was not found')
@@ -469,7 +595,63 @@ export class MemberRechargeService {
       ) {
         throw new UnauthorizedException('Recharge order belongs to another user')
       }
+      if (input.verifiedPayment) {
+        const payment = input.verifiedPayment
+        const expectedPayerSubject = `openid:${payment.payerOpenId}`
+        if (
+          order.out_trade_no !== payment.outTradeNo ||
+          order.provider_mode !== 'wechat' ||
+          safeFen(order.principal_fen, 'principalFen') !==
+            payment.amountFen ||
+          payment.currency !== 'CNY' ||
+          payment.appId !== this.config.wechatMiniappAppId ||
+          payment.merchantId !== this.config.wechatPayMerchantId ||
+          order.provider_subject !== expectedPayerSubject
+        ) {
+          throw new ConflictException(
+            'The verified WeChat payment does not match the recharge order'
+          )
+        }
+      }
       if (order.status === 'settled') {
+        if (
+          order.provider_transaction_id &&
+          order.provider_transaction_id !== input.transactionId
+        ) {
+          throw new ConflictException(
+            'Recharge order has another payment transaction'
+          )
+        }
+        const reservedSettled = await client.query(
+          `INSERT INTO payment_callback_inbox
+           (provider, event_id, payload_hash, order_id, status, payload_json,
+            processed_at)
+           VALUES ($1, $2, $3, $4, 'processed', $5::jsonb,
+                   CURRENT_TIMESTAMP)
+           ON CONFLICT (provider, event_id) DO NOTHING
+           RETURNING event_id`,
+          [
+            input.provider,
+            input.eventId,
+            payloadHash,
+            order.id,
+            JSON.stringify(input.payload)
+          ]
+        )
+        if (!reservedSettled.rows[0]) {
+          const previous = await client.query<{ payload_hash: string }>(
+            `SELECT payload_hash
+             FROM payment_callback_inbox
+             WHERE provider = $1 AND event_id = $2
+             FOR UPDATE`,
+            [input.provider, input.eventId]
+          )
+          if (previous.rows[0]?.payload_hash !== payloadHash) {
+            throw new ConflictException(
+              'Payment callback id was reused with different data'
+            )
+          }
+        }
         await client.query(
           `UPDATE payment_callback_inbox
            SET status = 'processed', order_id = $3,
@@ -480,12 +662,18 @@ export class MemberRechargeService {
         await client.query('COMMIT')
         return summarize(order)
       }
-      if (order.status !== 'pending_payment') {
+      if (
+        order.status !== 'pending_payment' &&
+        !(input.verifiedPayment && order.status === 'creating')
+      ) {
         throw new ConflictException(
           `Recharge order cannot be paid from status ${order.status}`
         )
       }
-      if (new Date(order.expires_at).getTime() <= Date.now()) {
+      if (
+        !input.verifiedPayment &&
+        new Date(order.expires_at).getTime() <= Date.now()
+      ) {
         const expired = await client.query<RechargeOrderRow>(
           `UPDATE wechat_recharge_order
            SET status = 'expired', updated_at = CURRENT_TIMESTAMP
@@ -508,6 +696,37 @@ export class MemberRechargeService {
         const row = expired.rows[0]
         if (!row) throw new Error('Expired recharge order was not returned')
         return summarize(row)
+      }
+
+      const reserved = await client.query(
+        `INSERT INTO payment_callback_inbox
+         (provider, event_id, payload_hash, order_id, status, payload_json)
+         VALUES ($1, $2, $3, $4, 'received', $5::jsonb)
+         ON CONFLICT (provider, event_id) DO NOTHING
+         RETURNING event_id`,
+        [
+          input.provider,
+          input.eventId,
+          payloadHash,
+          order.id,
+          JSON.stringify(input.payload)
+        ]
+      )
+      if (!reserved.rows[0]) {
+        const previous = await client.query<{
+          payload_hash: string
+        }>(
+          `SELECT payload_hash
+           FROM payment_callback_inbox
+           WHERE provider = $1 AND event_id = $2
+           FOR UPDATE`,
+          [input.provider, input.eventId]
+        )
+        if (previous.rows[0]?.payload_hash !== payloadHash) {
+          throw new ConflictException(
+            'Payment callback id was reused with different data'
+          )
+        }
       }
 
       const member = await client.query<{ id: string }>(
@@ -554,7 +773,12 @@ export class MemberRechargeService {
       ) {
         throw new Error('Wallet balance exceeds the safe integer range')
       }
-      const timestamp = new Date().toISOString()
+      const timestamp = input.paidAt ?? new Date().toISOString()
+      if (!Number.isFinite(new Date(timestamp).getTime())) {
+        throw new ConflictException(
+          'Verified WeChat payment time is invalid'
+        )
+      }
       const settlementOperationId = randomUUID()
       const membershipGrantId =
         principalFen >= 50_000 ? randomUUID() : null

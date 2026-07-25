@@ -28,6 +28,7 @@ import { SyncController } from './sync.controller'
 import { SyncService } from './sync.service'
 import { TenantAdminController } from './tenant-admin.controller'
 import { TenantAdminService } from './tenant-admin.service'
+import { WechatPaymentController } from './wechat-payment.controller'
 
 @Module({
   imports: [InfrastructureModule],
@@ -41,6 +42,7 @@ import { TenantAdminService } from './tenant-admin.service'
     DesktopAuthController,
     MiniappController,
     MemberSelfServiceController,
+    WechatPaymentController,
     EmployeeMobileController,
     TenantAdminController
   ],
