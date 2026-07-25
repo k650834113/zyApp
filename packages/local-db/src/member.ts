@@ -59,11 +59,20 @@ function mapMember(row: Record<string, unknown>): MemberRecord {
   }
 }
 
-function memberSelectSql(): string {
+function memberAgeGateSelectSql(database: DatabaseSync): string {
+  return hasMemberAgeGateColumn(database)
+    ? 'm.age_gate_status'
+    : `CASE
+         WHEN m.confirmed_at_least_14 = 1 THEN 'confirmed_at_least_14'
+         ELSE 'recharge_disabled'
+       END AS age_gate_status`
+}
+
+function memberSelectSql(database: DatabaseSync): string {
   return `
     SELECT m.id, m.member_number, m.phone, m.nickname, m.status,
            m.birthday_month, m.birthday_day, m.birthday_source, m.note, m.source,
-           m.age_gate_status,
+           ${memberAgeGateSelectSql(database)},
            m.created_at, m.updated_at,
            COUNT(CASE WHEN g.id IS NOT NULL AND g.revoked_at IS NULL THEN 1 END)
              AS advanced_grants
@@ -149,7 +158,7 @@ function appendMemberAuditAndOutbox(
 function findMemberById(database: DatabaseSync, tenantId: string, memberId: string): MemberRecord {
   const row = database
     .prepare(
-      `${memberSelectSql()}
+      `${memberSelectSql(database)}
        WHERE m.tenant_id = ? AND m.id = ?
        GROUP BY m.id`
     )
@@ -167,7 +176,7 @@ function findMemberByPhone(
 ): MemberRecord | null {
   const row = database
     .prepare(
-      `${memberSelectSql()}
+      `${memberSelectSql(database)}
        WHERE m.tenant_id = ? AND m.phone = ?
        GROUP BY m.id`
     )
@@ -196,7 +205,7 @@ export function searchMembers(
   const pattern = `%${normalized.replaceAll('%', '\\%').replaceAll('_', '\\_')}%`
   const rows = database
     .prepare(
-      `${memberSelectSql()}
+      `${memberSelectSql(database)}
        WHERE m.tenant_id = ?
          AND (? = '' OR m.phone LIKE ? ESCAPE '\\'
           OR m.member_number LIKE ? ESCAPE '\\'
@@ -238,7 +247,7 @@ export function listCashierMembers(
        )
        SELECT m.id, m.member_number, m.phone, m.nickname, m.status,
               m.birthday_month, m.birthday_day, m.birthday_source, m.note, m.source,
-              m.age_gate_status,
+              ${memberAgeGateSelectSql(database)},
               m.created_at, m.updated_at, a.last_active_at,
               COUNT(CASE WHEN g.id IS NOT NULL AND g.revoked_at IS NULL THEN 1 END)
                 AS advanced_grants
