@@ -700,7 +700,28 @@ describe('member self-service transactions', () => {
           }
         ]
       }
-      if (sql.includes('FROM cloud_monthly_card_event')) return []
+      if (sql.includes('FROM wechat_recharge_order')) {
+        return [
+          {
+            id: '88888888-8888-4888-8888-888888888888',
+            out_trade_no: 'ZYT-202607250001',
+            principal_fen: '10000',
+            gift_fen: '1000',
+            settled_at: '2026-06-14T00:45:00.000Z'
+          }
+        ]
+      }
+      if (sql.includes('FROM cloud_monthly_card_event')) {
+        return [
+          {
+            operation_id: '99999999-9999-4999-8999-999999999999',
+            card_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            event_type: 'purchased',
+            reason: '月卡续费',
+            occurred_at: '2026-06-14T00:15:00.000Z'
+          }
+        ]
+      }
       return []
     })
     const service = new MemberSelfService(pool, fakeRedis(), config())
@@ -712,5 +733,14 @@ describe('member self-service transactions', () => {
       principalDeltaFen: 30000,
       giftDeltaFen: 2000
     })
+    expect(history.activities.map((item) => item.title)).toEqual([
+      '桌位消费',
+      '微信充值',
+      '月卡续费'
+    ])
+    expect(
+      history.activities.filter((item) => item.kind === 'consumption')
+    ).toHaveLength(1)
+    expect(history.walletEntries).toHaveLength(1)
   })
 })

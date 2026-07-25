@@ -54,6 +54,7 @@ type SwitchEvent = {
 }
 
 const emptyHistory: MemberSelfServiceHistory = {
+  activities: [],
   orders: [],
   walletEntries: [],
   monthlyCardEvents: []

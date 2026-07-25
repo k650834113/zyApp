@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common'
 import type {
   FillMemberBirthdayRequest,
+  MemberActivitySummary,
   MemberAgeGate,
   MemberSelfServiceSummary,
   MemberSelfServiceHistory,
@@ -112,6 +113,29 @@ function badRequest(error: unknown): BadRequestException {
   return new BadRequestException(
     error instanceof Error ? error.message : 'Invalid request'
   )
+}
+
+function monthlyCardActivity(
+  eventType: string
+): Pick<MemberActivitySummary, 'title' | 'status'> {
+  switch (eventType) {
+    case 'paused':
+      return { title: '月卡暂停', status: 'paused' }
+    case 'resumed':
+      return { title: '月卡恢复', status: 'resumed' }
+    case 'used':
+      return { title: '月卡使用', status: 'used' }
+    case 'refunded':
+      return { title: '月卡退款', status: 'refunded' }
+    case 'expired':
+      return { title: '月卡到期', status: 'expired' }
+    case 'manual_extended':
+      return { title: '月卡续期', status: 'active' }
+    case 'snapshot':
+      return { title: '月卡状态', status: 'active' }
+    default:
+      return { title: '月卡续费', status: 'active' }
+  }
 }
 
 function safeFen(value: number | string | null): number {
@@ -679,7 +703,8 @@ export class MemberSelfService {
     principal: MiniappPrincipal
   ): Promise<MemberSelfServiceHistory> {
     const memberId = this.requireMemberId(principal)
-    const [orders, walletEntries, monthlyCardEvents] = await Promise.all([
+    const [orders, rechargeOrders, walletEntries, monthlyCardEvents] =
+      await Promise.all([
       this.pool.query<{
         id: string
         order_number: string
@@ -693,6 +718,20 @@ export class MemberSelfService {
            AND (customer_member_id = $2 OR wallet_member_id = $2)
          ORDER BY completed_at DESC
          LIMIT 50`,
+        [principal.tenantId, memberId]
+      ),
+      this.pool.query<{
+        id: string
+        out_trade_no: string
+        principal_fen: number | string
+        gift_fen: number | string
+        settled_at: Date | string
+      }>(
+        `SELECT id, out_trade_no, principal_fen, gift_fen, settled_at
+         FROM wechat_recharge_order
+         WHERE tenant_id = $1 AND member_id = $2 AND status = 'settled'
+         ORDER BY settled_at DESC
+         LIMIT 100`,
         [principal.tenantId, memberId]
       ),
       this.pool.query<{
@@ -726,7 +765,48 @@ export class MemberSelfService {
         [principal.tenantId, memberId]
       )
     ])
+    const activities: MemberActivitySummary[] = [
+      ...orders.rows.map((row) => ({
+        activityId: `sales-order:${row.id}`,
+        kind: 'consumption' as const,
+        businessId: row.id,
+        businessNumber: row.order_number,
+        title: '桌位消费',
+        amountFen: safeFen(row.total_fen),
+        direction: 'debit' as const,
+        status: 'completed' as const,
+        occurredAt: new Date(row.completed_at).toISOString()
+      })),
+      ...rechargeOrders.rows.map((row) => ({
+        activityId: `wechat-recharge:${row.id}`,
+        kind: 'recharge' as const,
+        businessId: row.id,
+        businessNumber: row.out_trade_no,
+        title: '微信充值',
+        amountFen: safeFen(row.principal_fen) + safeFen(row.gift_fen),
+        direction: 'credit' as const,
+        status: 'settled' as const,
+        occurredAt: new Date(row.settled_at).toISOString()
+      })),
+      ...monthlyCardEvents.rows.map((row) => ({
+        activityId: `monthly-card:${row.operation_id}`,
+        kind: 'monthly_card' as const,
+        businessId: row.card_id,
+        businessNumber: null,
+        ...monthlyCardActivity(row.event_type),
+        amountFen: null,
+        direction: 'neutral' as const,
+        occurredAt: new Date(row.occurred_at).toISOString()
+      }))
+    ]
+      .sort(
+        (left, right) =>
+          Date.parse(right.occurredAt) - Date.parse(left.occurredAt) ||
+          left.activityId.localeCompare(right.activityId)
+      )
+      .slice(0, 100)
     return {
+      activities,
       orders: orders.rows.map((row) => ({
         orderId: row.id,
         orderNumber: row.order_number,

@@ -77,6 +77,7 @@ type SwitchEvent = {
 
 const quickRechargeFen = [10_000, 30_000, 50_000, 100_000]
 const emptyHistory: MemberSelfServiceHistory = {
+  activities: [],
   orders: [],
   walletEntries: [],
   monthlyCardEvents: []

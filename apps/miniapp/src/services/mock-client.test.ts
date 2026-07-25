@@ -79,6 +79,12 @@ describe('miniapp mock client', () => {
     expect(member.giftBalanceFen).toBe(22_000)
     expect(member.tier).toBe('advanced')
     const history = await client.getMemberHistory()
+    expect(history.activities[0]).toMatchObject({
+      kind: 'recharge',
+      title: '微信充值',
+      amountFen: 152_000,
+      status: 'settled'
+    })
     expect(history.walletEntries[0]).toMatchObject({
       principalDeltaFen: 130_000,
       giftDeltaFen: 22_000

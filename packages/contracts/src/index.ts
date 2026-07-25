@@ -1263,7 +1263,28 @@ export type MemberMonthlyCardHistoryItem = {
   occurredAt: string
 }
 
+export type MemberActivitySummary = {
+  activityId: string
+  kind: 'consumption' | 'recharge' | 'monthly_card'
+  businessId: string
+  businessNumber: string | null
+  title: string
+  amountFen: number | null
+  direction: 'debit' | 'credit' | 'neutral'
+  status:
+    | 'completed'
+    | 'settled'
+    | 'active'
+    | 'paused'
+    | 'resumed'
+    | 'used'
+    | 'refunded'
+    | 'expired'
+  occurredAt: string
+}
+
 export type MemberSelfServiceHistory = {
+  activities: MemberActivitySummary[]
   orders: MemberOrderHistoryItem[]
   walletEntries: MemberWalletHistoryItem[]
   monthlyCardEvents: MemberMonthlyCardHistoryItem[]

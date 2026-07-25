@@ -165,6 +165,7 @@ let mockStoreProfile: StoreProfileSummary = {
 let identity: MiniappIdentity = { role: 'guest' }
 let member: MemberSelfServiceSummary | null = null
 let memberHistory: MemberSelfServiceHistory = {
+  activities: [],
   orders: [],
   walletEntries: [],
   monthlyCardEvents: []
@@ -326,6 +327,41 @@ function giftFor(principalFen: number): number {
 
 function demoMemberHistory(): MemberSelfServiceHistory {
   return {
+    activities: [
+      {
+        activityId: 'sales-order:mock-order-20260704',
+        kind: 'consumption',
+        businessId: 'mock-order-20260704',
+        businessNumber: 'JD-260704-001',
+        title: '桌位消费',
+        amountFen: 8_600,
+        direction: 'debit',
+        status: 'completed',
+        occurredAt: '2026-07-04T13:18:00.000Z'
+      },
+      {
+        activityId: 'wechat-recharge:mock-wallet-recharge-20260702',
+        kind: 'recharge',
+        businessId: 'mock-wallet-recharge-20260702',
+        businessNumber: 'MOCK-260702-001',
+        title: '微信充值',
+        amountFen: 32_000,
+        direction: 'credit',
+        status: 'settled',
+        occurredAt: '2026-07-02T11:42:00.000Z'
+      },
+      {
+        activityId: 'monthly-card:mock-monthly-card-20260701',
+        kind: 'monthly_card',
+        businessId: 'mock-monthly-card-active',
+        businessNumber: null,
+        title: '月卡续费',
+        amountFen: null,
+        direction: 'neutral',
+        status: 'active',
+        occurredAt: '2026-07-01T04:00:00.000Z'
+      }
+    ],
     orders: [
       {
         orderId: 'mock-order-20260704',
@@ -481,6 +517,7 @@ export class MockMiniappClient implements MiniappClient {
         : 'recharge_disabled'
     }
     memberHistory = {
+      activities: [],
       orders: [],
       walletEntries: [],
       monthlyCardEvents: []
@@ -532,7 +569,12 @@ export class MockMiniappClient implements MiniappClient {
       }
       memberHistory = canRecharge
         ? demoMemberHistory()
-        : { orders: [], walletEntries: [], monthlyCardEvents: [] }
+        : {
+            activities: [],
+            orders: [],
+            walletEntries: [],
+            monthlyCardEvents: []
+          }
     }
     identity = {
       role: 'member',
@@ -644,6 +686,20 @@ export class MockMiniappClient implements MiniappClient {
     }
     memberHistory = {
       ...memberHistory,
+      activities: [
+        {
+          activityId: `wechat-recharge:${order.orderId}`,
+          kind: 'recharge',
+          businessId: order.orderId,
+          businessNumber: null,
+          title: '微信充值',
+          amountFen: order.totalCreditFen,
+          direction: 'credit',
+          status: 'settled',
+          occurredAt: settledAt
+        },
+        ...memberHistory.activities
+      ],
       walletEntries: [
         {
           operationId: order.orderId,
