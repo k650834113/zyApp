@@ -4,11 +4,6 @@ export type PhoneNumberEvent = {
   detail: { code?: string; errMsg?: string }
 }
 
-export type WechatProfile = {
-  nickname: string
-  avatarUrl: string | null
-}
-
 export const defaultConfirmedAtLeast14 = true
 
 const mainlandPhonePattern = /^1\d{10}$/
@@ -47,21 +42,6 @@ export function phoneAuthorizationFailure(event: PhoneNumberEvent): string {
   return '微信没有返回手机号授权码，请确认使用已认证 AppID，并在真机预览或体验版中测试，也可以改用手机号验证码登录。'
 }
 
-export async function requestWechatProfile(): Promise<WechatProfile | null> {
-  try {
-    const profile = await wx.getUserProfile({
-      desc: '完善会员资料',
-      lang: 'zh_CN'
-    })
-    return {
-      nickname: profile.userInfo.nickName?.trim() || '微信用户',
-      avatarUrl: profile.userInfo.avatarUrl || null
-    }
-  } catch {
-    return null
-  }
-}
-
 export function normalizePhone(value: string): string | null {
   const phone = value.trim()
   return mainlandPhonePattern.test(phone) ? phone : null
@@ -74,6 +54,15 @@ export function normalizeVerificationCode(value: string): string | null {
 
 export function normalizeNickname(value: string): string {
   return value.trim() || '微信用户'
+}
+
+export function normalizeMemberNickname(value: string): string {
+  const nickname = value.trim()
+  const length = Array.from(nickname).length
+  if (length < 2 || length > 12) {
+    throw new Error('会员名称需要填写 2 至 12 个字符')
+  }
+  return nickname
 }
 
 export function phoneVerificationHint(

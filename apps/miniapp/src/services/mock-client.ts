@@ -586,6 +586,40 @@ export class MockMiniappClient implements MiniappClient {
     return member
   }
 
+  async updateMemberProfile(
+    nickname: string
+  ): Promise<MemberSelfServiceSummary> {
+    if (!member) throw new Error('请先注册会员')
+    member = {
+      ...member,
+      nickname: nickname.trim(),
+      profileCompleted: true
+    }
+    identity = {
+      ...identity,
+      ...(identity.role === 'member' ? { nickname: member.nickname } : {})
+    }
+    return member
+  }
+
+  async updateMemberProfileWithAvatar(
+    nickname: string,
+    localAvatarPath: string
+  ): Promise<MemberSelfServiceSummary> {
+    if (!member) throw new Error('请先注册会员')
+    member = {
+      ...member,
+      nickname: nickname.trim(),
+      avatarUrl: localAvatarPath,
+      profileCompleted: true
+    }
+    identity = {
+      ...identity,
+      ...(identity.role === 'member' ? { nickname: member.nickname } : {})
+    }
+    return member
+  }
+
   async fillBirthday(
     month: number,
     day: number

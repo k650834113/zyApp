@@ -32,6 +32,14 @@ describe('miniapp mock client', () => {
       role: 'member',
       nickname: '微信玩家'
     })
+
+    await expect(
+      client.updateMemberProfileWithAvatar('林小满', 'wxfile://new-avatar')
+    ).resolves.toMatchObject({
+      nickname: '林小满',
+      avatarUrl: 'wxfile://new-avatar',
+      profileCompleted: true
+    })
   })
 
   it('blocks stored-value recharge when age confirmation was declined', async () => {

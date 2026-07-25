@@ -62,6 +62,11 @@ export interface MiniappClient {
   loginWithWechatProfile(
     input: WechatOneTapLoginInput
   ): Promise<MemberSelfServiceSummary>
+  updateMemberProfile(nickname: string): Promise<MemberSelfServiceSummary>
+  updateMemberProfileWithAvatar(
+    nickname: string,
+    localAvatarPath: string
+  ): Promise<MemberSelfServiceSummary>
   fillBirthday(month: number, day: number): Promise<MemberSelfServiceSummary>
   createRechargeOrder(
     input: CreateMemberRechargeOrderRequest

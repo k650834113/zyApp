@@ -150,4 +150,56 @@ describe('HTTP miniapp client authentication', () => {
     ])
     expect(requests[2]?.authorization).toBe('Bearer fresh-token')
   })
+
+  it('uploads a member avatar with the current session and profile fields', async () => {
+    let token: string | null = 'member-token'
+    let upload:
+      | WechatMiniprogram.UploadFileOption
+      | undefined
+    installWxMock(() => {
+      throw new Error('wx.request should not be called')
+    })
+    ;((globalThis as unknown as { wx: unknown }).wx as {
+      uploadFile(options: WechatMiniprogram.UploadFileOption): void
+    }).uploadFile = (options) => {
+      upload = options
+      options.success?.({
+        statusCode: 200,
+        data: JSON.stringify({
+          memberId: 'member-1',
+          nickname: '林小满',
+          avatarUrl:
+            'https://judian.icu/test/v1/public/member-avatars/avatar.jpg',
+          profileCompleted: true
+        }),
+        errMsg: 'uploadFile:ok'
+      } as WechatMiniprogram.UploadFileSuccessCallbackResult)
+    }
+    const client = new HttpMiniappClient({
+      baseUrl: 'https://judian.icu/test',
+      storeId,
+      authMode: 'wechat',
+      token: () => token,
+      saveToken: (value) => {
+        token = value
+      },
+      clearToken: () => {
+        token = null
+      }
+    })
+
+    await expect(
+      client.updateMemberProfileWithAvatar('林小满', 'wxfile://avatar')
+    ).resolves.toMatchObject({ nickname: '林小满', profileCompleted: true })
+    expect(upload).toMatchObject({
+      url: 'https://judian.icu/test/v1/member/profile-with-avatar',
+      filePath: 'wxfile://avatar',
+      name: 'avatar',
+      header: { Authorization: 'Bearer member-token' },
+      formData: {
+        nickname: '林小满'
+      }
+    })
+    expect(upload?.formData?.requestId).toMatch(/^profile-/)
+  })
 })
