@@ -35,6 +35,10 @@
   text-align: center;
 }
 
+.profile-page:not(.complete-mode) .avatar-section {
+  margin-top: 12rpx;
+}
+
 .avatar-button {
   position: relative;
   width: 188rpx;

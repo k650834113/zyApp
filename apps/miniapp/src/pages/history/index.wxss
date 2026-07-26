@@ -1,15 +1,8 @@
-.history-title {
-  margin: 10rpx 0 34rpx;
-  text-align: center;
-  font-size: 34rpx;
-  font-weight: 700;
-}
-
 .filter-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 14rpx;
-  margin-bottom: 36rpx;
+  margin: 10rpx 0 36rpx;
 }
 
 .filter-pill {

@@ -3,14 +3,15 @@
 
   <block wx:elif="{{member}}">
     <view class="member-hero">
-      <view class="page-title">会员中心</view>
       <view class="profile-row">
         <image wx:if="{{member.avatarUrl}}" class="avatar" src="{{member.avatarUrl}}" mode="aspectFill" />
         <view wx:else class="avatar avatar-fallback">{{member.avatarText}}</view>
         <view class="profile-copy">
           <view class="profile-name-row">
-            <text class="profile-name">{{member.nickname}}</text>
-            <text class="member-tier">· {{member.tierText}}</text>
+            <view class="profile-identity">
+              <text class="profile-name">{{member.nickname}}</text>
+              <text class="member-tier">{{member.tierText}}</text>
+            </view>
             <button class="edit-profile" bindtap="goProfile">编辑</button>
           </view>
           <text class="phone-text">{{member.phoneMasked}}</text>

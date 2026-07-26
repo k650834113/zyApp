@@ -1,5 +1,4 @@
 <view class="page-shell history-page">
-  <view class="history-title">全部明细</view>
   <view class="filter-row">
     <view class="filter-pill {{filter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="chooseFilter">全部</view>
     <view class="filter-pill {{filter === 'consumption' ? 'active' : ''}}" data-filter="consumption" bindtap="chooseFilter">消费</view>

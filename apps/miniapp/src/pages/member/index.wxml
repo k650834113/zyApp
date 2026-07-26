@@ -2,11 +2,9 @@
   <view wx:if="{{loading}}" class="empty-state">正在加载会员资料…</view>
 
   <block wx:elif="{{member}}">
-    <view class="profile-heading">
-      <text class="heading-title">{{mode === 'complete' ? '完善会员资料' : '我的资料'}}</text>
-      <text class="heading-subtitle">
-        {{mode === 'complete' ? '完善资料，享受更好的会员体验' : '修改会员名称或头像，保存后同步到会员账户'}}
-      </text>
+    <view wx:if="{{mode === 'complete'}}" class="profile-heading">
+      <text class="heading-title">完善会员资料</text>
+      <text class="heading-subtitle">完善资料，享受更好的会员体验</text>
     </view>
 
     <view class="avatar-section">
