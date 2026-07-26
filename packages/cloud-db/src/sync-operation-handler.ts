@@ -886,7 +886,8 @@ async function aggregateOwnershipConflict(
   if (
     owner &&
     (owner.tenant_id !== operation.tenant_id ||
-      owner.store_id !== operation.store_id)
+      (tableName !== 'cloud_member' &&
+        owner.store_id !== operation.store_id))
   ) {
     return markSyncConflict(
       client,
@@ -1286,7 +1287,7 @@ async function confirmMember(
        server_version = EXCLUDED.server_version,
        updated_at = EXCLUDED.updated_at
      WHERE cloud_member.tenant_id = EXCLUDED.tenant_id
-       AND cloud_member.store_id = EXCLUDED.store_id`,
+    `,
     [
       operation.aggregate_id,
       operation.tenant_id,

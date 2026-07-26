@@ -139,6 +139,15 @@ describe('wallet repository', () => {
     expect(searchMembers(localDatabase.connection, store.tenantId, member.phone, 10)[0]?.tier).toBe(
       'advanced'
     )
+    expect(
+      localDatabase.connection
+        .prepare(
+          `SELECT operation_type, payload_json
+           FROM outbox_operation
+           WHERE aggregate_id = ? AND operation_type = 'member.tier.reconciled'`
+        )
+        .all(member.id)
+    ).toHaveLength(1)
     localDatabase.close()
   })
 
@@ -335,6 +344,17 @@ describe('wallet repository', () => {
     expect(searchMembers(localDatabase.connection, store.tenantId, member.phone, 10)[0]?.tier).toBe(
       'advanced'
     )
+    const tierProjection = localDatabase.connection
+      .prepare(
+        `SELECT payload_json FROM outbox_operation
+         WHERE aggregate_id = ? AND operation_type = 'member.tier.reconciled'
+         ORDER BY device_seq DESC LIMIT 1`
+      )
+      .get(member.id) as { payload_json: string }
+    expect(JSON.parse(tierProjection.payload_json)).toMatchObject({
+      action: 'member.tier.reconciled',
+      after: { tier: 'advanced' }
+    })
     expect(
       getWalletDetails(localDatabase.connection, store, member.id).recharges[0]
     ).toMatchObject({

@@ -21,6 +21,7 @@ import {
   recordCompletedEmployeeFinancialCommandInOpenTransaction
 } from './employee-financial-command'
 import { assertCloudMirrorSafeForFinancialWrite } from './cloud-runtime'
+import { appendMemberTierReconciliationInOpenTransaction } from './member-tier-reconciliation'
 
 type WalletWriteContext = StoreContext & {
   actor: EmployeeRecord
@@ -1149,6 +1150,13 @@ export function cashRecharge(
       before: mapWallet(wallet),
       after: result
     })
+    appendMemberTierReconciliationInOpenTransaction(
+      database,
+      context,
+      input.memberId,
+      '现金充值后会员等级对账',
+      timestamp
+    )
     if (input.sourceFinancialCommand) {
       recordCompletedEmployeeFinancialCommandInOpenTransaction(
         database,
@@ -1783,6 +1791,13 @@ export function reverseCashRechargeInOpenTransaction(
     before: mapWallet(wallet),
     after: result
   })
+  appendMemberTierReconciliationInOpenTransaction(
+    database,
+    context,
+    recharge.member_id,
+    '现金充值冲正后会员等级对账',
+    timestamp
+  )
   return result
 }
 

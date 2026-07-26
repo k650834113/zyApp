@@ -157,6 +157,7 @@ import {
   getMonthlyCardDetails,
   getWalletDetails,
   ensureLegacyImportCloudSyncOutbox,
+  ensureMemberTierReconciliationOutbox,
   importLegacyDatabase,
   inspectLegacyDatabase,
   findRefundableOrder,
@@ -1180,6 +1181,17 @@ async function runCloudSyncOnce(
   cloudSyncInProgress = true
   cloudSyncLastAttemptAt = new Date().toISOString()
   try {
+    const repairedMemberTiers = ensureMemberTierReconciliationOutbox(
+      localDatabase.connection,
+      context
+    )
+    if (repairedMemberTiers.created > 0) {
+      logger?.write(
+        'info',
+        'member_tier_cloud_sync_repaired',
+        repairedMemberTiers
+      )
+    }
     const repairedLegacyImports = ensureLegacyImportCloudSyncOutbox(
       localDatabase.connection,
       context

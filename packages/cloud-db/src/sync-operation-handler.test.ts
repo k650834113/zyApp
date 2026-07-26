@@ -226,6 +226,53 @@ describe('cloud sync operation projections', () => {
     ).toThrow('member.phone')
   })
 
+  it('applies tenant-level tier reconciliation from another occurrence store', async () => {
+    const calls: Array<{ sql: string; parameters: unknown[] }> = []
+    const client = {
+      query: async (sql: string, parameters: unknown[] = []) => {
+        calls.push({ sql, parameters })
+        if (sql.includes('SELECT tenant_id, store_id')) {
+          return {
+            rows: [{ tenant_id: 'tenant-1', store_id: 'origin-store' }],
+            rowCount: 1
+          }
+        }
+        if (sql.includes('INSERT INTO cloud_event')) {
+          return { rows: [{ sequence: 31 }], rowCount: 1 }
+        }
+        return { rows: [], rowCount: 1 }
+      }
+    } as unknown as PoolClient
+
+    const result = await processSyncOperation(
+      client,
+      operation('member.tier.reconciled', {
+        memberNumber: 'M001',
+        phone: '13800138000',
+        nickname: 'Member',
+        tier: 'advanced',
+        status: 'active',
+        birthdayMonth: null,
+        birthdayDay: null,
+        birthdaySource: null,
+        note: null,
+        source: 'desktop',
+        ageGate: 'confirmed_at_least_14',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        updatedAt: '2026-07-26T10:00:00.000Z'
+      }),
+      async () => 'confirmed'
+    )
+
+    expect(result).toBe('confirmed')
+    const memberWrite = calls.find((call) =>
+      call.sql.includes('INSERT INTO cloud_member')
+    )
+    expect(memberWrite?.sql).not.toContain(
+      'cloud_member.store_id = EXCLUDED.store_id'
+    )
+  })
+
   it('stores a mobile password hash but strips it from cloud events', async () => {
     const calls: Array<{ sql: string; parameters: unknown[] }> = []
     const client = {
