@@ -242,6 +242,24 @@ describe('member self-service transactions', () => {
     const challengeId = '44444444-4444-4444-8444-444444444444'
     const memberId = '55555555-5555-4555-8555-555555555555'
     const cfg = config()
+    const existing = {
+      id: memberId,
+      member_number: 'M5555555555',
+      phone: '13800138000',
+      nickname: '旧系统昵称',
+      avatar_url: null,
+      profile_completed: false,
+      tier: 'advanced',
+      status: 'active',
+      birthday_month: 2,
+      birthday_day: 29,
+      birthday_source: 'legacy',
+      note: '旧会员',
+      source: 'legacy',
+      age_gate_status: 'confirmed_at_least_14',
+      created_at: '2026-06-01T00:00:00.000Z',
+      updated_at: '2026-07-01T00:00:00.000Z'
+    } as const
     const { pool, calls } = fakePool((sql) => {
       if (sql.includes('FROM miniapp_identity')) {
         return [{ member_id: null, status: 'active' }]
@@ -268,7 +286,10 @@ describe('member self-service transactions', () => {
         return [{ key: 'reserved' }]
       }
       if (sql.includes('FROM cloud_member') && sql.includes('phone = $2')) {
-        return [{ id: memberId }]
+        return [existing]
+      }
+      if (sql.includes('INSERT INTO cloud_event')) {
+        return [{ sequence: 701 }]
       }
       if (sql.includes('LEFT JOIN cloud_wallet_account')) {
         return [
@@ -276,6 +297,8 @@ describe('member self-service transactions', () => {
             id: memberId,
             phone: '13800138000',
             nickname: '旧系统昵称',
+            avatar_url: null,
+            profile_completed: true,
             tier: 'advanced',
             birthday_month: 2,
             birthday_day: 29,
@@ -303,6 +326,8 @@ describe('member self-service transactions', () => {
     expect(result).toMatchObject({
       memberId,
       nickname: '旧系统昵称',
+      avatarUrl: null,
+      profileCompleted: true,
       tier: 'advanced',
       principalBalanceFen: 50_000,
       giftBalanceFen: 5_000,
@@ -312,10 +337,98 @@ describe('member self-service transactions', () => {
       calls.some((call) => call.sql.includes('INSERT INTO cloud_member'))
     ).toBe(false)
     expect(
-      calls.some((call) => call.sql.includes('INSERT INTO cloud_event'))
-    ).toBe(false)
+      calls.some((call) => call.sql.includes('profile_completed = TRUE'))
+    ).toBe(true)
+    expect(
+      calls.some((call) =>
+        call.sql.includes("'member.profile_completion_reconciled'")
+      )
+    ).toBe(true)
     expect(
       calls.some((call) => call.sql.includes('UPDATE miniapp_identity'))
+    ).toBe(true)
+  })
+
+  it('binds an existing phone member from WeChat without requiring profile completion', async () => {
+    const memberId = '55555555-5555-4555-8555-555555555555'
+    const cfg = config()
+    const existing = {
+      id: memberId,
+      member_number: 'M5555555555',
+      phone: '13800138000',
+      nickname: '旧系统昵称',
+      avatar_url: null,
+      profile_completed: false,
+      tier: 'advanced',
+      status: 'active',
+      birthday_month: 2,
+      birthday_day: 29,
+      birthday_source: 'legacy',
+      note: '旧会员',
+      source: 'legacy',
+      age_gate_status: 'confirmed_at_least_14',
+      created_at: '2026-06-01T00:00:00.000Z',
+      updated_at: '2026-07-01T00:00:00.000Z'
+    } as const
+    const { pool, calls } = fakePool((sql) => {
+      if (sql.includes('FROM miniapp_identity')) {
+        return [{ member_id: null, status: 'active' }]
+      }
+      if (sql.includes('INSERT INTO api_idempotency')) {
+        return [{ key: 'reserved' }]
+      }
+      if (sql.includes('FROM cloud_member') && sql.includes('phone = $2')) {
+        return [existing]
+      }
+      if (sql.includes('INSERT INTO cloud_event')) {
+        return [{ sequence: 702 }]
+      }
+      if (sql.includes('LEFT JOIN cloud_wallet_account')) {
+        return [
+          {
+            id: memberId,
+            phone: existing.phone,
+            nickname: existing.nickname,
+            avatar_url: null,
+            profile_completed: true,
+            tier: existing.tier,
+            birthday_month: existing.birthday_month,
+            birthday_day: existing.birthday_day,
+            age_gate_status: existing.age_gate_status,
+            principal_balance_fen: 50_000,
+            gift_balance_fen: 5_000,
+            monthly_card_status: null,
+            monthly_card_expires_at: null
+          }
+        ]
+      }
+      return []
+    })
+    const service = new MemberSelfService(pool, fakeRedis(), cfg)
+
+    const result = await service.loginWithWechatProfile(principal(), {
+      requestId: 'wechat-existing-member-1',
+      phoneCode: 'mock-phone:13800138000',
+      nickname: '微信用户',
+      avatarUrl: null,
+      confirmedAtLeast14: true
+    })
+
+    expect(result).toMatchObject({
+      memberId,
+      nickname: '旧系统昵称',
+      avatarUrl: null,
+      profileCompleted: true,
+      tier: 'advanced'
+    })
+    expect(
+      calls.some((call) => call.sql.includes('INSERT INTO cloud_member'))
+    ).toBe(false)
+    expect(
+      calls.some((call) => call.sql.includes('SET nickname ='))
+    ).toBe(false)
+    expect(
+      calls.some((call) => call.sql.includes('profile_completed = TRUE'))
     ).toBe(true)
   })
 

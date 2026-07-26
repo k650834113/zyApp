@@ -883,6 +883,71 @@ export class MemberSelfService {
     }
   }
 
+  private async completeExistingMemberProfile(
+    client: PoolClient,
+    principal: MiniappPrincipal,
+    before: MemberProjectionRow
+  ): Promise<void> {
+    if (before.profile_completed) return
+
+    const timestamp = new Date().toISOString()
+    const after = this.memberSnapshot(before, {
+      profileCompleted: true,
+      updatedAt: timestamp
+    })
+    const event = await client.query<{ sequence: number | string }>(
+      `INSERT INTO cloud_event
+       (event_id, tenant_id, store_id, aggregate_type, aggregate_id,
+        event_type, payload_json, occurred_at)
+       VALUES ($1, $2, $3, 'member', $4,
+               'member.profile_completion_reconciled', $5::jsonb, $6)
+       RETURNING sequence`,
+      [
+        randomUUID(),
+        principal.tenantId,
+        principal.storeId,
+        before.id,
+        JSON.stringify({
+          action: 'member.profile_completion_reconciled',
+          memberId: before.id,
+          before: this.memberSnapshot(before),
+          after,
+          reason: 'existing member bound to miniapp'
+        }),
+        timestamp
+      ]
+    )
+    const serverVersion = Number(event.rows[0]?.sequence)
+    if (!Number.isSafeInteger(serverVersion) || serverVersion < 1) {
+      throw new Error('Cloud event did not return a valid sequence')
+    }
+    await client.query(
+      `UPDATE cloud_member
+       SET profile_completed = TRUE, server_version = $3, updated_at = $4
+       WHERE tenant_id = $1 AND id = $2`,
+      [principal.tenantId, before.id, serverVersion, timestamp]
+    )
+    await client.query(
+      `INSERT INTO cloud_audit_log
+       (id, tenant_id, store_id, actor_id, action, aggregate_type,
+        aggregate_id, metadata_json, occurred_at)
+       VALUES ($1, $2, $3, NULL,
+               'member.profile_completion_reconciled', 'member',
+               $4, $5::jsonb, $6)`,
+      [
+        randomUUID(),
+        principal.tenantId,
+        principal.storeId,
+        before.id,
+        JSON.stringify({
+          identityId: principal.identityId,
+          source: 'existing_member_binding'
+        }),
+        timestamp
+      ]
+    )
+  }
+
   private async enableDisabledMember(
     client: PoolClient,
     principal: MiniappPrincipal,
@@ -1091,6 +1156,12 @@ export class MemberSelfService {
       let action = 'miniapp.member_bound'
       if (existing?.status === 'disabled') {
         await this.enableDisabledMember(client, principal, input, existing)
+      } else if (existing) {
+        await this.completeExistingMemberProfile(
+          client,
+          principal,
+          existing
+        )
       } else if (!memberId) {
         memberId = randomUUID()
         action = 'member.created'
@@ -1292,6 +1363,12 @@ export class MemberSelfService {
       let action = 'miniapp.member_bound'
       if (existing?.status === 'disabled') {
         await this.enableDisabledMember(client, principal, input, existing)
+      } else if (existing) {
+        await this.completeExistingMemberProfile(
+          client,
+          principal,
+          existing
+        )
       } else if (!memberId) {
         memberId = randomUUID()
         action = 'member.created'
