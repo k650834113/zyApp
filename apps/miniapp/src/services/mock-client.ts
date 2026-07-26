@@ -24,6 +24,9 @@ import type {
   MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   CreateMemberRechargeOrderRequest,
+  CreateMemberMonthlyCardOrderRequest,
+  MemberMonthlyCardConfiguration,
+  MemberMonthlyCardOrderSummary,
   MiniappHomeSnapshot,
   MiniappIdentity,
   PhoneVerificationChallenge,
@@ -171,6 +174,7 @@ let memberHistory: MemberSelfServiceHistory = {
   monthlyCardEvents: []
 }
 const rechargeOrders = new Map<string, MemberRechargeOrderSummary>()
+const monthlyCardOrders = new Map<string, MemberMonthlyCardOrderSummary>()
 let phoneChallenge:
   | {
       challengeId: string
@@ -759,6 +763,88 @@ export class MockMiniappClient implements MiniappClient {
       settledAt
     }
     rechargeOrders.set(orderId, settled)
+    return settled
+  }
+
+  async getMonthlyCardConfiguration(): Promise<MemberMonthlyCardConfiguration> {
+    return {
+      providerMode: 'mock',
+      planName: '30 天月卡',
+      priceFen: 20_000,
+      durationDays: 30,
+      scopeType: 'store',
+      purchaseAllowed: member?.monthlyCardStatus !== 'paused',
+      blockedReason:
+        member?.monthlyCardStatus === 'paused'
+          ? '月卡暂停中，请联系店员恢复后再续费'
+          : null
+    }
+  }
+
+  async createMonthlyCardOrder(
+    input: CreateMemberMonthlyCardOrderRequest
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    const orderId = `mock-monthly-order-${Date.now()}`
+    const order: MemberMonthlyCardOrderSummary = {
+      orderId,
+      requestId: input.requestId,
+      planName: '30 天月卡',
+      priceFen: 20_000,
+      durationDays: 30,
+      status: 'pending_payment',
+      providerMode: 'mock',
+      clientPaymentParameters: {
+        timeStamp: String(Math.floor(Date.now() / 1000)),
+        nonceStr: 'mock-monthly',
+        package: `prepay_id=${orderId}`,
+        signType: 'MOCK',
+        paySign: 'mock'
+      },
+      targetCardId: null,
+      expiresBefore: member?.monthlyCardExpiresAt ?? null,
+      expiresAfter: null,
+      expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+      settledAt: null,
+      createdAt: new Date().toISOString(),
+      errorMessage: null
+    }
+    monthlyCardOrders.set(orderId, order)
+    return order
+  }
+
+  async getMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    const order = monthlyCardOrders.get(orderId)
+    if (!order) throw new Error('月卡订单不存在')
+    return order
+  }
+
+  async settleMockMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    const order = await this.getMonthlyCardOrder(orderId)
+    const base = member?.monthlyCardExpiresAt
+      ? Math.max(Date.parse(member.monthlyCardExpiresAt), Date.now())
+      : Date.now()
+    const expiresAfter = new Date(
+      base + order.durationDays * 24 * 60 * 60 * 1000
+    ).toISOString()
+    const settled = {
+      ...order,
+      status: 'settled' as const,
+      targetCardId: 'mock-monthly-card',
+      expiresAfter,
+      settledAt: new Date().toISOString()
+    }
+    monthlyCardOrders.set(orderId, settled)
+    if (member) {
+      member = {
+        ...member,
+        monthlyCardStatus: 'active',
+        monthlyCardExpiresAt: expiresAfter
+      }
+    }
     return settled
   }
 

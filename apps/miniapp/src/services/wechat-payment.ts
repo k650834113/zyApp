@@ -1,4 +1,5 @@
 import type {
+  MemberMonthlyCardOrderSummary,
   MemberRechargeOrderSummary,
   WechatJsapiPaymentParameters
 } from '@zyapp/contracts'
@@ -97,6 +98,34 @@ export async function pollRechargeOrder(input: {
   }
   if (!lastOrder) {
     throw new Error('Recharge order polling requires at least one delay')
+  }
+  return lastOrder
+}
+
+export async function pollMonthlyCardOrder(input: {
+  orderId: string
+  getOrder: (
+    orderId: string
+  ) => Promise<MemberMonthlyCardOrderSummary>
+  wait?: (milliseconds: number) => Promise<void>
+  delays?: readonly number[]
+}): Promise<MemberMonthlyCardOrderSummary> {
+  const wait = input.wait ?? delay
+  const delays = input.delays ?? [0, 800, 1500, 2500, 4000]
+  let lastOrder: MemberMonthlyCardOrderSummary | null = null
+  for (const milliseconds of delays) {
+    await wait(milliseconds)
+    lastOrder = await input.getOrder(input.orderId)
+    if (
+      lastOrder.status === 'settled' ||
+      lastOrder.status === 'failed' ||
+      lastOrder.status === 'expired'
+    ) {
+      return lastOrder
+    }
+  }
+  if (!lastOrder) {
+    throw new Error('Monthly-card order polling requires at least one delay')
   }
   return lastOrder
 }

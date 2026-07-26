@@ -66,8 +66,15 @@ describe('member tier reconciliation', () => {
            ORDER BY device_seq DESC LIMIT 1`
         )
         .get(member.id) as { payload_json: string }
-      expect(JSON.parse(payload.payload_json)).toMatchObject({
-        after: { tier: 'advanced' }
+      expect(JSON.parse(payload.payload_json)).toEqual({
+        action: 'member.tier.reconciled',
+        memberId: member.id,
+        before: null,
+        after: {
+          tier: 'advanced',
+          updatedAt: expect.any(String)
+        },
+        reason: '历史会员等级云端对账'
       })
     } finally {
       local.close()

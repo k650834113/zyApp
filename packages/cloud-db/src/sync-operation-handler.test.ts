@@ -237,6 +237,9 @@ describe('cloud sync operation projections', () => {
             rowCount: 1
           }
         }
+        if (sql.includes('SELECT tenant_id FROM cloud_member')) {
+          return { rows: [{ tenant_id: 'tenant-1' }], rowCount: 1 }
+        }
         if (sql.includes('INSERT INTO cloud_event')) {
           return { rows: [{ sequence: 31 }], rowCount: 1 }
         }
@@ -247,18 +250,7 @@ describe('cloud sync operation projections', () => {
     const result = await processSyncOperation(
       client,
       operation('member.tier.reconciled', {
-        memberNumber: 'M001',
-        phone: '13800138000',
-        nickname: 'Member',
         tier: 'advanced',
-        status: 'active',
-        birthdayMonth: null,
-        birthdayDay: null,
-        birthdaySource: null,
-        note: null,
-        source: 'desktop',
-        ageGate: 'confirmed_at_least_14',
-        createdAt: '2026-06-01T00:00:00.000Z',
         updatedAt: '2026-07-26T10:00:00.000Z'
       }),
       async () => 'confirmed'
@@ -266,11 +258,17 @@ describe('cloud sync operation projections', () => {
 
     expect(result).toBe('confirmed')
     const memberWrite = calls.find((call) =>
-      call.sql.includes('INSERT INTO cloud_member')
+      call.sql.includes('UPDATE cloud_member')
     )
-    expect(memberWrite?.sql).not.toContain(
-      'cloud_member.store_id = EXCLUDED.store_id'
-    )
+    expect(memberWrite?.sql).toContain('SET tier = $3')
+    expect(memberWrite?.sql).not.toContain('nickname')
+    expect(memberWrite?.parameters).toEqual([
+      'aggregate-1',
+      'tenant-1',
+      'advanced',
+      31,
+      '2026-07-26T10:00:00.000Z'
+    ])
   })
 
   it('stores a mobile password hash but strips it from cloud events', async () => {

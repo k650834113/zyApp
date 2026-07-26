@@ -1,5 +1,7 @@
 import type {
   MemberActivitySummary,
+  MemberMonthlyCardConfiguration,
+  MemberMonthlyCardOrderSummary,
   MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   MemberSelfServiceSummary
@@ -26,7 +28,11 @@ import {
   quickRechargeAmounts,
   resolveRechargeAmountFen
 } from '../../services/recharge-amount'
-import { requestWechatPayment } from '../../services/wechat-payment'
+import {
+  parseWechatPaymentParameters,
+  pollMonthlyCardOrder,
+  requestWechatPayment
+} from '../../services/wechat-payment'
 
 type MemberView = MemberSelfServiceSummary & {
   totalBalanceText: string
@@ -46,6 +52,30 @@ type ActivityView = MemberActivitySummary & {
 type RechargeOrderView = MemberRechargeOrderSummary & {
   amountText: string
   statusText: string
+}
+
+function dateText(value: string | null): string {
+  return value ? value.slice(0, 10) : ''
+}
+
+function monthlyCardCopy(
+  member: MemberSelfServiceSummary,
+  configuration: MemberMonthlyCardConfiguration
+): {
+  actionText: string
+  priceText: string
+  statusText: string
+} {
+  const active = member.monthlyCardStatus === 'active'
+  return {
+    actionText: active ? '微信续费月卡' : '微信开通月卡',
+    priceText: `${money(configuration.priceFen)} / ${configuration.durationDays}天`,
+    statusText: active
+      ? `当前有效期至 ${dateText(member.monthlyCardExpiresAt)}，续费将在此基础上顺延`
+      : member.monthlyCardStatus === 'paused'
+        ? '月卡已暂停，请联系门店恢复后再续费'
+        : `${configuration.planName}，支付成功后立即生效`
+  }
 }
 
 function requestId(prefix: string): string {
@@ -139,6 +169,11 @@ Page({
     recentActivities: [] as ActivityView[],
     rechargeConfiguration: null as MemberRechargeConfiguration | null,
     rechargeOrder: null as RechargeOrderView | null,
+    monthlyCardConfiguration: null as MemberMonthlyCardConfiguration | null,
+    monthlyCardOrder: null as MemberMonthlyCardOrderSummary | null,
+    monthlyCardActionText: '微信开通月卡',
+    monthlyCardPriceText: '',
+    monthlyCardStatusText: '',
     loginFallbackVisible: false,
     loginPhone: '',
     loginCode: '',
@@ -147,6 +182,7 @@ Page({
     verificationBusy: false,
     testVirtualPhoneLoginEnabled: isTestVirtualPhoneLoginEnabled(),
     rechargeEnabled: isRealWechatPaymentBuild(),
+    monthlyCardEnabled: isRealWechatPaymentBuild(),
     quickRechargeAmounts,
     selectedRechargeAmountFen: 10_000 as number | null,
     customRechargeAmount: ''
@@ -164,7 +200,8 @@ Page({
         this.setData({
           member: null,
           recentActivities: [],
-          rechargeConfiguration: null
+          rechargeConfiguration: null,
+          monthlyCardConfiguration: null
         })
         return
       }
@@ -182,10 +219,21 @@ Page({
           },
           this.data.rechargeEnabled
         )
+      const monthlyCardConfiguration = this.data.monthlyCardEnabled
+        ? await miniappClient.getMonthlyCardConfiguration()
+        : null
+      const monthlyCardDisplay = monthlyCardConfiguration
+        ? monthlyCardCopy(member, monthlyCardConfiguration)
+        : null
       this.setData({
         member: memberView(member),
         recentActivities: history.activities.slice(0, 3).map(activityView),
-        rechargeConfiguration
+        rechargeConfiguration,
+        monthlyCardConfiguration,
+        monthlyCardActionText:
+          monthlyCardDisplay?.actionText ?? '微信开通月卡',
+        monthlyCardPriceText: monthlyCardDisplay?.priceText ?? '',
+        monthlyCardStatusText: monthlyCardDisplay?.statusText ?? ''
       })
     } catch (error) {
       wx.showToast({
@@ -358,6 +406,81 @@ Page({
     } catch (error) {
       wx.showToast({
         title: error instanceof Error ? error.message : '充值失败',
+        icon: 'none',
+        duration: 3000
+      })
+    } finally {
+      this.setData({ busy: false })
+    }
+  },
+
+  async purchaseMonthlyCard() {
+    const configuration = this.data.monthlyCardConfiguration
+    if (!configuration || !configuration.purchaseAllowed || this.data.busy) {
+      return
+    }
+    this.setData({ busy: true, monthlyCardOrder: null })
+    try {
+      const client = getMiniappClient()
+      const order = await client.createMonthlyCardOrder({
+        requestId: requestId('monthly-card')
+      })
+      this.setData({ monthlyCardOrder: order })
+      if (order.status === 'settled') {
+        this.setData({ monthlyCardOrder: null })
+        await this.load()
+        wx.showToast({ title: '月卡已生效', icon: 'success' })
+        return
+      }
+      if (
+        order.status === 'creating' ||
+        order.status === 'failed' ||
+        order.status === 'expired'
+      ) {
+        throw new Error(
+          order.errorMessage ||
+            (order.status === 'creating'
+              ? '月卡订单正在创建，请稍后重试'
+              : '月卡订单不可支付')
+        )
+      }
+      if (order.providerMode === 'mock') {
+        await client.settleMockMonthlyCardOrder(order.orderId)
+        this.setData({ monthlyCardOrder: null })
+        await this.load()
+        wx.showToast({ title: '月卡已开通', icon: 'success' })
+        return
+      }
+      const paymentResult = await requestWechatPayment(
+        parseWechatPaymentParameters(order.clientPaymentParameters)
+      )
+      if (paymentResult === 'cancelled') {
+        this.setData({ monthlyCardOrder: null })
+        wx.showToast({ title: '已取消支付', icon: 'none' })
+        return
+      }
+      const confirmed = await pollMonthlyCardOrder({
+        orderId: order.orderId,
+        getOrder: (orderId) => client.getMonthlyCardOrder(orderId)
+      })
+      this.setData({ monthlyCardOrder: confirmed })
+      if (confirmed.status === 'settled') {
+        this.setData({ monthlyCardOrder: null })
+        await this.load()
+        wx.showToast({ title: '月卡已生效', icon: 'success' })
+        return
+      }
+      wx.showToast({
+        title:
+          confirmed.status === 'pending_payment'
+            ? '正在确认支付结果'
+            : confirmed.errorMessage || '月卡支付未完成',
+        icon: 'none',
+        duration: 3000
+      })
+    } catch (error) {
+      wx.showToast({
+        title: error instanceof Error ? error.message : '月卡支付失败',
         icon: 'none',
         duration: 3000
       })

@@ -24,6 +24,9 @@ import type {
   MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   CreateMemberRechargeOrderRequest,
+  CreateMemberMonthlyCardOrderRequest,
+  MemberMonthlyCardConfiguration,
+  MemberMonthlyCardOrderSummary,
   MiniappHomeSnapshot,
   MiniappIdentity,
   MiniappSessionResult,
@@ -380,6 +383,34 @@ export class HttpMiniappClient implements MiniappClient {
     const mockSettlementPath = ['mock', 'settle'].join('-')
     return this.request(
       `/v1/member/recharge-orders/${encodeURIComponent(orderId)}/${mockSettlementPath}`,
+      'POST'
+    )
+  }
+
+  getMonthlyCardConfiguration(): Promise<MemberMonthlyCardConfiguration> {
+    return this.request('/v1/member/monthly-card-configuration')
+  }
+
+  createMonthlyCardOrder(
+    input: CreateMemberMonthlyCardOrderRequest
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    return this.request('/v1/member/monthly-card-orders', 'POST', input)
+  }
+
+  getMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    return this.request(
+      `/v1/member/monthly-card-orders/${encodeURIComponent(orderId)}`
+    )
+  }
+
+  settleMockMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    const mockSettlementPath = ['mock', 'settle'].join('-')
+    return this.request(
+      `/v1/member/monthly-card-orders/${encodeURIComponent(orderId)}/${mockSettlementPath}`,
       'POST'
     )
   }

@@ -23,6 +23,7 @@ import {
 } from './miniapp-auth.guard'
 import { MemberSelfService } from './member-self-service.service'
 import { MemberRechargeService } from './member-recharge.service'
+import { MemberMonthlyCardService } from './member-monthly-card.service'
 import {
   MemberAvatarService,
   type MemberAvatarUpload
@@ -43,6 +44,8 @@ export class MemberSelfServiceController {
     private readonly members: MemberSelfService,
     @Inject(MemberRechargeService)
     private readonly recharges: MemberRechargeService,
+    @Inject(MemberMonthlyCardService)
+    private readonly monthlyCards: MemberMonthlyCardService,
     @Inject(MemberAvatarService)
     private readonly avatars: MemberAvatarService
   ) {}
@@ -129,6 +132,38 @@ export class MemberSelfServiceController {
     @Body() body: unknown
   ) {
     return this.recharges.createOrder(principal(request), body)
+  }
+
+  @Get('monthly-card-configuration')
+  monthlyCardConfiguration(@Req() request: MiniappRequest) {
+    return this.monthlyCards.getConfiguration(principal(request))
+  }
+
+  @Post('monthly-card-orders')
+  createMonthlyCardOrder(
+    @Req() request: MiniappRequest,
+    @Body() body: unknown
+  ) {
+    return this.monthlyCards.createOrder(principal(request), body)
+  }
+
+  @Get('monthly-card-orders/:orderId')
+  getMonthlyCardOrder(
+    @Req() request: MiniappRequest,
+    @Param('orderId') orderId: string
+  ) {
+    return this.monthlyCards.getOrder(principal(request), orderId)
+  }
+
+  @Post('monthly-card-orders/:orderId/mock-settle')
+  settleMockMonthlyCardOrder(
+    @Req() request: MiniappRequest,
+    @Param('orderId') orderId: string
+  ) {
+    return this.monthlyCards.settleMockOrder(
+      principal(request),
+      orderId
+    )
   }
 
   @Get('recharge-configuration')

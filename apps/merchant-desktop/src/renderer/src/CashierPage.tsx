@@ -989,6 +989,12 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
                     </strong>
                   </div>
                   <div>
+                    <span>支付方式</span>
+                    <strong>
+                      {monthlyCard.current.paymentMethod === 'wechat' ? '微信支付' : '现金'}
+                    </strong>
+                  </div>
+                  <div>
                     <span>到期时间</span>
                     <strong>
                       {new Date(monthlyCard.current.expiresAt).toLocaleString('zh-CN')}

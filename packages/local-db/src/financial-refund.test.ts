@@ -157,6 +157,44 @@ describe('financial refund approval repository', () => {
     localDatabase.close()
   })
 
+  it('does not misclassify a WeChat monthly card as a PC cash refund', () => {
+    const { localDatabase, store, manager, staff, member } =
+      initializedFinancialRefunds()
+    const purchasedAt = new Date('2026-06-01T05:00:00.000Z')
+    const card = purchaseMonthlyCard(
+      localDatabase.connection,
+      { ...store, actor: manager },
+      {
+        requestId: randomUUID(),
+        memberId: member.id,
+        reason: 'Cloud mirror placeholder',
+        now: purchasedAt
+      }
+    )
+    localDatabase.connection
+      .prepare(
+        `UPDATE monthly_card
+         SET payment_method = 'wechat', source = 'cloud'
+         WHERE id = ?`
+      )
+      .run(card.id)
+
+    expect(() =>
+      createFinancialRefundRequest(
+        localDatabase.connection,
+        { ...store, actor: staff },
+        {
+          requestId: randomUUID(),
+          targetType: 'monthly_card',
+          targetId: card.id,
+          reason: 'Must use WeChat refund',
+          now: new Date(purchasedAt.getTime() + 60 * 60 * 1000)
+        }
+      )
+    ).toThrow('WeChat')
+    localDatabase.close()
+  })
+
   it('requires manager override and a reason for a used monthly card without extending 24 hours', () => {
     const { localDatabase, store, manager, staff, member } =
       initializedFinancialRefunds()

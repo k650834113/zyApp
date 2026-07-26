@@ -33,6 +33,10 @@ const TABLES: Record<
     table: 'cloud_monthly_card_event',
     idColumn: 'operation_id'
   },
+  monthly_card_payment_orders: {
+    table: 'wechat_monthly_card_order',
+    idColumn: 'id'
+  },
   wechat_recharge_orders: {
     table: 'wechat_recharge_order',
     idColumn: 'id'
@@ -174,7 +178,7 @@ export class DesktopMirrorService {
         : [
             'members', 'wallet_accounts', 'wallet_ledger', 'orders',
             'order_items', 'refunds', 'refund_events', 'financial_refunds',
-            'wechat_recharge_orders'
+            'wechat_recharge_orders', 'monthly_card_payment_orders'
           ].includes(selected)
           ? 'model.tenant_id = $1'
           : selected === 'monthly_cards'
@@ -206,6 +210,7 @@ export class DesktopMirrorService {
       'wallet_ledger',
       'monthly_cards',
       'monthly_card_events'
+      ,'monthly_card_payment_orders'
       ,'wechat_recharge_orders'
       ,'store', 'orders', 'order_items', 'refunds', 'refund_events', 'financial_refunds'
       ,'business_templates'

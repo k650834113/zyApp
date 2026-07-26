@@ -116,7 +116,6 @@
 
 .balance-label,
 .balance-value,
-.monthly-card-text,
 .result-title,
 .result-copy,
 .activity-title,
@@ -141,15 +140,104 @@
   letter-spacing: 1rpx;
 }
 
-.balance-divider {
-  height: 1rpx;
-  margin: 28rpx 0 22rpx;
-  background: #eee5d9;
+.monthly-card-feature {
+  position: relative;
+  margin-top: 24rpx;
+  padding: 32rpx;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(255, 225, 158, 0.34), transparent 35%),
+    linear-gradient(140deg, #b9640a, #dd9027);
+  box-shadow: 0 18rpx 42rpx rgba(177, 98, 13, 0.24);
 }
 
-.monthly-card-text {
-  color: #39443e;
-  font-size: 25rpx;
+.monthly-card-feature::after {
+  position: absolute;
+  right: -14rpx;
+  bottom: -56rpx;
+  color: rgba(255, 255, 255, 0.1);
+  content: "月";
+  font-size: 180rpx;
+  font-weight: 800;
+  transform: rotate(-10deg);
+}
+
+.monthly-card-feature-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.monthly-card-eyebrow,
+.monthly-card-feature-title,
+.monthly-card-price,
+.monthly-card-state,
+.monthly-card-blocked {
+  display: block;
+}
+
+.monthly-card-eyebrow {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 21rpx;
+  letter-spacing: 4rpx;
+}
+
+.monthly-card-feature-title {
+  margin-top: 8rpx;
+  font-size: 33rpx;
+  font-weight: 800;
+}
+
+.monthly-card-badge {
+  border: 1rpx solid rgba(255, 255, 255, 0.58);
+  border-radius: 999rpx;
+  padding: 7rpx 14rpx;
+  background: rgba(92, 43, 0, 0.18);
+  font-size: 20rpx;
+  font-weight: 700;
+}
+
+.monthly-card-price {
+  position: relative;
+  z-index: 1;
+  margin-top: 24rpx;
+  font-size: 48rpx;
+  font-weight: 900;
+}
+
+.monthly-card-state {
+  position: relative;
+  z-index: 1;
+  margin-top: 10rpx;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 23rpx;
+  line-height: 1.55;
+}
+
+.monthly-card-button {
+  position: relative;
+  z-index: 1;
+  margin-top: 25rpx;
+  color: #9e5007;
+  background: #fff9ec;
+  box-shadow: 0 12rpx 26rpx rgba(92, 43, 0, 0.18);
+}
+
+.monthly-card-button[disabled] {
+  color: rgba(104, 61, 22, 0.55);
+  background: rgba(255, 249, 236, 0.68);
+}
+
+.monthly-card-blocked {
+  position: relative;
+  z-index: 1;
+  margin-top: 14rpx;
+  color: #fff5e3;
+  font-size: 21rpx;
+  text-align: center;
 }
 
 .recharge-card {

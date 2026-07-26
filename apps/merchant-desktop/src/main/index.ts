@@ -1399,6 +1399,7 @@ const CLOUD_MIRROR_REFRESH_ORDER: CloudMirrorResource[] = [
   'wallet_ledger',
   'monthly_cards',
   'monthly_card_events',
+  'monthly_card_payment_orders',
   'wechat_recharge_orders',
   'business_templates',
   'orders',
@@ -4037,6 +4038,7 @@ function registerIpcHandlers(): void {
       await refreshCloudResourceBeforeRead('business_templates')
       await refreshCloudResourceBeforeRead('monthly_cards')
       await refreshCloudResourceBeforeRead('monthly_card_events')
+      await refreshCloudResourceBeforeRead('monthly_card_payment_orders')
       const database = requireDatabase()
       const context = getStoreContext(database.connection)
       if (!context) throw new Error('门店配置缺失')

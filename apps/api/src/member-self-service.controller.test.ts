@@ -3,6 +3,7 @@ import { MemberSelfServiceController } from './member-self-service.controller'
 import type { MemberRechargeService } from './member-recharge.service'
 import type { MemberSelfService } from './member-self-service.service'
 import type { MemberAvatarService } from './member-avatar.service'
+import type { MemberMonthlyCardService } from './member-monthly-card.service'
 
 describe('member self-service controller', () => {
   it('updates the authenticated member profile', async () => {
@@ -18,6 +19,7 @@ describe('member self-service controller', () => {
     const controller = new MemberSelfServiceController(
       members,
       {} as MemberRechargeService,
+      {} as MemberMonthlyCardService,
       {} as MemberAvatarService
     )
     const principal = {
@@ -62,6 +64,7 @@ describe('member self-service controller', () => {
     const controller = new MemberSelfServiceController(
       members,
       {} as MemberRechargeService,
+      {} as MemberMonthlyCardService,
       avatars
     )
     const principal = {

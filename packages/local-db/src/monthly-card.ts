@@ -137,7 +137,7 @@ function mapCard(row: CardRow, now = new Date()): MonthlyCardSummary {
     memberId: String(row.member_id),
     planName: String(row.plan_name_snapshot),
     priceFen: Number(row.price_fen),
-    paymentMethod: 'cash',
+    paymentMethod: row.payment_method === 'wechat' ? 'wechat' : 'cash',
     status,
     purchasedAt: String(row.purchased_at),
     startsAt: String(row.starts_at),

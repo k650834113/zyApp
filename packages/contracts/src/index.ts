@@ -534,7 +534,7 @@ export type MonthlyCardSummary = {
   memberId: Identifier
   planName: string
   priceFen: number
-  paymentMethod: 'cash'
+  paymentMethod: 'cash' | 'wechat'
   status: MonthlyCardStatus
   purchasedAt: string
   startsAt: string
@@ -1322,6 +1322,38 @@ export type MemberRechargeConfiguration = {
   providerMode: 'mock' | 'wechat'
 }
 
+export type MemberMonthlyCardConfiguration = {
+  providerMode: 'mock' | 'wechat'
+  planName: string
+  priceFen: number
+  durationDays: number
+  scopeType: MonthlyCardScopeType
+  purchaseAllowed: boolean
+  blockedReason: string | null
+}
+
+export type CreateMemberMonthlyCardOrderRequest = {
+  requestId: string
+}
+
+export type MemberMonthlyCardOrderSummary = {
+  orderId: Identifier
+  requestId: string
+  planName: string
+  priceFen: number
+  durationDays: number
+  status: MemberRechargeOrderStatus
+  providerMode: 'mock' | 'wechat'
+  clientPaymentParameters: Record<string, string> | null
+  targetCardId: Identifier | null
+  expiresBefore: string | null
+  expiresAfter: string | null
+  expiresAt: string
+  settledAt: string | null
+  createdAt: string
+  errorMessage: string | null
+}
+
 export type WechatJsapiPaymentParameters = {
   timeStamp: string
   nonceStr: string
@@ -1728,6 +1760,7 @@ export type CloudMirrorResource =
   | 'wallet_ledger'
   | 'monthly_cards'
   | 'monthly_card_events'
+  | 'monthly_card_payment_orders'
   | 'wechat_recharge_orders'
   | 'business_templates'
   | 'orders'

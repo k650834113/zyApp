@@ -21,6 +21,7 @@ import { MemberSelfService } from './member-self-service.service'
 import { MemberAvatarController } from './member-avatar.controller'
 import { MemberAvatarService } from './member-avatar.service'
 import { MemberRechargeService } from './member-recharge.service'
+import { MemberMonthlyCardService } from './member-monthly-card.service'
 import { MiniappAuthGuard } from './miniapp-auth.guard'
 import { MiniappController } from './miniapp.controller'
 import { MiniappSessionService } from './miniapp-session.service'
@@ -62,6 +63,7 @@ import { WechatPaymentController } from './wechat-payment.controller'
     MemberSelfService,
     MemberAvatarService,
     MemberRechargeService,
+    MemberMonthlyCardService,
     EmployeeMobileService,
     EmployeeManagerService,
     EmployeeContentService,

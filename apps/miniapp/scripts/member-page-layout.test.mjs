@@ -13,6 +13,14 @@ test('member identity stays visible without a duplicate home title', () => {
   assert.match(wxml, /class="profile-identity"/)
 })
 
+test('monthly card is a prominent standalone purchase card', () => {
+  const wxml = source('../src/pages/home/index.wxml')
+
+  assert.match(wxml, /class="monthly-card-feature card"/)
+  assert.match(wxml, /bindtap="purchaseMonthlyCard"/)
+  assert.match(wxml, /{{monthlyCardActionText}}/)
+})
+
 test('history page has no duplicate content title', () => {
   const wxml = source('../src/pages/history/index.wxml')
 

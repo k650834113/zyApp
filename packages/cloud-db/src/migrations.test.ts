@@ -33,11 +33,14 @@ describe('cloud migrations', () => {
       join(import.meta.dirname, '..', 'migrations')
     )
 
-    expect(migrations.slice(-2).map((migration) => migration.version)).toEqual([
+    expect(migrations.slice(-3).map((migration) => migration.version)).toEqual([
       16,
-      17
+      17,
+      18
     ])
-    expect(migrations.at(-1)?.name).toBe('member_profile_completion')
-    expect(migrations.at(-1)?.sql).toContain('profile_completed')
+    expect(migrations.at(-1)?.name).toBe('member_wechat_monthly_card')
+    expect(migrations.at(-1)?.sql).toContain(
+      'CREATE TABLE wechat_monthly_card_order'
+    )
   })
 })

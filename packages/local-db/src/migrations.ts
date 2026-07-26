@@ -1545,6 +1545,170 @@ const migrations: Migration[] = [
         ON wechat_recharge_order_mirror
           (tenant_id, status, updated_at DESC);
     `
+  },
+  {
+    version: 27,
+    name: 'wechat-monthly-card-payment-method',
+    sql: `
+      DROP INDEX idx_monthly_card_current_store;
+      DROP INDEX idx_monthly_card_current_tenant;
+      DROP INDEX idx_monthly_card_member_history;
+      DROP INDEX idx_monthly_card_events;
+      DROP INDEX idx_legacy_monthly_member;
+
+      ALTER TABLE legacy_monthly_card_history
+        RENAME TO legacy_monthly_card_history_v25;
+      ALTER TABLE monthly_card_event RENAME TO monthly_card_event_v25;
+      ALTER TABLE monthly_card RENAME TO monthly_card_v25;
+
+      CREATE TABLE monthly_card (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        store_id TEXT NOT NULL REFERENCES store(id),
+        member_id TEXT NOT NULL REFERENCES member(id),
+        plan_id TEXT NOT NULL REFERENCES monthly_card_plan(id),
+        plan_name_snapshot TEXT NOT NULL,
+        price_fen INTEGER NOT NULL CHECK (price_fen > 0),
+        duration_days INTEGER NOT NULL CHECK (duration_days > 0),
+        payment_method TEXT NOT NULL
+          CHECK (payment_method IN ('cash', 'wechat')),
+        status TEXT NOT NULL
+          CHECK (status IN ('active', 'paused', 'expired', 'refunded', 'voided')),
+        request_id TEXT NOT NULL,
+        purchased_by TEXT NOT NULL,
+        purchased_at TEXT NOT NULL,
+        starts_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        paused_at TEXT,
+        total_paused_seconds INTEGER NOT NULL DEFAULT 0
+          CHECK (total_paused_seconds >= 0),
+        refunded_at TEXT,
+        refund_reason TEXT,
+        updated_at TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'desktop'
+          CHECK (source IN ('desktop', 'legacy', 'cloud')),
+        legacy_import_batch_id TEXT,
+        legacy_member_id TEXT,
+        scope_type TEXT NOT NULL DEFAULT 'store'
+          CHECK (scope_type IN ('tenant', 'store')),
+        UNIQUE (tenant_id, request_id)
+      ) STRICT;
+
+      INSERT INTO monthly_card
+      (id, tenant_id, store_id, member_id, plan_id, plan_name_snapshot,
+       price_fen, duration_days, payment_method, status, request_id,
+       purchased_by, purchased_at, starts_at, expires_at, paused_at,
+       total_paused_seconds, refunded_at, refund_reason, updated_at, source,
+       legacy_import_batch_id, legacy_member_id, scope_type)
+      SELECT id, tenant_id, store_id, member_id, plan_id, plan_name_snapshot,
+             price_fen, duration_days, payment_method, status, request_id,
+             purchased_by, purchased_at, starts_at, expires_at, paused_at,
+             total_paused_seconds, refunded_at, refund_reason, updated_at,
+             source, legacy_import_batch_id, legacy_member_id, scope_type
+      FROM monthly_card_v25;
+
+      CREATE TABLE monthly_card_event (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        store_id TEXT NOT NULL REFERENCES store(id),
+        card_id TEXT NOT NULL REFERENCES monthly_card(id),
+        member_id TEXT NOT NULL REFERENCES member(id),
+        event_type TEXT NOT NULL CHECK (event_type IN (
+          'purchased', 'paused', 'resumed', 'used', 'refunded', 'expired',
+          'manual_extended'
+        )),
+        request_id TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        device_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        metadata_json TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        UNIQUE (tenant_id, request_id)
+      ) STRICT;
+      INSERT INTO monthly_card_event
+      SELECT * FROM monthly_card_event_v25;
+
+      CREATE TABLE legacy_monthly_card_history (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        store_id TEXT NOT NULL REFERENCES store(id),
+        import_batch_id TEXT NOT NULL REFERENCES legacy_import_batch(id),
+        member_id TEXT NOT NULL REFERENCES member(id),
+        legacy_member_id TEXT NOT NULL,
+        plan_name TEXT NOT NULL,
+        starts_at_raw TEXT NOT NULL,
+        expires_at_raw TEXT NOT NULL,
+        starts_at_normalized TEXT NOT NULL,
+        expires_at_normalized TEXT NOT NULL,
+        imported_status TEXT NOT NULL
+          CHECK (imported_status IN ('active', 'expired')),
+        operational_card_id TEXT REFERENCES monthly_card(id),
+        UNIQUE (import_batch_id, legacy_member_id)
+      ) STRICT;
+      INSERT INTO legacy_monthly_card_history
+      SELECT * FROM legacy_monthly_card_history_v25;
+
+      DROP TABLE legacy_monthly_card_history_v25;
+      DROP TABLE monthly_card_event_v25;
+      DROP TABLE monthly_card_v25;
+
+      CREATE UNIQUE INDEX idx_monthly_card_current_store
+        ON monthly_card (tenant_id, member_id, store_id)
+        WHERE status IN ('active', 'paused') AND scope_type = 'store';
+      CREATE UNIQUE INDEX idx_monthly_card_current_tenant
+        ON monthly_card (tenant_id, member_id)
+        WHERE status IN ('active', 'paused') AND scope_type = 'tenant';
+      CREATE INDEX idx_monthly_card_member_history
+        ON monthly_card (tenant_id, member_id, purchased_at);
+      CREATE INDEX idx_monthly_card_events
+        ON monthly_card_event (tenant_id, card_id, occurred_at);
+      CREATE INDEX idx_legacy_monthly_member
+        ON legacy_monthly_card_history
+          (tenant_id, member_id, expires_at_normalized);
+    `
+  },
+  {
+    version: 28,
+    name: 'wechat-monthly-card-order-mirror',
+    sql: `
+      CREATE TABLE wechat_monthly_card_order_mirror (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        store_id TEXT NOT NULL REFERENCES store(id),
+        member_id TEXT NOT NULL REFERENCES member(id),
+        identity_id TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        out_trade_no TEXT NOT NULL,
+        provider_mode TEXT NOT NULL
+          CHECK (provider_mode IN ('mock', 'wechat')),
+        provider_prepay_id TEXT,
+        provider_transaction_id TEXT,
+        plan_name TEXT NOT NULL,
+        price_fen INTEGER NOT NULL CHECK (price_fen > 0),
+        duration_days INTEGER NOT NULL CHECK (duration_days > 0),
+        scope_type TEXT NOT NULL CHECK (scope_type IN ('tenant', 'store')),
+        status TEXT NOT NULL CHECK (status IN (
+          'creating', 'pending_payment', 'settled', 'failed', 'expired'
+        )),
+        target_card_id TEXT,
+        expires_before TEXT,
+        expires_after TEXT,
+        error_message TEXT,
+        expires_at TEXT NOT NULL,
+        paid_at TEXT,
+        settled_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (tenant_id, out_trade_no)
+      ) STRICT;
+
+      CREATE INDEX idx_wechat_monthly_card_order_mirror_member
+        ON wechat_monthly_card_order_mirror
+          (tenant_id, member_id, created_at DESC);
+      CREATE INDEX idx_wechat_monthly_card_order_mirror_status
+        ON wechat_monthly_card_order_mirror
+          (tenant_id, status, updated_at DESC);
+    `
   }
 ]
 

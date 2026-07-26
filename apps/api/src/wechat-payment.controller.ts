@@ -11,6 +11,7 @@ import {
   WECHAT_PAYMENT_PROVIDER
 } from './infrastructure.module'
 import { MemberRechargeService } from './member-recharge.service'
+import { MemberMonthlyCardService } from './member-monthly-card.service'
 import type { WechatPaymentProvider } from './wechat-payment-provider'
 
 type NotificationRequest = {
@@ -23,7 +24,9 @@ export class WechatPaymentController {
     @Inject(WECHAT_PAYMENT_PROVIDER)
     private readonly provider: WechatPaymentProvider,
     @Inject(MemberRechargeService)
-    private readonly recharges: MemberRechargeService
+    private readonly recharges: MemberRechargeService,
+    @Inject(MemberMonthlyCardService)
+    private readonly monthlyCards: MemberMonthlyCardService
   ) {}
 
   @Post('notify')
@@ -37,7 +40,12 @@ export class WechatPaymentController {
         headers: request.headers,
         rawBody: request.rawBody.toString('utf8')
       })
-      await this.recharges.handleWechatNotification(notification)
+      const handled = await this.monthlyCards.handleWechatNotification(
+        notification
+      )
+      if (!handled) {
+        await this.recharges.handleWechatNotification(notification)
+      }
     } catch {
       throw new HttpException(
         { code: 'FAIL', message: 'invalid notification' },

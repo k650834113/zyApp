@@ -1312,6 +1312,61 @@ async function confirmMember(
   return 'confirmed'
 }
 
+async function confirmMemberTier(
+  client: PoolClient,
+  operation: ReceivedOperation
+): Promise<OperationResult> {
+  let tier: 'ordinary' | 'advanced'
+  let updatedAt: string
+  try {
+    const after = afterSnapshot(operation)
+    tier = enumValue(
+      after.tier,
+      ['ordinary', 'advanced'] as const,
+      'member.tier'
+    )
+    updatedAt = timestamp(after.updatedAt, operation.occurred_at)
+  } catch (error) {
+    return markSyncConflict(
+      client,
+      operation,
+      'unknown',
+      error instanceof Error ? error.message : 'invalid member tier payload'
+    )
+  }
+  const member = await client.query<{ tenant_id: string }>(
+    `SELECT tenant_id FROM cloud_member
+     WHERE id = $1
+     LIMIT 1
+     FOR UPDATE`,
+    [operation.aggregate_id]
+  )
+  if (member.rows[0]?.tenant_id !== operation.tenant_id) {
+    return markSyncConflict(
+      client,
+      operation,
+      'member_version_mismatch',
+      'member tier reconciliation requires an existing tenant member'
+    )
+  }
+  const version = await appendEvent(client, operation, 'member')
+  await client.query(
+    `UPDATE cloud_member
+     SET tier = $3, server_version = $4,
+         updated_at = GREATEST(updated_at, $5::timestamptz)
+     WHERE id = $1 AND tenant_id = $2`,
+    [
+      operation.aggregate_id,
+      operation.tenant_id,
+      tier,
+      version,
+      updatedAt
+    ]
+  )
+  await completeOperation(client, operation, 'member', version)
+  return 'confirmed'
+}
+
 async function confirmCatalog(
   client: PoolClient,
   operation: ReceivedOperation
@@ -1675,7 +1730,9 @@ export async function processSyncOperation(
     case 'employee':
       return confirmEmployee(client, operation)
     case 'member':
-      return confirmMember(client, operation)
+      return operation.operation_type === 'member.tier.reconciled'
+        ? confirmMemberTier(client, operation)
+        : confirmMember(client, operation)
     case 'catalog':
       return confirmCatalog(client, operation)
     case 'activity':

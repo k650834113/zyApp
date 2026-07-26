@@ -219,6 +219,13 @@ describe('business reporting repository', () => {
         now: new Date('2026-06-10T03:00:00.000Z')
       }
     )
+    localDatabase.connection
+      .prepare(
+        `UPDATE monthly_card
+         SET payment_method = 'wechat', source = 'cloud'
+         WHERE id = ?`
+      )
+      .run(activeCard.id)
     useMonthlyCard(
       localDatabase.connection,
       { ...store, actor: manager },
@@ -294,7 +301,7 @@ describe('business reporting repository', () => {
       usageCount: 1,
       activeCount: 1
     })
-    expect(report.actualCashInflowFen).toBe(24_000)
+    expect(report.actualCashInflowFen).toBe(4_000)
     expect(report.items).toEqual([
       {
         itemName: admission.name,

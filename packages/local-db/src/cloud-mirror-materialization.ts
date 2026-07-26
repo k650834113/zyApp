@@ -537,16 +537,20 @@ function applyMonthlyCard(database: DatabaseSync, context: StoreContext, row: Js
      (id, tenant_id, store_id, member_id, plan_id, plan_name_snapshot,
       price_fen, duration_days, payment_method, status, request_id,
       purchased_by, purchased_at, starts_at, expires_at, paused_at,
-      total_paused_seconds, refunded_at, refund_reason, updated_at, scope_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'cash', ?, ?, 'cloud-sync', ?, ?, ?, ?, 0,
-             ?, NULL, ?, ?)
+      total_paused_seconds, refunded_at, refund_reason, updated_at, scope_type,
+      source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cloud-sync', ?, ?, ?, ?, 0,
+             ?, NULL, ?, ?, 'cloud')
      ON CONFLICT (id) DO UPDATE SET status = excluded.status,
        expires_at = excluded.expires_at, paused_at = excluded.paused_at,
-       refunded_at = excluded.refunded_at, updated_at = excluded.updated_at`
+       refunded_at = excluded.refunded_at,
+       payment_method = excluded.payment_method,
+       updated_at = excluded.updated_at, source = 'cloud'`
   ).run(
     id, context.tenantId, issuingStoreId, text(row.member_id, 'monthly_card.member_id'),
     plan.id, text(row.plan_name, 'monthly_card.plan_name'),
     integer(row.price_fen, 'monthly_card.price_fen'), plan.duration_days,
+    nullableText(row.payment_method) === 'wechat' ? 'wechat' : 'cash',
     text(row.status, 'monthly_card.status'), `cloud-card:${id}`,
     text(row.purchased_at, 'monthly_card.purchased_at'),
     text(row.starts_at, 'monthly_card.starts_at'), text(row.expires_at, 'monthly_card.expires_at'),
@@ -626,6 +630,69 @@ function applyWechatRechargeOrder(
     nullableText(row.wallet_operation_id),
     text(row.created_at, 'wechat_recharge_order.created_at'),
     text(row.updated_at, 'wechat_recharge_order.updated_at')
+  )
+}
+
+function applyMonthlyCardPaymentOrder(
+  database: DatabaseSync,
+  context: StoreContext,
+  row: Json
+): void {
+  const id = text(row.id, 'wechat_monthly_card_order.id')
+  const occurrenceStoreId = nullableText(row.store_id) ?? context.storeId
+  database.prepare(
+    `INSERT INTO wechat_monthly_card_order_mirror
+     (id, tenant_id, store_id, member_id, identity_id, request_id,
+      out_trade_no, provider_mode, provider_prepay_id,
+      provider_transaction_id, plan_name, price_fen, duration_days,
+      scope_type, status, target_card_id, expires_before, expires_after,
+      error_message, expires_at, paid_at, settled_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+             ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET
+       store_id = excluded.store_id,
+       member_id = excluded.member_id,
+       provider_prepay_id = excluded.provider_prepay_id,
+       provider_transaction_id = excluded.provider_transaction_id,
+       plan_name = excluded.plan_name,
+       price_fen = excluded.price_fen,
+       duration_days = excluded.duration_days,
+       scope_type = excluded.scope_type,
+       status = excluded.status,
+       target_card_id = excluded.target_card_id,
+       expires_before = excluded.expires_before,
+       expires_after = excluded.expires_after,
+       error_message = excluded.error_message,
+       expires_at = excluded.expires_at,
+       paid_at = excluded.paid_at,
+       settled_at = excluded.settled_at,
+       updated_at = excluded.updated_at
+     WHERE wechat_monthly_card_order_mirror.tenant_id = excluded.tenant_id`
+  ).run(
+    id,
+    context.tenantId,
+    occurrenceStoreId,
+    text(row.member_id, 'wechat_monthly_card_order.member_id'),
+    text(row.identity_id, 'wechat_monthly_card_order.identity_id'),
+    text(row.request_id, 'wechat_monthly_card_order.request_id'),
+    text(row.out_trade_no, 'wechat_monthly_card_order.out_trade_no'),
+    text(row.provider_mode, 'wechat_monthly_card_order.provider_mode'),
+    nullableText(row.provider_prepay_id),
+    nullableText(row.provider_transaction_id),
+    text(row.plan_name, 'wechat_monthly_card_order.plan_name'),
+    integer(row.price_fen, 'wechat_monthly_card_order.price_fen'),
+    integer(row.duration_days, 'wechat_monthly_card_order.duration_days'),
+    text(row.scope_type, 'wechat_monthly_card_order.scope_type'),
+    text(row.status, 'wechat_monthly_card_order.status'),
+    nullableText(row.target_card_id),
+    nullableText(row.expires_before),
+    nullableText(row.expires_after),
+    nullableText(row.error_message),
+    text(row.expires_at, 'wechat_monthly_card_order.expires_at'),
+    nullableText(row.paid_at),
+    nullableText(row.settled_at),
+    text(row.created_at, 'wechat_monthly_card_order.created_at'),
+    text(row.updated_at, 'wechat_monthly_card_order.updated_at')
   )
 }
 
@@ -1047,6 +1114,7 @@ export function applyCloudMirrorPage(
       else if (page.resource === 'wallet_ledger') applyWalletLedger(database, context, row)
       else if (page.resource === 'monthly_cards') applyMonthlyCard(database, context, row)
       else if (page.resource === 'monthly_card_events') applyMonthlyCardEvent(database, context, row)
+      else if (page.resource === 'monthly_card_payment_orders') applyMonthlyCardPaymentOrder(database, context, row)
       else if (page.resource === 'wechat_recharge_orders') applyWechatRechargeOrder(database, context, row)
       else if (page.resource === 'business_templates') applyBusinessTemplate(database, context, row)
       else if (page.resource === 'orders') applyOrder(database, context, row)

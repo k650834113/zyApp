@@ -12,9 +12,11 @@ import {
   directRefund,
   findEmployeeRecordById,
   getStoreContext,
+  getMonthlyCardDetails,
   isStoreInitialized,
   listCatalogItems,
-  openLocalDatabase
+  openLocalDatabase,
+  purchaseMonthlyCard
 } from './index'
 import { migrateDatabase } from './migrations'
 
@@ -37,7 +39,7 @@ describe('local database', () => {
       .all()
       .map((row) => (row as { name: string }).name)
 
-    expect(localDatabase.schemaVersion).toBe(26)
+    expect(localDatabase.schemaVersion).toBe(28)
     expect(localDatabase.journalMode.toLowerCase()).toBe('wal')
     expect(tableNames).toContain('audit_log')
     expect(tableNames).toContain('outbox_operation')
@@ -51,6 +53,7 @@ describe('local database', () => {
     expect(tableNames).toContain('monthly_card')
     expect(tableNames).toContain('monthly_card_event')
     expect(tableNames).toContain('wechat_recharge_order_mirror')
+    expect(tableNames).toContain('wechat_monthly_card_order_mirror')
     expect(tableNames).toContain('catalog_item')
     expect(tableNames).toContain('sales_order')
     expect(tableNames).toContain('sales_order_item')
@@ -86,8 +89,66 @@ describe('local database', () => {
       .prepare('SELECT COUNT(*) AS count FROM schema_migrations')
       .get() as { count: number }
 
-    expect(migrationCount.count).toBe(26)
+    expect(migrationCount.count).toBe(28)
     reopened.close()
+  })
+
+  it('upgrades populated monthly cards from schema 26 and accepts WeChat source', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-db-v27-upgrade-'))
+    temporaryDirectories.push(directory)
+    const connection = new DatabaseSync(join(directory, 'zyapp.db'))
+    connection.exec('PRAGMA foreign_keys = ON')
+    expect(migrateDatabase(connection, 26)).toBe(26)
+    const bootstrap = bootstrapStore(connection, {
+      storeName: 'Upgrade Store',
+      managerUsername: 'manager',
+      managerPasswordHash: 'scrypt$manager',
+      managerDisplayName: 'Manager',
+      deviceName: 'Cashier'
+    })
+    const context = getStoreContext(connection)
+    if (!context) throw new Error('Missing context')
+    const actor = findEmployeeRecordById(
+      connection,
+      context.tenantId,
+      bootstrap.managerId
+    )
+    if (!actor) throw new Error('Missing manager')
+    const member = createMember(
+      connection,
+      { ...context, actor },
+      {
+        phone: '13800138000',
+        nickname: 'Upgrade Member',
+        confirmedAtLeast14: true
+      }
+    )
+    const card = purchaseMonthlyCard(
+      connection,
+      { ...context, actor },
+      {
+        requestId: randomUUID(),
+        memberId: member.id,
+        reason: 'Before schema 27'
+      }
+    )
+
+    expect(migrateDatabase(connection)).toBe(28)
+    expect(
+      getMonthlyCardDetails(connection, context, member.id).current
+    ).toMatchObject({ id: card.id, paymentMethod: 'cash' })
+    connection
+      .prepare(
+        `UPDATE monthly_card
+         SET payment_method = 'wechat', source = 'cloud'
+         WHERE id = ?`
+      )
+      .run(card.id)
+    expect(
+      getMonthlyCardDetails(connection, context, member.id).current
+    ).toMatchObject({ id: card.id, paymentMethod: 'wechat' })
+    expect(connection.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    connection.close()
   })
 
   it('upgrades schema v19 financial command history and accepts activity tier commands', () => {
@@ -393,7 +454,7 @@ describe('local database', () => {
     connection.close()
 
     const upgraded = openLocalDatabase(filePath)
-    expect(upgraded.schemaVersion).toBe(26)
+    expect(upgraded.schemaVersion).toBe(28)
     expect(
       upgraded.connection
         .prepare(
@@ -436,7 +497,7 @@ describe('local database', () => {
     const restored = openLocalDatabase(backupPath)
 
     expect(result.sha256).toMatch(/^[a-f0-9]{64}$/)
-    expect(restored.schemaVersion).toBe(26)
+    expect(restored.schemaVersion).toBe(28)
     restored.close()
     localDatabase.close()
   })
