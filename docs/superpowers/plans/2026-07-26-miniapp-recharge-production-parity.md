@@ -40,15 +40,16 @@
 
 - [ ] **Step 1: 修改 API 测试，定义无测试专用字段的期望**
 
-将配置测试改为断言旧环境变量不再改变运行契约：
+将真实支付与虚拟手机号冲突测试改为不依赖测试金额开关：
 
 ```ts
-const config = readApiConfig(
-  completeWechatEnvironment({
-    WECHAT_PAYMENT_TEST_AMOUNT_FEN: '1'
-  })
-)
-expect(config).not.toHaveProperty('wechatPaymentTestAmountFen')
+expect(() =>
+  readApiConfig(
+    completeWechatEnvironment({
+      MINIAPP_TEST_VIRTUAL_PHONE: '18888888888'
+    })
+  )
+).toThrow(/Real WeChat payment forbids MINIAPP_TEST_VIRTUAL_PHONE/)
 ```
 
 将真实支付配置期望改为：
