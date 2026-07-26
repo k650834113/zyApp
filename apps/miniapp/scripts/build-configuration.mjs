@@ -131,7 +131,7 @@ export function readBuildConfiguration(
         : environment.ZYAPP_MINIAPP_DEVELOPMENT_SUBJECT?.trim() ||
           'local-miniapp-user',
     customerOnly: customerRelease,
-    realWechatPayment: productionTest
+    realWechatPayment: customerRelease
   }
   if (!configuration.useMock) {
     if (!configuration.apiBaseUrl) {

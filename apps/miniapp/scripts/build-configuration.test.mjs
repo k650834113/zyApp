@@ -81,8 +81,29 @@ test('builds the released customer app only against the production API', () => {
     storeId: '22222222-2222-4222-8222-222222222222',
     developmentProviderSubject: '',
     customerOnly: true,
-    realWechatPayment: false
+    realWechatPayment: true
   })
+})
+
+test('keeps customer features identical between test and production releases', () => {
+  const endpoints = {
+    miniappProductionApiBaseUrl: 'https://judian.icu',
+    miniappProductionStoreId: '22222222-2222-4222-8222-222222222222',
+    miniappTestApiBaseUrl: 'https://judian.icu/test',
+    miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
+  }
+  const production = readBuildConfiguration(
+    { ZYAPP_MINIAPP_MODE: 'production-wechat' },
+    endpoints
+  ).configuration
+  const productionTest = readBuildConfiguration(
+    { ZYAPP_MINIAPP_MODE: 'production-test-wechat' },
+    endpoints
+  ).configuration
+  const normalize = ({ apiBaseUrl, storeId, ...configuration }) =>
+    configuration
+
+  assert.deepEqual(normalize(production), normalize(productionTest))
 })
 
 test('rejects a test store override in the released production build', () => {
