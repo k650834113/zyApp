@@ -11,6 +11,7 @@ import {
 } from '../../services/client'
 import {
   defaultConfirmedAtLeast14,
+  needsMemberProfileCompletion,
   normalizePhone,
   normalizeVerificationCode,
   phoneAuthorizationFailure,
@@ -172,7 +173,7 @@ Page({
         })
         return
       }
-      if (!member.profileCompleted) {
+      if (needsMemberProfileCompletion(member)) {
         wx.reLaunch({ url: '/pages/member/index?mode=complete' })
         return
       }
@@ -223,7 +224,7 @@ Page({
         phoneCode,
         confirmedAtLeast14: defaultConfirmedAtLeast14
       })
-      if (!member.profileCompleted) {
+      if (needsMemberProfileCompletion(member)) {
         wx.reLaunch({ url: '/pages/member/index?mode=complete' })
         return
       }
@@ -280,7 +281,7 @@ Page({
     }
     this.setData({ busy: true })
     try {
-      await getMiniappClient().registerMember({
+      const member = await getMiniappClient().registerMember({
         requestId: requestId('member-register'),
         challengeId: this.data.loginChallengeId,
         verificationCode: code,
@@ -288,7 +289,12 @@ Page({
         nickname: '微信用户',
         confirmedAtLeast14: defaultConfirmedAtLeast14
       })
-      wx.reLaunch({ url: '/pages/member/index?mode=complete' })
+      if (needsMemberProfileCompletion(member)) {
+        wx.reLaunch({ url: '/pages/member/index?mode=complete' })
+        return
+      }
+      await this.load()
+      wx.showToast({ title: '登录成功', icon: 'success' })
     } catch (error) {
       wx.showToast({
         title: error instanceof Error ? error.message : '登录失败',

@@ -1,4 +1,7 @@
-import type { PhoneVerificationChallenge } from '@zyapp/contracts'
+import type {
+  MemberSelfServiceSummary,
+  PhoneVerificationChallenge
+} from '@zyapp/contracts'
 
 export type PhoneNumberEvent = {
   detail: { code?: string; errMsg?: string }
@@ -7,6 +10,12 @@ export type PhoneNumberEvent = {
 export const defaultConfirmedAtLeast14 = true
 
 const mainlandPhonePattern = /^1\d{10}$/
+
+export function needsMemberProfileCompletion(
+  member: Pick<MemberSelfServiceSummary, 'profileCompleted'>
+): boolean {
+  return !member.profileCompleted
+}
 
 export function phoneCodeFromEvent(event: PhoneNumberEvent): string | null {
   const errMsg = event.detail.errMsg ?? ''
