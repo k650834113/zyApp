@@ -60,12 +60,13 @@ describe('member tier reconciliation', () => {
       expect(second).toEqual({ created: 0 })
       const payload = local.connection
         .prepare(
-          `SELECT payload_json FROM outbox_operation
+          `SELECT actor_id, payload_json FROM outbox_operation
            WHERE operation_type = 'member.tier.reconciled'
              AND aggregate_id = ?
            ORDER BY device_seq DESC LIMIT 1`
         )
-        .get(member.id) as { payload_json: string }
+        .get(member.id) as { actor_id: string; payload_json: string }
+      expect(payload.actor_id).toBe(bootstrap.managerId)
       expect(JSON.parse(payload.payload_json)).toEqual({
         action: 'member.tier.reconciled',
         memberId: member.id,
@@ -76,6 +77,47 @@ describe('member tier reconciliation', () => {
         },
         reason: '历史会员等级云端对账'
       })
+    } finally {
+      local.close()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('does not queue reconciliation when the store has no active employee', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-tier-reconcile-no-actor-'))
+    const local = openLocalDatabase(join(directory, 'test.db'))
+    try {
+      const bootstrap = bootstrapStore(local.connection, {
+        storeName: 'No Actor Store',
+        managerUsername: 'manager',
+        managerPasswordHash: 'scrypt$manager',
+        managerDisplayName: 'Manager',
+        deviceName: 'Cashier'
+      })
+      const context = getStoreContext(local.connection)
+      if (!context) throw new Error('Missing store context')
+      local.connection
+        .prepare("UPDATE employee SET status = 'disabled' WHERE id = ?")
+        .run(bootstrap.managerId)
+
+      expect(ensureMemberTierReconciliationOutbox(local.connection, context)).toEqual({
+        created: 0
+      })
+      const pendingTierCount = local.connection
+        .prepare(
+          `SELECT COUNT(*) AS count FROM outbox_operation
+           WHERE operation_type = 'member.tier.reconciled'`
+        )
+        .get() as { count: number }
+      const systemMarkerCount = local.connection
+        .prepare(
+          `SELECT COUNT(*) AS count FROM audit_log
+           WHERE tenant_id = ? AND device_id = ?
+             AND action = 'system.member_tier_reconciliation_v1'`
+        )
+        .get(context.tenantId, context.deviceId) as { count: number }
+      expect(pendingTierCount.count).toBe(0)
+      expect(systemMarkerCount.count).toBe(0)
     } finally {
       local.close()
       rmSync(directory, { recursive: true, force: true })

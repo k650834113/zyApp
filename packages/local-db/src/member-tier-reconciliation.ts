@@ -4,6 +4,33 @@ import type { EmployeeRecord, StoreContext } from './identity'
 
 type TierContext = StoreContext & { actor?: EmployeeRecord }
 
+function activeEmployeeForTierReconciliation(
+  database: DatabaseSync,
+  context: StoreContext
+): EmployeeRecord | null {
+  const row = database
+    .prepare(
+      `SELECT *
+       FROM employee
+       WHERE tenant_id = ? AND store_id = ? AND status = 'active'
+       ORDER BY CASE role WHEN 'manager' THEN 0 ELSE 1 END,
+                updated_at DESC, id
+       LIMIT 1`
+    )
+    .get(context.tenantId, context.storeId) as Record<string, unknown> | undefined
+  if (!row) return null
+  return {
+    id: String(row.id),
+    username: String(row.username),
+    displayName: String(row.display_name),
+    role: row.role === 'manager' ? 'manager' : 'staff',
+    status: 'active',
+    mobileAccessEnabled: false,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at)
+  }
+}
+
 function memberTier(
   database: DatabaseSync,
   tenantId: string,
@@ -107,6 +134,8 @@ export function ensureMemberTierReconciliationOutbox(
     )
     .get(context.tenantId, context.deviceId, marker)
   if (existing) return { created: 0 }
+  const actor = activeEmployeeForTierReconciliation(database, context)
+  if (!actor) return { created: 0 }
   const members = database
     .prepare(`SELECT id FROM member WHERE tenant_id = ? ORDER BY id`)
     .all(context.tenantId) as Array<{ id: string }>
@@ -116,7 +145,7 @@ export function ensureMemberTierReconciliationOutbox(
     for (const member of members) {
       appendMemberTierReconciliationInOpenTransaction(
         database,
-        context,
+        { ...context, actor },
         member.id,
         '历史会员等级云端对账',
         timestamp
