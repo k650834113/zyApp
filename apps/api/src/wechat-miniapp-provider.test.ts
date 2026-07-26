@@ -24,7 +24,6 @@ const testConfig: ApiConfig = {
   wechatPayApiV3KeyPath: null,
   wechatPayNotifyUrl: null,
   wechatPayOutTradeNoPrefix: 'ZY-',
-  wechatPaymentTestAmountFen: null,
   miniappDevelopmentAuthEnabled: false,
   miniappWechatAuthMode: 'wechat',
   wechatMiniappAppId: 'wx-test-appid',

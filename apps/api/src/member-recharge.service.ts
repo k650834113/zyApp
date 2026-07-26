@@ -149,8 +149,7 @@ export class MemberRechargeService {
       )
     }
     return {
-      providerMode: this.paymentProvider.mode,
-      testAmountFen: this.config.wechatPaymentTestAmountFen
+      providerMode: this.paymentProvider.mode
     }
   }
 
@@ -170,18 +169,6 @@ export class MemberRechargeService {
         error instanceof Error ? error.message : 'Invalid recharge order'
       )
     }
-    if (
-      input.principalFen === 1 &&
-      this.config.wechatPaymentTestAmountFen !== 1
-    ) {
-      throw new BadRequestException(
-        'The one-cent test recharge amount is not enabled'
-      )
-    }
-    const isLiveTestOrder =
-      this.config.wechatPaymentTestAmountFen !== null &&
-      input.principalFen === this.config.wechatPaymentTestAmountFen
-
     const hash = requestHash(input)
     const existing = await this.pool.query<RechargeOrderRow>(
       `SELECT id, request_id, request_hash, out_trade_no, provider_mode,
@@ -293,24 +280,18 @@ export class MemberRechargeService {
         nonNegativeFen(input.principalFen),
         domainTiers
       )
-      giftFen = isLiveTestOrder ? 0 : allocation.gift
-      giftSnapshot = isLiveTestOrder
-        ? {
-            livePaymentTest: true,
-            principalFen: input.principalFen,
-            giftFen: 0
-          }
-        : {
-            tiers: resolvedTiers.map((tier) => ({
-              id: tier.id,
-              principalFen: safeFen(
-                tier.principal_fen,
-                'tier.principalFen'
-              ),
-              giftFen: safeFen(tier.gift_fen, 'tier.giftFen')
-            })),
-            allocation
-          }
+      giftFen = allocation.gift
+      giftSnapshot = {
+        tiers: resolvedTiers.map((tier) => ({
+          id: tier.id,
+          principalFen: safeFen(
+            tier.principal_fen,
+            'tier.principalFen'
+          ),
+          giftFen: safeFen(tier.gift_fen, 'tier.giftFen')
+        })),
+        allocation
+      }
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO wechat_recharge_order
          (id, tenant_id, store_id, member_id, identity_id, request_id,

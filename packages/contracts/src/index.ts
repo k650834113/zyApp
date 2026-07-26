@@ -1319,7 +1319,6 @@ export type CreateMemberRechargeOrderRequest = {
 
 export type MemberRechargeConfiguration = {
   providerMode: 'mock' | 'wechat'
-  testAmountFen: number | null
 }
 
 export type WechatJsapiPaymentParameters = {

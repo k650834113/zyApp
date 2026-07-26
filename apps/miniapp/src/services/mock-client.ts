@@ -458,7 +458,7 @@ export class MockMiniappClient implements MiniappClient {
   }
 
   async getRechargeConfiguration(): Promise<MemberRechargeConfiguration> {
-    return { providerMode: 'mock', testAmountFen: null }
+    return { providerMode: 'mock' }
   }
 
   async requestPhoneVerification(

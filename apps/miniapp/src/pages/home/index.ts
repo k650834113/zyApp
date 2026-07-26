@@ -127,11 +127,8 @@ function rechargeOrderView(
 }
 
 function chooseRechargeAmount(
-  configuration: MemberRechargeConfiguration
+  _configuration: MemberRechargeConfiguration
 ): Promise<number | null> {
-  if (configuration.testAmountFen !== null) {
-    return Promise.resolve(configuration.testAmountFen)
-  }
   const amounts = [10_000, 30_000, 50_000, 100_000]
   return new Promise((resolve) => {
     wx.showActionSheet({

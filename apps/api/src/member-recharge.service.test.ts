@@ -56,7 +56,6 @@ function apiConfig(
     wechatPayNotifyUrl:
       'https://judian.icu/test/v1/payments/wechat/recharge/notify',
     wechatPayOutTradeNoPrefix: 'ZYT-',
-    wechatPaymentTestAmountFen: 1,
     miniappDevelopmentAuthEnabled: false,
     miniappWechatAuthMode: 'wechat',
     wechatMiniappAppId: 'wx-test-appid',
@@ -162,7 +161,7 @@ function orderRow(
 }
 
 describe('member WeChat recharge orders', () => {
-  it('exposes the isolated one-cent real-payment configuration', () => {
+  it('exposes the same real-payment configuration in every environment', () => {
     const service = new MemberRechargeService(
       {} as Pool,
       realPaymentProvider(),
@@ -170,12 +169,11 @@ describe('member WeChat recharge orders', () => {
     )
 
     expect(service.getConfiguration(principal())).toEqual({
-      providerMode: 'wechat',
-      testAmountFen: 1
+      providerMode: 'wechat'
     })
   })
 
-  it('creates the one-cent test order without gift credit', async () => {
+  it('creates a one-cent order without a test-only amount switch', async () => {
     const { pool, calls } = fakePool((sql, parameters) => {
       if (
         sql.includes('FROM wechat_recharge_order') &&
@@ -188,7 +186,7 @@ describe('member WeChat recharge orders', () => {
         }]
       }
       if (sql.includes('FROM cloud_recharge_gift_tier')) {
-        return [{ id: 'bad-tier', principal_fen: 1, gift_fen: 999 }]
+        return []
       }
       if (sql.includes('INSERT INTO wechat_recharge_order')) {
         return [{ id: parameters[0] }]
@@ -230,21 +228,6 @@ describe('member WeChat recharge orders', () => {
     )
     expect(insert?.parameters[9]).toBe(0)
     expect(insert?.parameters[7]).toMatch(/^ZYT-[0-9a-f]{28}$/)
-  })
-
-  it('rejects one-cent orders when the live test tier is disabled', async () => {
-    const service = new MemberRechargeService(
-      {} as Pool,
-      realPaymentProvider(),
-      apiConfig({ wechatPaymentTestAmountFen: null })
-    )
-
-    await expect(
-      service.createOrder(principal(), {
-        requestId: 'one-cent-disabled',
-        principalFen: 1
-      })
-    ).rejects.toThrow(/test recharge amount is not enabled/)
   })
 
   it('keeps a queried WeChat order pending before its expiry', async () => {
@@ -404,7 +387,6 @@ describe('member WeChat recharge orders', () => {
       new MockWechatPaymentProvider(),
       apiConfig({
         wechatPaymentMode: 'mock',
-        wechatPaymentTestAmountFen: null
       })
     )
 
@@ -447,7 +429,6 @@ describe('member WeChat recharge orders', () => {
       new MockWechatPaymentProvider(),
       apiConfig({
         wechatPaymentMode: 'mock',
-        wechatPaymentTestAmountFen: null
       })
     )
 
@@ -502,7 +483,6 @@ describe('member WeChat recharge orders', () => {
       new MockWechatPaymentProvider(),
       apiConfig({
         wechatPaymentMode: 'mock',
-        wechatPaymentTestAmountFen: null
       })
     )
 
@@ -592,7 +572,6 @@ describe('member WeChat recharge orders', () => {
       new MockWechatPaymentProvider(),
       apiConfig({
         wechatPaymentMode: 'mock',
-        wechatPaymentTestAmountFen: null
       })
     )
 
@@ -665,7 +644,6 @@ describe('member WeChat recharge orders', () => {
       new MockWechatPaymentProvider(),
       apiConfig({
         wechatPaymentMode: 'mock',
-        wechatPaymentTestAmountFen: null
       })
     )
 

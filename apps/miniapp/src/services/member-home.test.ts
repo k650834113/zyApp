@@ -13,8 +13,7 @@ const history: MemberSelfServiceHistory = {
 }
 
 const rechargeConfiguration: MemberRechargeConfiguration = {
-  providerMode: 'wechat',
-  testAmountFen: null
+  providerMode: 'wechat'
 }
 
 describe('member home data loading', () => {

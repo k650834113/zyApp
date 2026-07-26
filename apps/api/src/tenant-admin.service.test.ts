@@ -21,7 +21,6 @@ const config = {
   wechatPayApiV3KeyPath: null,
   wechatPayNotifyUrl: null,
   wechatPayOutTradeNoPrefix: 'ZY-',
-  wechatPaymentTestAmountFen: null,
   miniappDevelopmentAuthEnabled: false
 }
 

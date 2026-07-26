@@ -19,7 +19,6 @@ export type ApiConfig = {
   wechatPayApiV3KeyPath: string | null
   wechatPayNotifyUrl: string | null
   wechatPayOutTradeNoPrefix: string
-  wechatPaymentTestAmountFen: number | null
   miniappDevelopmentAuthEnabled: boolean
   miniappWechatAuthMode?: 'mock' | 'wechat' | 'disabled'
   wechatMiniappAppId?: string | null
@@ -82,18 +81,6 @@ function miniappPublicBaseUrl(value: string | undefined): string {
     throw new Error('MINIAPP_PUBLIC_BASE_URL cannot contain query or hash')
   }
   return normalized
-}
-
-function optionalPositiveInteger(
-  value: string | undefined,
-  name: string
-): number | null {
-  if (value === undefined || value.trim() === '') return null
-  const parsed = Number(value)
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error(`${name} must be a positive safe integer`)
-  }
-  return parsed
 }
 
 export function readApiConfig(
@@ -180,10 +167,6 @@ export function readApiConfig(
   )
   const wechatPayOutTradeNoPrefix =
     optionalText(environment.WECHAT_PAY_OUT_TRADE_NO_PREFIX) ?? 'ZY-'
-  const wechatPaymentTestAmountFen = optionalPositiveInteger(
-    environment.WECHAT_PAYMENT_TEST_AMOUNT_FEN,
-    'WECHAT_PAYMENT_TEST_AMOUNT_FEN'
-  )
   if (wechatPaymentMode === 'wechat') {
     required(wechatPayMerchantId ?? undefined, 'WECHAT_PAY_MERCHANT_ID')
     required(
@@ -242,14 +225,6 @@ export function readApiConfig(
       'Test WECHAT_PAY_NOTIFY_URL must be https://judian.icu/test/v1/payments/wechat/recharge/notify'
     )
   }
-  if (
-    wechatPaymentTestAmountFen !== null &&
-    (deploymentEnvironment !== 'test' || wechatPaymentMode !== 'wechat')
-  ) {
-    throw new Error(
-      'WECHAT_PAYMENT_TEST_AMOUNT_FEN is only allowed in the test deployment with real WeChat payment'
-    )
-  }
   const wechatMiniappAppId = optionalText(environment.WECHAT_MINIAPP_APP_ID)
   const wechatMiniappAppSecret = optionalText(
     environment.WECHAT_MINIAPP_APP_SECRET
@@ -302,11 +277,10 @@ export function readApiConfig(
   }
   if (
     miniappTestVirtualPhone &&
-    wechatPaymentMode === 'wechat' &&
-    wechatPaymentTestAmountFen !== null
+    wechatPaymentMode === 'wechat'
   ) {
     throw new Error(
-      'Real test payment forbids MINIAPP_TEST_VIRTUAL_PHONE'
+      'Real WeChat payment forbids MINIAPP_TEST_VIRTUAL_PHONE'
     )
   }
   return {
@@ -334,7 +308,6 @@ export function readApiConfig(
     wechatPayApiV3KeyPath,
     wechatPayNotifyUrl,
     wechatPayOutTradeNoPrefix,
-    wechatPaymentTestAmountFen,
     miniappDevelopmentAuthEnabled: booleanValue(
       environment.MINIAPP_DEVELOPMENT_AUTH_ENABLED,
       nodeEnv !== 'production',
