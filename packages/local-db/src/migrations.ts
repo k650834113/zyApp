@@ -1709,6 +1709,51 @@ const migrations: Migration[] = [
         ON wechat_monthly_card_order_mirror
           (tenant_id, status, updated_at DESC);
     `
+  },
+  {
+    version: 29,
+    name: 'repair-tier-reconciliation-and-effective-wallet-ledger',
+    sql: `
+      UPDATE outbox_operation AS pending
+      SET actor_id = (
+        SELECT employee.id
+        FROM employee
+        WHERE employee.tenant_id = pending.tenant_id
+          AND employee.store_id = pending.store_id
+          AND employee.status = 'active'
+        ORDER BY CASE employee.role WHEN 'manager' THEN 0 ELSE 1 END,
+                 employee.updated_at DESC,
+                 employee.id
+        LIMIT 1
+      )
+      WHERE pending.sync_status = 'pending'
+        AND pending.operation_type = 'member.tier.reconciled'
+        AND pending.actor_id IS NULL
+        AND EXISTS (
+          SELECT 1 FROM employee
+          WHERE employee.tenant_id = pending.tenant_id
+            AND employee.store_id = pending.store_id
+            AND employee.status = 'active'
+        );
+
+      CREATE VIEW effective_wallet_ledger AS
+      SELECT cloud_row.*
+      FROM wallet_ledger cloud_row
+      WHERE NOT (
+        cloud_row.actor_id = 'cloud-sync'
+        AND EXISTS (
+          SELECT 1
+          FROM wallet_ledger local_row
+          WHERE local_row.tenant_id = cloud_row.tenant_id
+            AND local_row.member_id = cloud_row.member_id
+            AND local_row.entry_type = cloud_row.entry_type
+            AND local_row.source_id = cloud_row.source_id
+            AND local_row.principal_delta_fen = cloud_row.principal_delta_fen
+            AND local_row.gift_delta_fen = cloud_row.gift_delta_fen
+            AND local_row.actor_id <> 'cloud-sync'
+        )
+      );
+    `
   }
 ]
 
