@@ -717,9 +717,9 @@ function listLedger(
         `SELECT id, entry_type, principal_delta_fen, gift_delta_fen,
                 principal_balance_after_fen, gift_balance_after_fen,
                 source_id, reason, occurred_at
-         FROM wallet_ledger
+         FROM effective_wallet_ledger
          WHERE tenant_id = ? AND member_id = ?
-         ORDER BY occurred_at DESC, rowid DESC
+         ORDER BY occurred_at DESC, id DESC
          LIMIT 100`
       )
       .all(tenantId, memberId) as Array<Record<string, unknown>>

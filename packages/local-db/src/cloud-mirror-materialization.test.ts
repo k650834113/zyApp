@@ -5,7 +5,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { bootstrapStore } from './bootstrap'
 import { applyCloudMirrorPage } from './cloud-mirror-materialization'
 import { getStoreContext } from './identity'
-import { getMonthlyCardDetails, openLocalDatabase } from './index'
+import {
+  cashRecharge,
+  createMember,
+  findEmployeeRecordById,
+  getMonthlyCardDetails,
+  openLocalDatabase
+} from './index'
 
 const directories: string[] = []
 
@@ -16,6 +22,136 @@ afterEach(() => {
 })
 
 describe('cloud mirror materialization', () => {
+  it('suppresses a confirmed local wallet echo while keeping a new cloud recharge', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-wallet-ledger-mirror-'))
+    directories.push(directory)
+    const local = openLocalDatabase(join(directory, 'mirror.db'))
+    try {
+      const bootstrap = bootstrapStore(local.connection, {
+        storeName: 'Mirror Store',
+        managerUsername: 'manager',
+        managerPasswordHash: 'scrypt$test',
+        managerDisplayName: 'Manager',
+        deviceName: 'Second Device'
+      })
+      const context = getStoreContext(local.connection)
+      if (!context) throw new Error('Missing context')
+      const manager = findEmployeeRecordById(
+        local.connection,
+        context.tenantId,
+        bootstrap.managerId
+      )
+      if (!manager) throw new Error('Missing manager')
+      const member = createMember(
+        local.connection,
+        { ...context, actor: manager },
+        {
+          phone: '13800138000',
+          nickname: 'Local Member',
+          confirmedAtLeast14: true
+        }
+      )
+      const recharge = cashRecharge(
+        local.connection,
+        { ...context, actor: manager },
+        {
+          requestId: 'local-cash-recharge',
+          memberId: member.id,
+          principalFen: 50_000,
+          reason: 'Local cash recharge',
+          now: new Date('2026-07-25T10:00:00.000Z')
+        }
+      )
+      const localEntry = local.connection
+        .prepare(
+          `SELECT wallet_account_id, source_id, principal_delta_fen,
+                  gift_delta_fen, principal_balance_after_fen,
+                  gift_balance_after_fen
+           FROM wallet_ledger
+           WHERE tenant_id = ? AND member_id = ? AND source_id = ?`
+        )
+        .get(context.tenantId, member.id, recharge.operationId) as
+        | {
+            wallet_account_id: string
+            source_id: string
+            principal_delta_fen: number
+            gift_delta_fen: number
+            principal_balance_after_fen: number
+            gift_balance_after_fen: number
+          }
+        | undefined
+      if (!localEntry) throw new Error('Missing local wallet entry')
+
+      applyCloudMirrorPage(local.connection, context, {
+        resource: 'wallet_ledger',
+        rows: [{
+          id: '11111111-1111-4111-8111-111111111111',
+          payload: {
+            operation_id: '11111111-1111-4111-8111-111111111111',
+            store_id: context.storeId,
+            wallet_account_id: localEntry.wallet_account_id,
+            member_id: member.id,
+            event_type: 'wallet.cash_recharged',
+            principal_delta_fen: localEntry.principal_delta_fen,
+            gift_delta_fen: localEntry.gift_delta_fen,
+            principal_balance_after_fen: localEntry.principal_balance_after_fen,
+            gift_balance_after_fen: localEntry.gift_balance_after_fen,
+            source_operation_id: localEntry.source_id,
+            reason: 'Confirmed by cloud later',
+            payload_json: {},
+            occurred_at: '2026-07-25T10:05:00.000Z'
+          }
+        }],
+        nextCursor: null,
+        eventCursor: '40',
+        serverTime: '2026-07-25T10:05:00.000Z'
+      })
+
+      expect(
+        local.connection.prepare(
+          `SELECT COUNT(*) count FROM wallet_ledger
+           WHERE member_id = ? AND source_id = ?`
+        ).get(member.id, localEntry.source_id)
+      ).toEqual({ count: 1 })
+
+      const wechatSourceId = '22222222-2222-4222-8222-222222222222'
+      applyCloudMirrorPage(local.connection, context, {
+        resource: 'wallet_ledger',
+        rows: [{
+          id: '33333333-3333-4333-8333-333333333333',
+          payload: {
+            operation_id: '33333333-3333-4333-8333-333333333333',
+            store_id: context.storeId,
+            wallet_account_id: localEntry.wallet_account_id,
+            member_id: member.id,
+            event_type: 'wallet.wechat_recharged',
+            principal_delta_fen: 2_000,
+            gift_delta_fen: 0,
+            principal_balance_after_fen:
+              localEntry.principal_balance_after_fen + 2_000,
+            gift_balance_after_fen: localEntry.gift_balance_after_fen,
+            source_operation_id: wechatSourceId,
+            reason: 'Miniapp WeChat recharge',
+            payload_json: {},
+            occurred_at: '2026-07-25T10:06:00.000Z'
+          }
+        }],
+        nextCursor: null,
+        eventCursor: '41',
+        serverTime: '2026-07-25T10:06:00.000Z'
+      })
+
+      expect(
+        local.connection.prepare(
+          `SELECT COUNT(*) count FROM wallet_ledger
+           WHERE member_id = ? AND source_id = ? AND actor_id = 'cloud-sync'`
+        ).get(member.id, wechatSourceId)
+      ).toEqual({ count: 1 })
+    } finally {
+      local.close()
+    }
+  })
+
   it('preserves a WeChat monthly-card payment method for PC display', () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-monthly-mirror-'))
     directories.push(directory)

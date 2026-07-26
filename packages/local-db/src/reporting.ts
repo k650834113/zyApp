@@ -186,7 +186,7 @@ export function getBusinessReport(
     .prepare(
       `SELECT entry_type,
               COALESCE(SUM(ABS(principal_delta_fen) + ABS(gift_delta_fen)), 0) amount_fen
-       FROM wallet_ledger
+       FROM effective_wallet_ledger
        WHERE tenant_id = ?${storeClause()}
          AND occurred_at >= ? AND occurred_at < ?
          AND entry_type IN ('consumption_debit', 'order_refund_credit')

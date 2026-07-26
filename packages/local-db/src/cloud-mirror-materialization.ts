@@ -456,8 +456,38 @@ function walletEntryType(eventType: string): string {
 
 function applyWalletLedger(database: DatabaseSync, context: StoreContext, row: Json): void {
   const operationId = text(row.operation_id, 'wallet_ledger.operation_id')
-  const occurrenceStoreId = nullableText(row.store_id) ?? context.storeId
   if (database.prepare('SELECT 1 FROM wallet_ledger WHERE id = ?').get(operationId)) return
+  const eventType = text(row.event_type, 'wallet_ledger.event_type')
+  const entryType = walletEntryType(eventType)
+  const memberId = text(row.member_id, 'wallet_ledger.member_id')
+  const sourceOperationId = text(row.source_operation_id, 'wallet_ledger.source_operation_id')
+  const principalDeltaFen = integer(
+    row.principal_delta_fen,
+    'wallet_ledger.principal_delta_fen'
+  )
+  const giftDeltaFen = integer(row.gift_delta_fen, 'wallet_ledger.gift_delta_fen')
+  if (
+    database.prepare(
+      `SELECT 1
+       FROM wallet_ledger
+       WHERE tenant_id = ?
+         AND member_id = ?
+         AND entry_type = ?
+         AND source_id = ?
+         AND principal_delta_fen = ?
+         AND gift_delta_fen = ?
+         AND actor_id <> 'cloud-sync'
+       LIMIT 1`
+    ).get(
+      context.tenantId,
+      memberId,
+      entryType,
+      sourceOperationId,
+      principalDeltaFen,
+      giftDeltaFen
+    )
+  ) return
+  const occurrenceStoreId = nullableText(row.store_id) ?? context.storeId
   database.prepare(
     `INSERT INTO wallet_ledger
      (id, tenant_id, store_id, wallet_account_id, member_id, entry_type,
@@ -468,20 +498,19 @@ function applyWalletLedger(database: DatabaseSync, context: StoreContext, row: J
   ).run(
     operationId, context.tenantId, occurrenceStoreId,
     text(row.wallet_account_id, 'wallet_ledger.wallet_account_id'),
-    text(row.member_id, 'wallet_ledger.member_id'),
-    walletEntryType(text(row.event_type, 'wallet_ledger.event_type')),
-    integer(row.principal_delta_fen, 'wallet_ledger.principal_delta_fen'),
-    integer(row.gift_delta_fen, 'wallet_ledger.gift_delta_fen'),
+    memberId,
+    entryType,
+    principalDeltaFen,
+    giftDeltaFen,
     integer(row.principal_balance_after_fen, 'wallet_ledger.principal_balance_after_fen'),
     integer(row.gift_balance_after_fen, 'wallet_ledger.gift_balance_after_fen'),
-    text(row.source_operation_id, 'wallet_ledger.source_operation_id'),
+    sourceOperationId,
     `cloud:${operationId}`, context.deviceId,
     nullableText(row.reason) ?? '云端同步', json(row.payload_json, {}),
     text(row.occurred_at, 'wallet_ledger.occurred_at')
   )
-  const eventType = text(row.event_type, 'wallet_ledger.event_type')
   if (eventType === 'wallet.cash_recharged' || eventType === 'wallet.wechat_recharged') {
-    const rechargeId = text(row.source_operation_id, 'wallet_ledger.source_operation_id')
+    const rechargeId = sourceOperationId
     database.prepare(
       `INSERT OR IGNORE INTO wallet_recharge
        (id, tenant_id, store_id, wallet_account_id, member_id, payment_method,
@@ -493,10 +522,10 @@ function applyWalletLedger(database: DatabaseSync, context: StoreContext, row: J
       context.tenantId,
       occurrenceStoreId,
       text(row.wallet_account_id, 'wallet_ledger.wallet_account_id'),
-      text(row.member_id, 'wallet_ledger.member_id'),
+      memberId,
       eventType === 'wallet.wechat_recharged' ? 'wechat' : 'cash',
-      integer(row.principal_delta_fen, 'wallet_ledger.principal_delta_fen'),
-      integer(row.gift_delta_fen, 'wallet_ledger.gift_delta_fen'),
+      principalDeltaFen,
+      giftDeltaFen,
       json(row.payload_json, {}),
       `cloud-recharge:${rechargeId}`,
       context.deviceId,

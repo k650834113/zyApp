@@ -224,6 +224,61 @@ describe('wallet repository', () => {
     localDatabase.close()
   })
 
+  it('shows a local wallet debit once when its confirmed cloud echo is also stored', () => {
+    const { localDatabase, store, manager, member } = initializedWallet()
+    cashRecharge(
+      localDatabase.connection,
+      { ...store, actor: manager },
+      {
+        requestId: randomUUID(),
+        memberId: member.id,
+        principalFen: 50_000,
+        reason: 'Seed wallet'
+      }
+    )
+    const debit = debitWallet(
+      localDatabase.connection,
+      { ...store, actor: manager },
+      {
+        requestId: randomUUID(),
+        memberId: member.id,
+        amountFen: 6_000,
+        reason: 'Local debit'
+      }
+    )
+    localDatabase.connection
+      .prepare(
+        `INSERT INTO wallet_ledger
+         (id, tenant_id, store_id, wallet_account_id, member_id, entry_type,
+          principal_delta_fen, gift_delta_fen, principal_balance_after_fen,
+          gift_balance_after_fen, source_id, related_ledger_id, request_id,
+          actor_id, device_id, reason, metadata_json, occurred_at)
+         SELECT ?, tenant_id, store_id, wallet_account_id, member_id, entry_type,
+                principal_delta_fen, gift_delta_fen, principal_balance_after_fen,
+                gift_balance_after_fen, source_id, related_ledger_id, ?,
+                'cloud-sync', device_id, 'Confirmed cloud echo', metadata_json,
+                datetime(occurred_at, '+1 minute')
+         FROM wallet_ledger
+         WHERE tenant_id = ? AND member_id = ? AND source_id = ?`
+      )
+      .run(
+        randomUUID(),
+        randomUUID(),
+        store.tenantId,
+        member.id,
+        debit.operationId
+      )
+
+    const displayedEntries = getWalletDetails(
+      localDatabase.connection,
+      store,
+      member.id
+    ).ledger.filter((entry) => entry.sourceId === debit.operationId)
+    localDatabase.close()
+
+    expect(displayedEntries).toHaveLength(1)
+  })
+
   it('uses account balance components when stale lot components exceed them', () => {
     const { localDatabase, store, manager, member } = initializedWallet()
     cashRecharge(
