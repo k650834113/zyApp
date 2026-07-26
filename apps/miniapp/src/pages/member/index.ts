@@ -1,6 +1,7 @@
 import type { MemberSelfServiceSummary } from '@zyapp/contracts'
 import { getMiniappClient } from '../../services/client'
 import { normalizeMemberNickname } from '../../services/member-login'
+import { saveOptionalAvatarProfile } from '../../services/member-profile'
 
 type ProfileMode = 'complete' | 'edit'
 
@@ -86,12 +87,26 @@ Page({
     }
     this.setData({ saving: true })
     try {
-      const member = this.data.localAvatarPath
-        ? await getMiniappClient().updateMemberProfileWithAvatar(
-            nickname,
-            this.data.localAvatarPath
-          )
-        : await getMiniappClient().updateMemberProfile(nickname)
+      const member = await saveOptionalAvatarProfile(
+        getMiniappClient(),
+        nickname,
+        this.data.localAvatarPath,
+        (error) =>
+          new Promise<boolean>((resolve) => {
+            if (this.data.mode !== 'complete') {
+              resolve(false)
+              return
+            }
+            wx.showModal({
+              title: '头像暂未上传',
+              content: `${error.message}。是否先使用默认头像完成注册？`,
+              confirmText: '继续注册',
+              cancelText: '返回重试',
+              success: (result) => resolve(result.confirm),
+              fail: () => resolve(false)
+            })
+          })
+      )
       this.setData({
         member,
         nickname: member.nickname,

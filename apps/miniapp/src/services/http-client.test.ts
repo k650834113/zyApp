@@ -202,4 +202,34 @@ describe('HTTP miniapp client authentication', () => {
     })
     expect(upload?.formData?.requestId).toMatch(/^profile-/)
   })
+
+  it('turns an upload domain rejection into an actionable message', async () => {
+    let token: string | null = 'member-token'
+    installWxMock(() => {
+      throw new Error('wx.request should not be called')
+    })
+    ;((globalThis as unknown as { wx: unknown }).wx as {
+      uploadFile(options: WechatMiniprogram.UploadFileOption): void
+    }).uploadFile = (options) => {
+      options.fail?.({
+        errMsg: 'uploadFile:fail url not in domain list'
+      } as WechatMiniprogram.GeneralCallbackResult)
+    }
+    const client = new HttpMiniappClient({
+      baseUrl: 'https://judian.icu/test',
+      storeId,
+      authMode: 'wechat',
+      token: () => token,
+      saveToken: (value) => {
+        token = value
+      },
+      clearToken: () => {
+        token = null
+      }
+    })
+
+    await expect(
+      client.updateMemberProfileWithAvatar('林小满', 'wxfile://avatar')
+    ).rejects.toThrow('头像上传域名尚未生效')
+  })
 })

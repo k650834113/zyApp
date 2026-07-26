@@ -21,7 +21,7 @@
         <view class="camera-badge">◉</view>
       </button>
       <text class="choose-avatar-label">选择头像</text>
-      <text class="muted avatar-tip">后续可在「我的」中修改头像</text>
+      <text class="muted avatar-tip">头像选填，之后可在「我的资料」中修改</text>
     </view>
 
     <view class="profile-form">

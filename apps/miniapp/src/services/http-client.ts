@@ -86,6 +86,12 @@ function responseMessage(data: unknown, fallback: string): string {
   return body?.message || fallback
 }
 
+function avatarUploadError(message: string): Error {
+  return message.includes('url not in domain list')
+    ? new Error('头像上传域名尚未生效，请稍后重试或使用默认头像')
+    : new Error(message || '头像上传失败')
+}
+
 export class HttpMiniappClient implements MiniappClient {
   private sessionPromise: Promise<void> | null = null
 
@@ -322,7 +328,7 @@ export class HttpMiniappClient implements MiniappClient {
               )
             )
           },
-          fail: (error) => reject(new Error(error.errMsg))
+          fail: (error) => reject(avatarUploadError(error.errMsg))
         })
       })
     } catch (error) {
