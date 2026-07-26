@@ -69,8 +69,11 @@ describe('desktop cloud mirror read model', () => {
       resource: 'wechat_recharge_orders',
       eventCursor: '42'
     })
-    expect(query.mock.calls[0]?.[0]).toContain('wechat_recharge_order')
-    expect(query.mock.calls[0]?.[0]).not.toContain(
+    const sql = query.mock.calls[0]?.[0] as string
+    expect(sql).toContain('wechat_recharge_order')
+    expect(sql).toContain('ledger.source_operation_id = recharge.id::text')
+    expect(sql).not.toContain('ledger.source_operation_id = recharge.id\n')
+    expect(sql).not.toContain(
       'model.store_id = $2'
     )
   })

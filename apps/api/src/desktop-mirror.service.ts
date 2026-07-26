@@ -116,7 +116,7 @@ export class DesktopMirrorService {
               FROM wechat_recharge_order recharge
               LEFT JOIN cloud_wallet_ledger ledger
                 ON ledger.tenant_id = recharge.tenant_id
-               AND ledger.source_operation_id = recharge.id
+               AND ledger.source_operation_id = recharge.id::text
                AND ledger.event_type = 'wallet.wechat_recharged')`
         : selected === 'catalog'
           ? `(SELECT item.id, item.tenant_id, $2::uuid store_id,
