@@ -14,6 +14,10 @@ import {
 } from '../../services/client'
 import { loadMemberHomeDetails } from '../../services/member-home'
 import {
+  monthlyCardDisplay,
+  type MonthlyCardDisplay
+} from '../../services/monthly-card-display'
+import {
   defaultConfirmedAtLeast14,
   needsMemberProfileCompletion,
   normalizePhone,
@@ -52,30 +56,6 @@ type ActivityView = MemberActivitySummary & {
 type RechargeOrderView = MemberRechargeOrderSummary & {
   amountText: string
   statusText: string
-}
-
-function dateText(value: string | null): string {
-  return value ? value.slice(0, 10) : ''
-}
-
-function monthlyCardCopy(
-  member: MemberSelfServiceSummary,
-  configuration: MemberMonthlyCardConfiguration
-): {
-  actionText: string
-  priceText: string
-  statusText: string
-} {
-  const active = member.monthlyCardStatus === 'active'
-  return {
-    actionText: active ? '微信续费月卡' : '微信开通月卡',
-    priceText: `${money(configuration.priceFen)} / ${configuration.durationDays}天`,
-    statusText: active
-      ? `当前有效期至 ${dateText(member.monthlyCardExpiresAt)}，续费将在此基础上顺延`
-      : member.monthlyCardStatus === 'paused'
-        ? '月卡已暂停，请联系门店恢复后再续费'
-        : `${configuration.planName}，支付成功后立即生效`
-  }
 }
 
 function requestId(prefix: string): string {
@@ -174,6 +154,9 @@ Page({
     monthlyCardActionText: '微信开通月卡',
     monthlyCardPriceText: '',
     monthlyCardStatusText: '',
+    monthlyCardState: 'unopened' as MonthlyCardDisplay['state'],
+    monthlyCardExpiresOn: null as string | null,
+    monthlyCardRemainingDaysText: null as string | null,
     loginFallbackVisible: false,
     loginPhone: '',
     loginCode: '',
@@ -222,8 +205,8 @@ Page({
       const monthlyCardConfiguration = this.data.monthlyCardEnabled
         ? await miniappClient.getMonthlyCardConfiguration()
         : null
-      const monthlyCardDisplay = monthlyCardConfiguration
-        ? monthlyCardCopy(member, monthlyCardConfiguration)
+      const monthlyCard = monthlyCardConfiguration
+        ? monthlyCardDisplay(member, monthlyCardConfiguration)
         : null
       this.setData({
         member: memberView(member),
@@ -231,9 +214,12 @@ Page({
         rechargeConfiguration,
         monthlyCardConfiguration,
         monthlyCardActionText:
-          monthlyCardDisplay?.actionText ?? '微信开通月卡',
-        monthlyCardPriceText: monthlyCardDisplay?.priceText ?? '',
-        monthlyCardStatusText: monthlyCardDisplay?.statusText ?? ''
+          monthlyCard?.actionText ?? '微信开通月卡',
+        monthlyCardPriceText: monthlyCard?.priceText ?? '',
+        monthlyCardStatusText: monthlyCard?.statusText ?? '',
+        monthlyCardState: monthlyCard?.state ?? 'unopened',
+        monthlyCardExpiresOn: monthlyCard?.expiresOn ?? null,
+        monthlyCardRemainingDaysText: monthlyCard?.remainingDaysText ?? null
       })
     } catch (error) {
       wx.showToast({

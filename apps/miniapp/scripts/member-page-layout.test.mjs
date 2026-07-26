@@ -19,6 +19,15 @@ test('monthly card is a prominent standalone purchase card', () => {
   assert.match(wxml, /class="monthly-card-feature card"/)
   assert.match(wxml, /bindtap="purchaseMonthlyCard"/)
   assert.match(wxml, /{{monthlyCardActionText}}/)
+  assert.match(wxml, /class="monthly-card-expiry-date"/)
+  assert.match(wxml, /{{monthlyCardExpiresOn}}/)
+  assert.match(wxml, /{{monthlyCardRemainingDaysText}}/)
+  assert.match(wxml, /class="monthly-card-renew-button"/)
+  assert.match(wxml, /wx:if="{{monthlyCardState === 'unopened'}}"/)
+  assert.doesNotMatch(
+    wxml,
+    /class="[^"\n]*(?:monthly-card-renew-button[^"\n]*monthly-card-button|monthly-card-button[^"\n]*monthly-card-renew-button)[^"\n]*"/
+  )
 })
 
 test('history page has no duplicate content title', () => {

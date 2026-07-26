@@ -30,17 +30,46 @@
           <text class="monthly-card-eyebrow">桌游畅玩月卡</text>
           <text class="monthly-card-feature-title">{{monthlyCardConfiguration.planName}}</text>
         </view>
-        <text class="monthly-card-badge">{{member.monthlyCardStatus === 'active' ? '续费顺延' : '立即生效'}}</text>
+        <text class="monthly-card-badge">{{monthlyCardState === 'active' ? '续费顺延' : monthlyCardState === 'paused' ? '已暂停' : '立即生效'}}</text>
       </view>
-      <text class="monthly-card-price">{{monthlyCardPriceText}}</text>
-      <text class="monthly-card-state">{{monthlyCardStatusText}}</text>
-      <button
-        class="primary-button monthly-card-button"
-        loading="{{busy}}"
-        disabled="{{busy || !monthlyCardConfiguration.purchaseAllowed}}"
-        bindtap="purchaseMonthlyCard"
-      >{{monthlyCardActionText}}</button>
-      <text wx:if="{{monthlyCardConfiguration.blockedReason}}" class="monthly-card-blocked">{{monthlyCardConfiguration.blockedReason}}</text>
+      <block wx:if="{{monthlyCardState === 'unopened'}}">
+        <text class="monthly-card-price">{{monthlyCardPriceText}}</text>
+        <text class="monthly-card-state">{{monthlyCardStatusText}}</text>
+        <button
+          class="primary-button monthly-card-button"
+          loading="{{busy}}"
+          disabled="{{busy || !monthlyCardConfiguration.purchaseAllowed}}"
+          bindtap="purchaseMonthlyCard"
+        >{{monthlyCardActionText}}</button>
+      </block>
+      <block wx:elif="{{monthlyCardState === 'active'}}">
+        <view class="monthly-card-expiry">
+          <text class="monthly-card-expiry-label">有效期至</text>
+          <text class="monthly-card-expiry-date">{{monthlyCardExpiresOn}}</text>
+          <text class="monthly-card-remaining-days">{{monthlyCardRemainingDaysText}}</text>
+        </view>
+        <text class="monthly-card-plan-price">{{monthlyCardPriceText}}</text>
+        <text class="monthly-card-state">{{monthlyCardStatusText}}</text>
+        <button
+          class="monthly-card-renew-button"
+          loading="{{busy}}"
+          disabled="{{busy || !monthlyCardConfiguration.purchaseAllowed}}"
+          bindtap="purchaseMonthlyCard"
+        >{{monthlyCardActionText}}</button>
+      </block>
+      <block wx:else>
+        <view class="monthly-card-expiry">
+          <text class="monthly-card-expiry-label">有效期至</text>
+          <text class="monthly-card-expiry-date">{{monthlyCardExpiresOn}}</text>
+          <text class="monthly-card-remaining-days monthly-card-paused-badge">已暂停</text>
+        </view>
+        <text class="monthly-card-plan-price">{{monthlyCardPriceText}}</text>
+        <text class="monthly-card-blocked">{{monthlyCardConfiguration.blockedReason || monthlyCardStatusText}}</text>
+        <button
+          class="monthly-card-renew-button"
+          disabled
+        >{{monthlyCardActionText}}</button>
+      </block>
     </view>
 
     <view wx:if="{{rechargeEnabled}}" class="recharge-card card">
