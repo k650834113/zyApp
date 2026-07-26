@@ -803,12 +803,28 @@ describe('member self-service transactions', () => {
       if (sql.includes('FROM cloud_wallet_ledger')) {
         return [
           {
+            operation_id: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+            event_type: 'wallet.cash_recharged',
+            principal_delta_fen: '50000',
+            gift_delta_fen: '5000',
+            reason: '门店现金充值',
+            occurred_at: '2026-06-14T00:50:00.000Z'
+          },
+          {
             operation_id: '77777777-7777-4777-8777-777777777777',
             event_type: 'wallet.recharged',
             principal_delta_fen: '30000',
             gift_delta_fen: '2000',
             reason: '充值',
             occurred_at: '2026-06-14T00:30:00.000Z'
+          },
+          {
+            operation_id: 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+            event_type: 'wallet.cash_recharge_reversed',
+            principal_delta_fen: '-50000',
+            gift_delta_fen: '-5000',
+            reason: '现金充值冲正',
+            occurred_at: '2026-06-14T00:20:00.000Z'
           }
         ]
       }
@@ -841,18 +857,35 @@ describe('member self-service transactions', () => {
     const history = await service.getHistory(memberPrincipal())
 
     expect(history.orders[0]?.totalFen).toBe(4000)
-    expect(history.walletEntries[0]).toMatchObject({
+    expect(
+      history.walletEntries.find(
+        (item) =>
+          item.operationId === '77777777-7777-4777-8777-777777777777'
+      )
+    ).toMatchObject({
       principalDeltaFen: 30000,
       giftDeltaFen: 2000
     })
     expect(history.activities.map((item) => item.title)).toEqual([
       '桌位消费',
+      '线下充值',
       '微信充值',
+      '线下充值冲正',
       '月卡续费'
     ])
     expect(
       history.activities.filter((item) => item.kind === 'consumption')
     ).toHaveLength(1)
-    expect(history.walletEntries).toHaveLength(1)
+    expect(history.activities[1]).toMatchObject({
+      amountFen: 55000,
+      direction: 'credit',
+      status: 'settled'
+    })
+    expect(history.activities[3]).toMatchObject({
+      amountFen: 55000,
+      direction: 'debit',
+      status: 'reversed'
+    })
+    expect(history.walletEntries).toHaveLength(3)
   })
 })

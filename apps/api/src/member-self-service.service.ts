@@ -788,6 +788,37 @@ export class MemberSelfService {
         status: 'settled' as const,
         occurredAt: new Date(row.settled_at).toISOString()
       })),
+      ...walletEntries.rows.flatMap((row): MemberActivitySummary[] => {
+        const totalDelta =
+          safeFen(row.principal_delta_fen) + safeFen(row.gift_delta_fen)
+        if (row.event_type === 'wallet.cash_recharged') {
+          return [{
+            activityId: `cash-recharge:${row.operation_id}`,
+            kind: 'recharge',
+            businessId: row.operation_id,
+            businessNumber: null,
+            title: '线下充值',
+            amountFen: totalDelta,
+            direction: 'credit',
+            status: 'settled',
+            occurredAt: new Date(row.occurred_at).toISOString()
+          }]
+        }
+        if (row.event_type === 'wallet.cash_recharge_reversed') {
+          return [{
+            activityId: `cash-recharge-reversal:${row.operation_id}`,
+            kind: 'recharge',
+            businessId: row.operation_id,
+            businessNumber: null,
+            title: '线下充值冲正',
+            amountFen: Math.abs(totalDelta),
+            direction: 'debit',
+            status: 'reversed',
+            occurredAt: new Date(row.occurred_at).toISOString()
+          }]
+        }
+        return []
+      }),
       ...monthlyCardEvents.rows.map((row) => ({
         activityId: `monthly-card:${row.operation_id}`,
         kind: 'monthly_card' as const,

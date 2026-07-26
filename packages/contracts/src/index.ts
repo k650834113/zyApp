@@ -1279,6 +1279,7 @@ export type MemberActivitySummary = {
     | 'resumed'
     | 'used'
     | 'refunded'
+    | 'reversed'
     | 'expired'
   occurredAt: string
 }

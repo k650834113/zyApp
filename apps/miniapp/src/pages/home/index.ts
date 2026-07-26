@@ -85,6 +85,7 @@ function activityStatus(activity: MemberActivitySummary): string {
     resumed: '已恢复',
     used: '已使用',
     refunded: '已退款',
+    reversed: '已冲正',
     expired: '已过期'
   }
   return labels[activity.status]
