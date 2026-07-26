@@ -54,6 +54,9 @@ socket 合法域名：留空
 
 保存后等待平台配置生效，在开发者工具中开启合法域名校验并重新编译。头像上传和重新进入后的头像显示必须使用真机验证；当前不使用 WebSocket、UDP、TCP 或 DNS 预解析，对应配置留空。
 
+若仍出现 `uploadFile:fail url not in domain list`，应确认配置的是
+`uploadFile` 合法域名，而不只是 `request` 合法域名。保存后重新编译并重启开发者工具或重新上传体验版。新会员注册时头像选填，可先使用默认头像完成注册，之后再从“我的资料”上传。
+
 只有账号管理员能完成以下平台和真机操作：
 
 - 确认小程序 AppID、隐私保护指引和手机号能力；
@@ -63,6 +66,21 @@ socket 合法域名：留空
 - 最终提交微信审核和发布。
 
 APIv3 密钥必须保存在本机单行文件中，部署时只提供文件绝对路径，禁止粘贴到聊天、环境变量、代码、日志或截图中。商户私钥和微信支付公钥同样只通过只读密钥目录挂载到测试 API。生产 API 的微信支付保持禁用。
+
+## 正式版与开发版隔离
+
+同一 AppID 的微信开发版、体验版和线上版本可以并存，但构建产物必须使用明确模式：
+
+| 用途 | 构建模式 | API | 数据与功能 |
+| --- | --- | --- | --- |
+| 本地开发 | `mock` 或 `test-wechat` | Mock 或 `https://judian.icu/test` | 开发调试 |
+| 体验版验收 | `production-test-wechat` | 固定 `https://judian.icu/test` | 隔离测试库、真实微信支付 |
+| 正式线上版 | `production-wechat` | 固定 `https://judian.icu` | 生产库；生产支付启用前隐藏充值入口 |
+
+正式版还需在被 Git 忽略的 `config/public-endpoints.local.json` 中设置
+`miniappProductionApiBaseUrl` 和 `miniappProductionStoreId`。构建器会拒绝正式版使用 HTTP、IP 地址或 `/test`，也会拒绝体验版绕过 `/test`。登录令牌按 API 地址和门店隔离，因此体验版不会复用正式版会话。
+
+测试 API 发布脚本只迁移并重建 `api-test`，不重启生产 `api` 或共享 Caddy；发布后还会确认两个生产容器 ID 未变化、生产和测试健康检查均为 200，并确认资料保存路由返回 401 而不是 404。小程序代码先生成体验版并完成真机验收，验收通过后再合并和推送 Git。
 
 ## 文档入口
 

@@ -34,24 +34,29 @@ export function readBuildConfiguration(
       'mock',
       'development-http',
       'test-wechat',
-      'production-test-wechat'
+      'production-test-wechat',
+      'production-wechat'
     ].includes(mode)
   ) {
     throw new Error(
-      'ZYAPP_MINIAPP_MODE must be mock, development-http, test-wechat, or production-test-wechat'
+      'ZYAPP_MINIAPP_MODE must be mock, development-http, test-wechat, production-test-wechat, or production-wechat'
     )
   }
   const productionTest = mode === 'production-test-wechat'
+  const production = mode === 'production-wechat'
+  const customerRelease = productionTest || production
 
   const defaultApiBaseUrl =
-    mode === 'test-wechat' || productionTest
-      ? publicEndpoints.miniappTestApiBaseUrl?.trim() || ''
-      : ''
+    production
+      ? publicEndpoints.miniappProductionApiBaseUrl?.trim() || ''
+      : mode === 'test-wechat' || productionTest
+        ? publicEndpoints.miniappTestApiBaseUrl?.trim() || ''
+        : ''
   const apiBaseUrl =
     environment.ZYAPP_MINIAPP_API_BASE_URL?.trim() || defaultApiBaseUrl
   const defaultAuthMode =
     mode === 'test-wechat' ||
-    productionTest ||
+    customerRelease ||
     (mode === 'development-http' && apiBaseUrl.startsWith('https://'))
       ? 'wechat'
       : 'development'
@@ -63,7 +68,7 @@ export function readBuildConfiguration(
     )
   }
   if (
-    (mode === 'test-wechat' || productionTest) &&
+    (mode === 'test-wechat' || customerRelease) &&
     authMode !== 'wechat'
   ) {
     throw new Error(`${mode} mode must use WeChat authentication`)
@@ -74,8 +79,8 @@ export function readBuildConfiguration(
     'ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED'
   )
   if (testVirtualPhoneEnabled && mode !== 'test-wechat') {
-    if (productionTest) {
-      throw new Error('production-test-wechat forbids virtual phone login')
+    if (customerRelease) {
+      throw new Error(`${mode} forbids virtual phone login`)
     }
     throw new Error(
       'ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED is only allowed in test-wechat mode'
@@ -86,22 +91,46 @@ export function readBuildConfiguration(
       'production-test-wechat must use https://judian.icu/test'
     )
   }
+  if (production && apiBaseUrl !== 'https://judian.icu') {
+    throw new Error(
+      'production-wechat must use https://judian.icu'
+    )
+  }
+  const productionStoreId =
+    publicEndpoints.miniappProductionStoreId?.trim() || ''
+  const environmentStoreId =
+    environment.ZYAPP_MINIAPP_STORE_ID?.trim() || ''
+  if (production && !productionStoreId) {
+    throw new Error(
+      'production-wechat requires miniappProductionStoreId'
+    )
+  }
+  if (
+    production &&
+    environmentStoreId &&
+    environmentStoreId !== productionStoreId
+  ) {
+    throw new Error(
+      'production-wechat store must match miniappProductionStoreId'
+    )
+  }
 
   const configuration = {
     useMock: mode === 'mock',
     testVirtualPhoneEnabled,
     authMode,
     apiBaseUrl,
-    storeId:
-      environment.ZYAPP_MINIAPP_STORE_ID?.trim() ||
-      publicEndpoints.miniappTestStoreId?.trim() ||
-      '',
+    storeId: production
+      ? productionStoreId
+      : environmentStoreId ||
+        publicEndpoints.miniappTestStoreId?.trim() ||
+        '',
     developmentProviderSubject:
-      productionTest
+      customerRelease
         ? ''
         : environment.ZYAPP_MINIAPP_DEVELOPMENT_SUBJECT?.trim() ||
           'local-miniapp-user',
-    customerOnly: productionTest,
+    customerOnly: customerRelease,
     realWechatPayment: productionTest
   }
   if (!configuration.useMock) {

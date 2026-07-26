@@ -635,15 +635,30 @@ git add apps/miniapp/src/services/member-profile.ts apps/miniapp/src/services/me
 git commit -m "fix: allow default avatar during member signup"
 ```
 
-### Task 4: 文档、全量验证与 Mock 构建
+### Task 4: 生产/体验构建隔离、文档与全量验证
 
 **Files:**
+- Modify: `apps/miniapp/scripts/build-configuration.mjs`
+- Modify: `apps/miniapp/scripts/build-configuration.test.mjs`
+- Create: `apps/miniapp/src/services/member-home.ts`
+- Create: `apps/miniapp/src/services/member-home.test.ts`
+- Modify: `apps/miniapp/src/pages/home/index.ts`
+- Modify: `apps/miniapp/src/pages/home/index.wxml`
+- Modify: `config/public-endpoints.example.json`
+- Modify: `infra/scripts/deploy-miniapp-production-test.ps1`
 - Modify: `apps/miniapp/README.md`
 - Modify: `docs/0.23.0会员小程序与交易记录验收.md`
 
 **Interfaces:**
 - Consumes: 已实现的新旧会员分流、头像选填和合法域名错误处理。
 - Produces: 可由账号所有者执行的发布与真机验收步骤。
+
+- [ ] **Step 0: 锁定正式版与体验版环境**
+
+新增 `production-wechat` 模式并固定到 `https://judian.icu`；继续把
+`production-test-wechat` 固定到 `https://judian.icu/test`。正式支付尚未启用时，
+首页不得请求充值配置或显示充值入口。测试部署脚本只重建 `api-test`，并在部署前后
+核对生产 `api` 和 Caddy 容器 ID。
 
 - [ ] **Step 1: 更新合法域名排查说明**
 
@@ -686,7 +701,8 @@ $env:ZYAPP_MINIAPP_MODE='mock'
 corepack pnpm miniapp:build
 ```
 
-Expected: PASS；`apps/miniapp/dist` 为 Mock 构建。
+Expected: PASS；最终交付给体验者时，`apps/miniapp/dist` 为
+`production-test-wechat` 构建。
 
 - [ ] **Step 5: 检查改动范围**
 
@@ -756,7 +772,8 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -WechatPayPublicKeyPath E:\证书\API证书\pub_key.pem
 ```
 
-Expected: 测试库备份成功，迁移成功，`api-test` 和 Caddy 健康检查成功。
+Expected: 测试库备份成功，迁移成功，仅重建 `api-test`；生产 `api` 与
+Caddy 容器 ID 保持不变。
 
 - [ ] **Step 4: 验证健康状态与资料路由已部署**
 

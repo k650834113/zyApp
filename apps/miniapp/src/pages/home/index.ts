@@ -6,9 +6,11 @@ import type {
 } from '@zyapp/contracts'
 import {
   getMiniappClient,
+  isRealWechatPaymentBuild,
   isTestVirtualPhoneLoginEnabled,
   testVirtualPhoneCode
 } from '../../services/client'
+import { loadMemberHomeDetails } from '../../services/member-home'
 import {
   defaultConfirmedAtLeast14,
   needsMemberProfileCompletion,
@@ -154,7 +156,8 @@ Page({
     loginChallengeId: null as string | null,
     loginHint: '',
     verificationBusy: false,
-    testVirtualPhoneLoginEnabled: isTestVirtualPhoneLoginEnabled()
+    testVirtualPhoneLoginEnabled: isTestVirtualPhoneLoginEnabled(),
+    rechargeEnabled: isRealWechatPaymentBuild()
   },
 
   onShow() {
@@ -177,10 +180,16 @@ Page({
         wx.reLaunch({ url: '/pages/member/index?mode=complete' })
         return
       }
-      const [history, rechargeConfiguration] = await Promise.all([
-        getMiniappClient().getMemberHistory(),
-        getMiniappClient().getRechargeConfiguration()
-      ])
+      const miniappClient = getMiniappClient()
+      const { history, rechargeConfiguration } =
+        await loadMemberHomeDetails(
+          {
+            getHistory: () => miniappClient.getMemberHistory(),
+            getRechargeConfiguration: () =>
+              miniappClient.getRechargeConfiguration()
+          },
+          this.data.rechargeEnabled
+        )
       this.setData({
         member: memberView(member),
         recentActivities: history.activities.slice(0, 3).map(activityView),

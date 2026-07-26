@@ -59,6 +59,73 @@ test('builds the customer-only production test against judian.icu', () => {
   })
 })
 
+test('builds the released customer app only against the production API', () => {
+  const result = readBuildConfiguration(
+    {
+      ZYAPP_MINIAPP_MODE: 'production-wechat',
+      ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'false'
+    },
+    {
+      miniappProductionApiBaseUrl: 'https://judian.icu',
+      miniappProductionStoreId: '22222222-2222-4222-8222-222222222222',
+      miniappTestApiBaseUrl: 'https://judian.icu/test',
+      miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
+    }
+  )
+
+  assert.deepEqual(result.configuration, {
+    useMock: false,
+    testVirtualPhoneEnabled: false,
+    authMode: 'wechat',
+    apiBaseUrl: 'https://judian.icu',
+    storeId: '22222222-2222-4222-8222-222222222222',
+    developmentProviderSubject: '',
+    customerOnly: true,
+    realWechatPayment: false
+  })
+})
+
+test('rejects a test store override in the released production build', () => {
+  assert.throws(
+    () =>
+      readBuildConfiguration(
+        {
+          ZYAPP_MINIAPP_MODE: 'production-wechat',
+          ZYAPP_MINIAPP_STORE_ID:
+            '11111111-1111-4111-8111-111111111111'
+        },
+        {
+          miniappProductionApiBaseUrl: 'https://judian.icu',
+          miniappProductionStoreId:
+            '22222222-2222-4222-8222-222222222222'
+        }
+      ),
+    /production-wechat store must match miniappProductionStoreId/
+  )
+})
+
+for (const invalidUrl of [
+  'http://judian.icu',
+  'https://124.220.69.209',
+  'https://judian.icu/test'
+]) {
+  test(`rejects production endpoint ${invalidUrl}`, () => {
+    assert.throws(
+      () =>
+        readBuildConfiguration(
+          {
+            ZYAPP_MINIAPP_MODE: 'production-wechat',
+            ZYAPP_MINIAPP_API_BASE_URL: invalidUrl,
+            ZYAPP_MINIAPP_STORE_ID:
+              '22222222-2222-4222-8222-222222222222'
+          },
+          {}
+        ),
+      /production-wechat must use https:\/\/judian\.icu/
+    )
+  })
+}
+
 for (const invalidUrl of [
   'http://judian.icu/test',
   'https://124.220.69.209/test',

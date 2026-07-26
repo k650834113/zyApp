@@ -25,7 +25,7 @@
       <text class="monthly-card-text">▣ {{member.monthlyCardText}}</text>
     </view>
 
-    <button class="primary-button recharge-button" loading="{{busy}}" bindtap="recharge">▰　立即充值</button>
+    <button wx:if="{{rechargeEnabled}}" class="primary-button recharge-button" loading="{{busy}}" bindtap="recharge">▰　立即充值</button>
 
     <view wx:if="{{rechargeOrder}}" class="recharge-result card">
       <view>
