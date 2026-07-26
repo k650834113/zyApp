@@ -22,6 +22,10 @@ import {
   type PhoneNumberEvent
 } from '../../services/member-login'
 import { runRechargeFlow } from '../../services/recharge-flow'
+import {
+  quickRechargeAmounts,
+  resolveRechargeAmountFen
+} from '../../services/recharge-amount'
 import { requestWechatPayment } from '../../services/wechat-payment'
 
 type MemberView = MemberSelfServiceSummary & {
@@ -126,19 +130,6 @@ function rechargeOrderView(
   }
 }
 
-function chooseRechargeAmount(
-  _configuration: MemberRechargeConfiguration
-): Promise<number | null> {
-  const amounts = [10_000, 30_000, 50_000, 100_000]
-  return new Promise((resolve) => {
-    wx.showActionSheet({
-      itemList: amounts.map((amount) => `充值 ${money(amount)}`),
-      success: (result) => resolve(amounts[result.tapIndex] ?? null),
-      fail: () => resolve(null)
-    })
-  })
-}
-
 Page({
   data: {
     loading: true,
@@ -154,7 +145,10 @@ Page({
     loginHint: '',
     verificationBusy: false,
     testVirtualPhoneLoginEnabled: isTestVirtualPhoneLoginEnabled(),
-    rechargeEnabled: isRealWechatPaymentBuild()
+    rechargeEnabled: isRealWechatPaymentBuild(),
+    quickRechargeAmounts,
+    selectedRechargeAmountFen: 10_000 as number | null,
+    customRechargeAmount: ''
   },
 
   onShow() {
@@ -314,8 +308,19 @@ Page({
   async recharge() {
     const configuration = this.data.rechargeConfiguration
     if (!configuration || this.data.busy) return
-    const principalFen = await chooseRechargeAmount(configuration)
-    if (!principalFen) return
+    let principalFen: number
+    try {
+      principalFen = resolveRechargeAmountFen(
+        this.data.selectedRechargeAmountFen,
+        this.data.customRechargeAmount
+      )
+    } catch (error) {
+      wx.showToast({
+        title: error instanceof Error ? error.message : '充值金额不正确',
+        icon: 'none'
+      })
+      return
+    }
     this.setData({ busy: true, rechargeOrder: null })
     try {
       if (configuration.providerMode === 'mock') {
@@ -358,6 +363,24 @@ Page({
     } finally {
       this.setData({ busy: false })
     }
+  },
+
+  selectRechargeAmount(event: {
+    currentTarget: { dataset: { principalFen?: number | string } }
+  }) {
+    const principalFen = Number(event.currentTarget.dataset.principalFen)
+    if (!Number.isSafeInteger(principalFen) || principalFen <= 0) return
+    this.setData({
+      selectedRechargeAmountFen: principalFen,
+      customRechargeAmount: ''
+    })
+  },
+
+  inputCustomRechargeAmount(event: WechatMiniprogram.Input) {
+    this.setData({
+      selectedRechargeAmountFen: null,
+      customRechargeAmount: String(event.detail.value ?? '')
+    })
   },
 
   async settleMockRecharge() {

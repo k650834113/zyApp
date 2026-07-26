@@ -140,9 +140,88 @@
   font-size: 25rpx;
 }
 
-.recharge-button {
+.recharge-card {
   margin-top: 24rpx;
+  padding: 28rpx;
+}
+
+.recharge-heading {
+  margin-bottom: 22rpx;
+}
+
+.recharge-title,
+.recharge-subtitle,
+.recharge-hint {
+  display: block;
+}
+
+.recharge-title {
+  font-size: 29rpx;
+  font-weight: 700;
+}
+
+.recharge-subtitle {
+  margin-top: 7rpx;
+  font-size: 22rpx;
+}
+
+.recharge-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.recharge-option {
+  width: 100%;
+  margin: 0;
+  border: 2rpx solid #e5dccf;
+  border-radius: 18rpx;
+  color: #174f3b;
+  background: #fffdf9;
+  font-size: 29rpx;
+  font-weight: 700;
+  line-height: 78rpx;
+}
+
+.recharge-option.selected {
+  border-color: #174f3b;
+  color: #fff;
+  background: #174f3b;
+}
+
+.custom-recharge {
+  display: flex;
+  align-items: center;
+  margin-top: 18rpx;
+  border: 2rpx solid #e5dccf;
+  border-radius: 18rpx;
+  padding: 0 22rpx;
+  background: #fffdf9;
+}
+
+.custom-currency {
+  color: #174f3b;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.custom-recharge-input {
+  height: 84rpx;
+  flex: 1;
+  margin-left: 14rpx;
+  color: #202923;
+  font-size: 29rpx;
+}
+
+.recharge-button {
+  margin-top: 20rpx;
   box-shadow: 0 14rpx 28rpx rgba(23, 79, 59, 0.2);
+}
+
+.recharge-hint {
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: 21rpx;
 }
 
 .recharge-result {
