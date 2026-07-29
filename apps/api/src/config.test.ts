@@ -163,6 +163,42 @@ describe('API configuration', () => {
     )
   })
 
+  it('accepts formal production payment without dropping public member assets', () => {
+    const config = readApiConfig(
+      completeWechatEnvironment({
+        DEPLOYMENT_ENVIRONMENT: 'production',
+        MINIAPP_PUBLIC_BASE_URL: 'https://judian.icu',
+        MEMBER_AVATAR_DIRECTORY: '/app/data/member-avatars',
+        WECHAT_PAY_NOTIFY_URL:
+          'https://judian.icu/v1/payments/wechat/recharge/notify',
+        WECHAT_PAY_OUT_TRADE_NO_PREFIX: 'ZYP-'
+      })
+    )
+
+    expect(config.wechatPaymentMode).toBe('wechat')
+    expect(config.wechatPayNotifyUrl).toBe(
+      'https://judian.icu/v1/payments/wechat/recharge/notify'
+    )
+    expect(config.memberAvatarDirectory).toBe('/app/data/member-avatars')
+    expect(config.miniappPublicBaseUrl).toBe('https://judian.icu')
+  })
+
+  it('rejects a test notification endpoint in formal production', () => {
+    expect(() =>
+      readApiConfig(
+        completeWechatEnvironment({
+          DEPLOYMENT_ENVIRONMENT: 'production',
+          MINIAPP_PUBLIC_BASE_URL: 'https://judian.icu',
+          WECHAT_PAY_NOTIFY_URL:
+            'https://judian.icu/test/v1/payments/wechat/recharge/notify',
+          WECHAT_PAY_OUT_TRADE_NO_PREFIX: 'ZYP-'
+        })
+      )
+    ).toThrow(
+      'Production WECHAT_PAY_NOTIFY_URL must be https://judian.icu/v1/payments/wechat/recharge/notify'
+    )
+  })
+
   it('forbids virtual phone login when real test payment is enabled', () => {
     expect(() =>
       readApiConfig(

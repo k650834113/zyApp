@@ -225,6 +225,16 @@ export function readApiConfig(
       'Test WECHAT_PAY_NOTIFY_URL must be https://judian.icu/test/v1/payments/wechat/recharge/notify'
     )
   }
+  if (
+    wechatPayNotifyUrl &&
+    deploymentEnvironment === 'production' &&
+    wechatPayNotifyUrl !==
+      'https://judian.icu/v1/payments/wechat/recharge/notify'
+  ) {
+    throw new Error(
+      'Production WECHAT_PAY_NOTIFY_URL must be https://judian.icu/v1/payments/wechat/recharge/notify'
+    )
+  }
   const wechatMiniappAppId = optionalText(environment.WECHAT_MINIAPP_APP_ID)
   const wechatMiniappAppSecret = optionalText(
     environment.WECHAT_MINIAPP_APP_SECRET
