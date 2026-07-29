@@ -2,7 +2,7 @@
 
 > 决策日期：2026-07-29
 >
-> 状态：已确认，等待书面规格复核
+> 状态：已确认并进入实施
 >
 > 适用范围：`main`、`codex/member-recharge-pc-transactions`、`codex/miniapp-production-recharge`
 
