@@ -33,6 +33,10 @@ import {
   resolveRechargeAmountFen
 } from '../../services/recharge-amount'
 import {
+  calculateRechargeGift,
+  formatRechargeRuleContent
+} from '../../services/recharge-gift'
+import {
   parseWechatPaymentParameters,
   pollMonthlyCardOrder,
   requestWechatPayment
@@ -64,6 +68,20 @@ function requestId(prefix: string): string {
 
 function money(fen: number): string {
   return `¥${(fen / 100).toFixed(2)}`
+}
+
+function rechargeAmountViews(
+  configuration: MemberRechargeConfiguration | null
+) {
+  const tiers = configuration?.giftTiers ?? []
+  return quickRechargeAmounts.map((amount) => {
+    const giftFen = calculateRechargeGift(amount.principalFen, tiers)
+    return {
+      ...amount,
+      giftText: giftFen > 0 ? `预计赠送 ${money(giftFen)}` : '暂无赠送',
+      totalText: `预计到账 ${money(amount.principalFen + giftFen)}`
+    }
+  })
 }
 
 function memberView(member: MemberSelfServiceSummary): MemberView {
@@ -166,7 +184,8 @@ Page({
     testVirtualPhoneLoginEnabled: isTestVirtualPhoneLoginEnabled(),
     rechargeEnabled: isRealWechatPaymentBuild(),
     monthlyCardEnabled: isRealWechatPaymentBuild(),
-    quickRechargeAmounts,
+    quickRechargeAmounts: rechargeAmountViews(null),
+    rechargeRuleContent: formatRechargeRuleContent([]),
     selectedRechargeAmountFen: 10_000 as number | null,
     customRechargeAmount: ''
   },
@@ -184,7 +203,9 @@ Page({
           member: null,
           recentActivities: [],
           rechargeConfiguration: null,
-          monthlyCardConfiguration: null
+          monthlyCardConfiguration: null,
+          quickRechargeAmounts: rechargeAmountViews(null),
+          rechargeRuleContent: formatRechargeRuleContent([])
         })
         return
       }
@@ -212,6 +233,10 @@ Page({
         member: memberView(member),
         recentActivities: history.activities.slice(0, 3).map(activityView),
         rechargeConfiguration,
+        quickRechargeAmounts: rechargeAmountViews(rechargeConfiguration),
+        rechargeRuleContent: formatRechargeRuleContent(
+          rechargeConfiguration?.giftTiers ?? []
+        ),
         monthlyCardConfiguration,
         monthlyCardActionText:
           monthlyCard?.actionText ?? '微信开通月卡',
@@ -490,6 +515,15 @@ Page({
     this.setData({
       selectedRechargeAmountFen: null,
       customRechargeAmount: String(event.detail.value ?? '')
+    })
+  },
+
+  showRechargeRules() {
+    wx.showModal({
+      title: '当前充赠规则',
+      content: this.data.rechargeRuleContent,
+      showCancel: false,
+      confirmText: '知道了'
     })
   },
 

@@ -85,7 +85,11 @@
           data-principal-fen="{{item.principalFen}}"
           disabled="{{busy}}"
           bindtap="selectRechargeAmount"
-        >{{item.label}}</button>
+        >
+          <text class="recharge-option-amount">{{item.label}}</text>
+          <text class="recharge-gift-estimate">{{item.giftText}}</text>
+          <text class="recharge-total-estimate">{{item.totalText}}</text>
+        </button>
       </view>
       <view class="custom-recharge">
         <text class="custom-currency">¥</text>
@@ -104,7 +108,14 @@
         disabled="{{busy}}"
         bindtap="recharge"
       >微信支付</button>
-      <text class="muted recharge-hint">实际赠送金额按门店当前充值规则计算</text>
+      <view class="recharge-rule-note">
+        <text class="muted recharge-hint">实际赠送以创建充值订单时的规则为准</text>
+        <button
+          class="recharge-rule-info"
+          aria-label="查看当前充赠规则"
+          bindtap="showRechargeRules"
+        >!</button>
+      </view>
     </view>
 
     <view wx:if="{{rechargeOrder}}" class="recharge-result card">

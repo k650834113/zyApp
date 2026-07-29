@@ -48,3 +48,14 @@ test('profile heading is limited to member onboarding', () => {
     /mode === 'complete' \? '完善会员资料' : '我的资料'/
   )
 })
+
+test('recharge area exposes gift estimates and current rules', () => {
+  const wxml = source('../src/pages/home/index.wxml')
+  const page = source('../src/pages/home/index.ts')
+
+  assert.match(wxml, /class="recharge-gift-estimate"/)
+  assert.match(wxml, /class="recharge-rule-info"/)
+  assert.match(wxml, /bindtap="showRechargeRules"/)
+  assert.match(page, /showRechargeRules\(\)/)
+  assert.match(page, /formatRechargeRuleContent/)
+})
