@@ -462,7 +462,13 @@ export class MockMiniappClient implements MiniappClient {
   }
 
   async getRechargeConfiguration(): Promise<MemberRechargeConfiguration> {
-    return { providerMode: 'mock', giftTiers: [] }
+    return {
+      providerMode: 'mock',
+      giftTiers: activeRechargeGiftTiers.map((tier) => ({
+        principalFen: tier.principalFen,
+        giftFen: tier.giftFen
+      }))
+    }
   }
 
   async requestPhoneVerification(

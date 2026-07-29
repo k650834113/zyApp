@@ -8,6 +8,17 @@ describe('miniapp mock client', () => {
     client = new MockMiniappClient()
   })
 
+  it('exposes active recharge gift tiers for client previews', async () => {
+    await expect(client.getRechargeConfiguration()).resolves.toEqual({
+      providerMode: 'mock',
+      giftTiers: [
+        { principalFen: 30_000, giftFen: 2_000 },
+        { principalFen: 50_000, giftFen: 5_000 },
+        { principalFen: 100_000, giftFen: 20_000 }
+      ]
+    })
+  })
+
   it('only exposes active public activities', () => {
     expect(activeActivities(new Date('2025-01-01T00:00:00.000Z'))).toEqual([])
     expect(activeActivities(new Date('2026-07-01T00:00:00.000Z'))).toHaveLength(1)
