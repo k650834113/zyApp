@@ -1320,6 +1320,10 @@ export type CreateMemberRechargeOrderRequest = {
 
 export type MemberRechargeConfiguration = {
   providerMode: 'mock' | 'wechat'
+  giftTiers: Array<{
+    principalFen: number
+    giftFen: number
+  }>
 }
 
 export type MemberMonthlyCardConfiguration = {

@@ -31,6 +31,7 @@ import type {
   WechatPaymentProvider,
   WechatPaymentState
 } from './wechat-payment-provider'
+import { resolveRechargeGiftRules } from './recharge-gift-rules'
 
 type RechargeOrderRow = {
   id: string
@@ -139,17 +140,26 @@ export class MemberRechargeService {
     @Inject(API_CONFIG) private readonly config: ApiConfig
   ) {}
 
-  getConfiguration(
+  async getConfiguration(
     principal: MiniappPrincipal
-  ): MemberRechargeConfiguration {
+  ): Promise<MemberRechargeConfiguration> {
     this.requireMember(principal)
     if (this.paymentProvider.mode === 'disabled') {
       throw new ServiceUnavailableException(
         'WeChat payment is disabled'
       )
     }
+    const giftTiers = await resolveRechargeGiftRules(
+      this.pool,
+      principal.tenantId,
+      principal.storeId
+    )
     return {
-      providerMode: this.paymentProvider.mode
+      providerMode: this.paymentProvider.mode,
+      giftTiers: giftTiers.map((tier) => ({
+        principalFen: tier.principalFen,
+        giftFen: tier.giftFen
+      }))
     }
   }
 
@@ -226,55 +236,15 @@ export class MemberRechargeService {
           '当前账号未完成监护人同意与身份核验，暂不能储值'
         )
       }
-      const tiers = await client.query<{
-        id: string
-        principal_fen: number | string
-        gift_fen: number | string
-      }>(
-        `SELECT id, principal_fen, gift_fen
-         FROM cloud_recharge_gift_tier
-         WHERE tenant_id = $1 AND store_id = $2 AND active = TRUE
-         ORDER BY principal_fen`,
-        [principal.tenantId, principal.storeId]
+      const resolvedTiers = await resolveRechargeGiftRules(
+        client,
+        principal.tenantId,
+        principal.storeId
       )
-      const template = await client.query<{
-        id: string
-        payload_json: Record<string, unknown>
-        override_payload_json: Record<string, unknown> | null
-      }>(
-        `SELECT template.id::text, template.payload_json,
-                override.payload_json override_payload_json
-         FROM cloud_merchant_business_template template
-         LEFT JOIN cloud_store_business_template_override override
-           ON override.tenant_id = template.tenant_id
-          AND override.store_id = $2 AND override.template_id = template.id
-          AND override.active = TRUE
-         WHERE template.tenant_id = $1
-           AND template.template_type = 'recharge_gift_tier'
-           AND template.active = TRUE
-         ORDER BY template.created_at, template.id LIMIT 1`,
-        [principal.tenantId, principal.storeId]
-      )
-      const templateRow = template.rows[0]
-      const resolvedPayload = templateRow
-        ? { ...templateRow.payload_json, ...(templateRow.override_payload_json ?? {}) }
-        : null
-      const resolvedTiers = resolvedPayload && Array.isArray(resolvedPayload.tiers)
-        ? resolvedPayload.tiers.map((value, index) => {
-            const tier = value as Record<string, unknown>
-            return {
-              id: `${templateRow?.id ?? 'template'}:${index}`,
-              principal_fen: Number(tier.principalFen),
-              gift_fen: Number(tier.giftFen)
-            }
-          })
-        : tiers.rows
       const domainTiers: RechargeGiftTier[] = resolvedTiers.map((tier) => ({
         id: tier.id,
-        principal: nonNegativeFen(
-          safeFen(tier.principal_fen, 'tier.principalFen')
-        ),
-        gift: nonNegativeFen(safeFen(tier.gift_fen, 'tier.giftFen'))
+        principal: nonNegativeFen(tier.principalFen),
+        gift: nonNegativeFen(tier.giftFen)
       }))
       const allocation = calculateMaximumRechargeGift(
         nonNegativeFen(input.principalFen),
@@ -284,11 +254,8 @@ export class MemberRechargeService {
       giftSnapshot = {
         tiers: resolvedTiers.map((tier) => ({
           id: tier.id,
-          principalFen: safeFen(
-            tier.principal_fen,
-            'tier.principalFen'
-          ),
-          giftFen: safeFen(tier.gift_fen, 'tier.giftFen')
+          principalFen: tier.principalFen,
+          giftFen: tier.giftFen
         })),
         allocation
       }

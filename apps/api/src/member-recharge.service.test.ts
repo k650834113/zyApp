@@ -161,15 +161,37 @@ function orderRow(
 }
 
 describe('member WeChat recharge orders', () => {
-  it('exposes the same real-payment configuration in every environment', () => {
+  it('exposes the active recharge gift rules with the payment configuration', async () => {
+    const { pool } = fakePool((sql) => {
+      if (sql.includes('cloud_merchant_business_template')) {
+        return [
+          {
+            id: 'template-1',
+            payload_json: {
+              tiers: [{ principalFen: 30_000, giftFen: 2_000 }]
+            },
+            override_payload_json: {
+              tiers: [{ principalFen: 30_000, giftFen: 3_000 }]
+            }
+          }
+        ]
+      }
+      return []
+    })
     const service = new MemberRechargeService(
-      {} as Pool,
+      pool,
       realPaymentProvider(),
       apiConfig()
     )
 
-    expect(service.getConfiguration(principal())).toEqual({
-      providerMode: 'wechat'
+    expect(await service.getConfiguration(principal())).toEqual({
+      providerMode: 'wechat',
+      giftTiers: [
+        {
+          principalFen: 30_000,
+          giftFen: 3_000
+        }
+      ]
     })
   })
 
