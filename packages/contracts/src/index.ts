@@ -534,7 +534,7 @@ export type MonthlyCardSummary = {
   memberId: Identifier
   planName: string
   priceFen: number
-  paymentMethod: 'cash'
+  paymentMethod: 'cash' | 'wechat'
   status: MonthlyCardStatus
   purchasedAt: string
   startsAt: string
@@ -1214,6 +1214,7 @@ export type MemberSelfServiceSummary = {
   memberId: Identifier
   nickname: string
   avatarUrl: string | null
+  profileCompleted: boolean
   phoneMasked: string
   tier: MemberTier
   principalBalanceFen: number
@@ -1224,6 +1225,11 @@ export type MemberSelfServiceSummary = {
   birthdayDay: number | null
   birthdayCanBeFilled: boolean
   ageGate: MemberAgeGate
+}
+
+export type UpdateMemberProfileRequest = {
+  requestId: string
+  nickname: string
 }
 
 export type FillMemberBirthdayRequest = {
@@ -1257,7 +1263,29 @@ export type MemberMonthlyCardHistoryItem = {
   occurredAt: string
 }
 
+export type MemberActivitySummary = {
+  activityId: string
+  kind: 'consumption' | 'recharge' | 'monthly_card'
+  businessId: string
+  businessNumber: string | null
+  title: string
+  amountFen: number | null
+  direction: 'debit' | 'credit' | 'neutral'
+  status:
+    | 'completed'
+    | 'settled'
+    | 'active'
+    | 'paused'
+    | 'resumed'
+    | 'used'
+    | 'refunded'
+    | 'reversed'
+    | 'expired'
+  occurredAt: string
+}
+
 export type MemberSelfServiceHistory = {
+  activities: MemberActivitySummary[]
   orders: MemberOrderHistoryItem[]
   walletEntries: MemberWalletHistoryItem[]
   monthlyCardEvents: MemberMonthlyCardHistoryItem[]
@@ -1292,7 +1320,38 @@ export type CreateMemberRechargeOrderRequest = {
 
 export type MemberRechargeConfiguration = {
   providerMode: 'mock' | 'wechat'
-  testAmountFen: number | null
+}
+
+export type MemberMonthlyCardConfiguration = {
+  providerMode: 'mock' | 'wechat'
+  planName: string
+  priceFen: number
+  durationDays: number
+  scopeType: MonthlyCardScopeType
+  purchaseAllowed: boolean
+  blockedReason: string | null
+}
+
+export type CreateMemberMonthlyCardOrderRequest = {
+  requestId: string
+}
+
+export type MemberMonthlyCardOrderSummary = {
+  orderId: Identifier
+  requestId: string
+  planName: string
+  priceFen: number
+  durationDays: number
+  status: MemberRechargeOrderStatus
+  providerMode: 'mock' | 'wechat'
+  clientPaymentParameters: Record<string, string> | null
+  targetCardId: Identifier | null
+  expiresBefore: string | null
+  expiresAfter: string | null
+  expiresAt: string
+  settledAt: string | null
+  createdAt: string
+  errorMessage: string | null
 }
 
 export type WechatJsapiPaymentParameters = {
@@ -1366,6 +1425,29 @@ export type SalesOrderSummary = {
 
 export type ListRecentOrdersRequest = {
   limit?: number
+}
+
+export type ListTransactionRecordsRequest = {
+  query?: string
+  from?: string
+  to?: string
+  limit?: number
+}
+
+export type RechargeTransactionSummary = {
+  id: Identifier
+  orderNumber: string
+  memberId: Identifier
+  memberNickname: string
+  phoneMasked: string
+  channel: 'cash' | 'wechat'
+  principalFen: number
+  giftFen: number
+  totalCreditFen: number
+  status: 'pending_payment' | 'settled' | 'failed' | 'expired'
+  providerTransactionId: string | null
+  createdAt: string
+  settledAt: string | null
 }
 
 export type RefundStatus = 'pending' | 'completed' | 'rejected'
@@ -1678,6 +1760,8 @@ export type CloudMirrorResource =
   | 'wallet_ledger'
   | 'monthly_cards'
   | 'monthly_card_events'
+  | 'monthly_card_payment_orders'
+  | 'wechat_recharge_orders'
   | 'business_templates'
   | 'orders'
   | 'order_items'
@@ -1916,6 +2000,9 @@ export const IPC_CHANNELS = {
   boardGameReadImage: 'board-game:read-image',
   orderCreate: 'order:create',
   orderRecent: 'order:recent',
+  cashierRefresh: 'cashier:refresh',
+  transactionSalesList: 'transaction:sales:list',
+  transactionRechargeList: 'transaction:recharge:list',
   refundFindOrder: 'refund:find-order',
   refundCreate: 'refund:create',
   refundApprove: 'refund:approve',
@@ -2056,6 +2143,13 @@ export type DesktopApi = {
   ): Promise<string | null>
   createSalesOrder(request: CreateSalesOrderRequest): Promise<SalesOrderSummary>
   listRecentOrders(request?: ListRecentOrdersRequest): Promise<SalesOrderSummary[]>
+  refreshCashierData(): Promise<void>
+  listSalesTransactions(
+    request?: ListTransactionRecordsRequest
+  ): Promise<SalesOrderSummary[]>
+  listRechargeTransactions(
+    request?: ListTransactionRecordsRequest
+  ): Promise<RechargeTransactionSummary[]>
   findRefundableOrder(request: FindRefundableOrderRequest): Promise<RefundableOrderSummary>
   createRefundRequest(request: CreateRefundRequest): Promise<RefundSummary>
   approveRefund(request: ApproveRefundRequest): Promise<RefundSummary>

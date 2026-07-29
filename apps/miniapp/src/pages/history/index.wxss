@@ -1,0 +1,135 @@
+.filter-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14rpx;
+  margin: 10rpx 0 36rpx;
+}
+
+.filter-pill {
+  box-sizing: border-box;
+  min-height: 68rpx;
+  border: 1rpx solid #dfd5c6;
+  border-radius: 999rpx;
+  color: #3a423e;
+  background: #fffdf8;
+  text-align: center;
+  font-size: 25rpx;
+  line-height: 66rpx;
+}
+
+.filter-pill.active {
+  border-color: #174f3b;
+  color: #fff;
+  background: #174f3b;
+  font-weight: 700;
+}
+
+.date-group {
+  margin-bottom: 30rpx;
+}
+
+.date-title {
+  display: block;
+  margin: 0 8rpx 14rpx;
+  color: #777b76;
+  font-size: 24rpx;
+}
+
+.group-card {
+  padding: 0 24rpx;
+}
+
+.activity-row {
+  display: flex;
+  align-items: center;
+  min-height: 132rpx;
+  border-bottom: 1rpx solid #eee5d9;
+}
+
+.activity-row:last-child {
+  border-bottom: 0;
+}
+
+.activity-icon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  color: #fff;
+  background: #174f3b;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.activity-icon.recharge,
+.activity-icon.monthly_card {
+  background: #c87917;
+}
+
+.activity-main {
+  min-width: 0;
+  flex: 1;
+  margin-left: 20rpx;
+}
+
+.activity-title,
+.activity-meta,
+.activity-amount,
+.activity-status {
+  display: block;
+}
+
+.activity-title {
+  font-size: 27rpx;
+  font-weight: 700;
+}
+
+.activity-meta {
+  overflow: hidden;
+  margin-top: 9rpx;
+  color: #8b8c87;
+  font-size: 20rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-right {
+  max-width: 190rpx;
+  margin-left: 12rpx;
+  text-align: right;
+}
+
+.activity-amount {
+  font-size: 27rpx;
+  font-weight: 700;
+}
+
+.activity-amount.credit {
+  color: #c66f0b;
+}
+
+.activity-status {
+  margin-top: 9rpx;
+  color: #28704f;
+  font-size: 21rpx;
+}
+
+.safe-tip {
+  margin: 52rpx 0 16rpx;
+  color: #b26c17;
+  text-align: center;
+  font-size: 22rpx;
+}
+
+@media (max-width: 340px) {
+  .filter-row {
+    gap: 8rpx;
+  }
+
+  .filter-pill {
+    font-size: 23rpx;
+  }
+}

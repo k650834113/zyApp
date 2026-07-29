@@ -24,6 +24,9 @@ import type {
   MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   CreateMemberRechargeOrderRequest,
+  CreateMemberMonthlyCardOrderRequest,
+  MemberMonthlyCardConfiguration,
+  MemberMonthlyCardOrderSummary,
   MiniappHomeSnapshot,
   MiniappIdentity,
   PhoneVerificationChallenge,
@@ -62,6 +65,11 @@ export interface MiniappClient {
   loginWithWechatProfile(
     input: WechatOneTapLoginInput
   ): Promise<MemberSelfServiceSummary>
+  updateMemberProfile(nickname: string): Promise<MemberSelfServiceSummary>
+  updateMemberProfileWithAvatar(
+    nickname: string,
+    localAvatarPath: string
+  ): Promise<MemberSelfServiceSummary>
   fillBirthday(month: number, day: number): Promise<MemberSelfServiceSummary>
   createRechargeOrder(
     input: CreateMemberRechargeOrderRequest
@@ -70,6 +78,16 @@ export interface MiniappClient {
   settleMockRechargeOrder(
     orderId: string
   ): Promise<MemberRechargeOrderSummary>
+  getMonthlyCardConfiguration(): Promise<MemberMonthlyCardConfiguration>
+  createMonthlyCardOrder(
+    input: CreateMemberMonthlyCardOrderRequest
+  ): Promise<MemberMonthlyCardOrderSummary>
+  getMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary>
+  settleMockMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary>
   enterStaffMode(username: string, password: string): Promise<MiniappIdentity>
   leaveStaffMode(): Promise<void>
   searchEmployeeMembers(query?: string): Promise<EmployeeMobileMemberSummary[]>

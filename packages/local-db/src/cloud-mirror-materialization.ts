@@ -456,8 +456,38 @@ function walletEntryType(eventType: string): string {
 
 function applyWalletLedger(database: DatabaseSync, context: StoreContext, row: Json): void {
   const operationId = text(row.operation_id, 'wallet_ledger.operation_id')
-  const occurrenceStoreId = nullableText(row.store_id) ?? context.storeId
   if (database.prepare('SELECT 1 FROM wallet_ledger WHERE id = ?').get(operationId)) return
+  const eventType = text(row.event_type, 'wallet_ledger.event_type')
+  const entryType = walletEntryType(eventType)
+  const memberId = text(row.member_id, 'wallet_ledger.member_id')
+  const sourceOperationId = text(row.source_operation_id, 'wallet_ledger.source_operation_id')
+  const principalDeltaFen = integer(
+    row.principal_delta_fen,
+    'wallet_ledger.principal_delta_fen'
+  )
+  const giftDeltaFen = integer(row.gift_delta_fen, 'wallet_ledger.gift_delta_fen')
+  if (
+    database.prepare(
+      `SELECT 1
+       FROM wallet_ledger
+       WHERE tenant_id = ?
+         AND member_id = ?
+         AND entry_type = ?
+         AND source_id = ?
+         AND principal_delta_fen = ?
+         AND gift_delta_fen = ?
+         AND actor_id <> 'cloud-sync'
+       LIMIT 1`
+    ).get(
+      context.tenantId,
+      memberId,
+      entryType,
+      sourceOperationId,
+      principalDeltaFen,
+      giftDeltaFen
+    )
+  ) return
+  const occurrenceStoreId = nullableText(row.store_id) ?? context.storeId
   database.prepare(
     `INSERT INTO wallet_ledger
      (id, tenant_id, store_id, wallet_account_id, member_id, entry_type,
@@ -468,20 +498,19 @@ function applyWalletLedger(database: DatabaseSync, context: StoreContext, row: J
   ).run(
     operationId, context.tenantId, occurrenceStoreId,
     text(row.wallet_account_id, 'wallet_ledger.wallet_account_id'),
-    text(row.member_id, 'wallet_ledger.member_id'),
-    walletEntryType(text(row.event_type, 'wallet_ledger.event_type')),
-    integer(row.principal_delta_fen, 'wallet_ledger.principal_delta_fen'),
-    integer(row.gift_delta_fen, 'wallet_ledger.gift_delta_fen'),
+    memberId,
+    entryType,
+    principalDeltaFen,
+    giftDeltaFen,
     integer(row.principal_balance_after_fen, 'wallet_ledger.principal_balance_after_fen'),
     integer(row.gift_balance_after_fen, 'wallet_ledger.gift_balance_after_fen'),
-    text(row.source_operation_id, 'wallet_ledger.source_operation_id'),
+    sourceOperationId,
     `cloud:${operationId}`, context.deviceId,
     nullableText(row.reason) ?? '云端同步', json(row.payload_json, {}),
     text(row.occurred_at, 'wallet_ledger.occurred_at')
   )
-  const eventType = text(row.event_type, 'wallet_ledger.event_type')
   if (eventType === 'wallet.cash_recharged' || eventType === 'wallet.wechat_recharged') {
-    const rechargeId = text(row.source_operation_id, 'wallet_ledger.source_operation_id')
+    const rechargeId = sourceOperationId
     database.prepare(
       `INSERT OR IGNORE INTO wallet_recharge
        (id, tenant_id, store_id, wallet_account_id, member_id, payment_method,
@@ -493,10 +522,10 @@ function applyWalletLedger(database: DatabaseSync, context: StoreContext, row: J
       context.tenantId,
       occurrenceStoreId,
       text(row.wallet_account_id, 'wallet_ledger.wallet_account_id'),
-      text(row.member_id, 'wallet_ledger.member_id'),
+      memberId,
       eventType === 'wallet.wechat_recharged' ? 'wechat' : 'cash',
-      integer(row.principal_delta_fen, 'wallet_ledger.principal_delta_fen'),
-      integer(row.gift_delta_fen, 'wallet_ledger.gift_delta_fen'),
+      principalDeltaFen,
+      giftDeltaFen,
       json(row.payload_json, {}),
       `cloud-recharge:${rechargeId}`,
       context.deviceId,
@@ -537,16 +566,20 @@ function applyMonthlyCard(database: DatabaseSync, context: StoreContext, row: Js
      (id, tenant_id, store_id, member_id, plan_id, plan_name_snapshot,
       price_fen, duration_days, payment_method, status, request_id,
       purchased_by, purchased_at, starts_at, expires_at, paused_at,
-      total_paused_seconds, refunded_at, refund_reason, updated_at, scope_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'cash', ?, ?, 'cloud-sync', ?, ?, ?, ?, 0,
-             ?, NULL, ?, ?)
+      total_paused_seconds, refunded_at, refund_reason, updated_at, scope_type,
+      source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cloud-sync', ?, ?, ?, ?, 0,
+             ?, NULL, ?, ?, 'cloud')
      ON CONFLICT (id) DO UPDATE SET status = excluded.status,
        expires_at = excluded.expires_at, paused_at = excluded.paused_at,
-       refunded_at = excluded.refunded_at, updated_at = excluded.updated_at`
+       refunded_at = excluded.refunded_at,
+       payment_method = excluded.payment_method,
+       updated_at = excluded.updated_at, source = 'cloud'`
   ).run(
     id, context.tenantId, issuingStoreId, text(row.member_id, 'monthly_card.member_id'),
     plan.id, text(row.plan_name, 'monthly_card.plan_name'),
     integer(row.price_fen, 'monthly_card.price_fen'), plan.duration_days,
+    nullableText(row.payment_method) === 'wechat' ? 'wechat' : 'cash',
     text(row.status, 'monthly_card.status'), `cloud-card:${id}`,
     text(row.purchased_at, 'monthly_card.purchased_at'),
     text(row.starts_at, 'monthly_card.starts_at'), text(row.expires_at, 'monthly_card.expires_at'),
@@ -572,6 +605,123 @@ function applyMonthlyCardEvent(database: DatabaseSync, context: StoreContext, ro
     `cloud:${operationId}`, context.deviceId,
     nullableText(row.reason) ?? '云端同步', json(row.payload_json, {}),
     text(row.occurred_at, 'monthly_card_event.occurred_at')
+  )
+}
+
+function applyWechatRechargeOrder(
+  database: DatabaseSync,
+  context: StoreContext,
+  row: Json
+): void {
+  const id = text(row.id, 'wechat_recharge_order.id')
+  const occurrenceStoreId = nullableText(row.store_id) ?? context.storeId
+  database.prepare(
+    `INSERT INTO wechat_recharge_order_mirror
+     (id, tenant_id, store_id, member_id, identity_id, request_id,
+      out_trade_no, provider_mode, provider_prepay_id,
+      provider_transaction_id, principal_fen, gift_fen, status,
+      error_message, expires_at, paid_at, settled_at, wallet_operation_id,
+      created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET
+       store_id = excluded.store_id,
+       member_id = excluded.member_id,
+       provider_prepay_id = excluded.provider_prepay_id,
+       provider_transaction_id = excluded.provider_transaction_id,
+       principal_fen = excluded.principal_fen,
+       gift_fen = excluded.gift_fen,
+       status = excluded.status,
+       error_message = excluded.error_message,
+       expires_at = excluded.expires_at,
+       paid_at = excluded.paid_at,
+       settled_at = excluded.settled_at,
+       wallet_operation_id = excluded.wallet_operation_id,
+       updated_at = excluded.updated_at
+     WHERE wechat_recharge_order_mirror.tenant_id = excluded.tenant_id`
+  ).run(
+    id,
+    context.tenantId,
+    occurrenceStoreId,
+    text(row.member_id, 'wechat_recharge_order.member_id'),
+    text(row.identity_id, 'wechat_recharge_order.identity_id'),
+    text(row.request_id, 'wechat_recharge_order.request_id'),
+    text(row.out_trade_no, 'wechat_recharge_order.out_trade_no'),
+    text(row.provider_mode, 'wechat_recharge_order.provider_mode'),
+    nullableText(row.provider_prepay_id),
+    nullableText(row.provider_transaction_id),
+    integer(row.principal_fen, 'wechat_recharge_order.principal_fen'),
+    integer(row.gift_fen, 'wechat_recharge_order.gift_fen'),
+    text(row.status, 'wechat_recharge_order.status'),
+    nullableText(row.error_message),
+    text(row.expires_at, 'wechat_recharge_order.expires_at'),
+    nullableText(row.paid_at),
+    nullableText(row.settled_at),
+    nullableText(row.wallet_operation_id),
+    text(row.created_at, 'wechat_recharge_order.created_at'),
+    text(row.updated_at, 'wechat_recharge_order.updated_at')
+  )
+}
+
+function applyMonthlyCardPaymentOrder(
+  database: DatabaseSync,
+  context: StoreContext,
+  row: Json
+): void {
+  const id = text(row.id, 'wechat_monthly_card_order.id')
+  const occurrenceStoreId = nullableText(row.store_id) ?? context.storeId
+  database.prepare(
+    `INSERT INTO wechat_monthly_card_order_mirror
+     (id, tenant_id, store_id, member_id, identity_id, request_id,
+      out_trade_no, provider_mode, provider_prepay_id,
+      provider_transaction_id, plan_name, price_fen, duration_days,
+      scope_type, status, target_card_id, expires_before, expires_after,
+      error_message, expires_at, paid_at, settled_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+             ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET
+       store_id = excluded.store_id,
+       member_id = excluded.member_id,
+       provider_prepay_id = excluded.provider_prepay_id,
+       provider_transaction_id = excluded.provider_transaction_id,
+       plan_name = excluded.plan_name,
+       price_fen = excluded.price_fen,
+       duration_days = excluded.duration_days,
+       scope_type = excluded.scope_type,
+       status = excluded.status,
+       target_card_id = excluded.target_card_id,
+       expires_before = excluded.expires_before,
+       expires_after = excluded.expires_after,
+       error_message = excluded.error_message,
+       expires_at = excluded.expires_at,
+       paid_at = excluded.paid_at,
+       settled_at = excluded.settled_at,
+       updated_at = excluded.updated_at
+     WHERE wechat_monthly_card_order_mirror.tenant_id = excluded.tenant_id`
+  ).run(
+    id,
+    context.tenantId,
+    occurrenceStoreId,
+    text(row.member_id, 'wechat_monthly_card_order.member_id'),
+    text(row.identity_id, 'wechat_monthly_card_order.identity_id'),
+    text(row.request_id, 'wechat_monthly_card_order.request_id'),
+    text(row.out_trade_no, 'wechat_monthly_card_order.out_trade_no'),
+    text(row.provider_mode, 'wechat_monthly_card_order.provider_mode'),
+    nullableText(row.provider_prepay_id),
+    nullableText(row.provider_transaction_id),
+    text(row.plan_name, 'wechat_monthly_card_order.plan_name'),
+    integer(row.price_fen, 'wechat_monthly_card_order.price_fen'),
+    integer(row.duration_days, 'wechat_monthly_card_order.duration_days'),
+    text(row.scope_type, 'wechat_monthly_card_order.scope_type'),
+    text(row.status, 'wechat_monthly_card_order.status'),
+    nullableText(row.target_card_id),
+    nullableText(row.expires_before),
+    nullableText(row.expires_after),
+    nullableText(row.error_message),
+    text(row.expires_at, 'wechat_monthly_card_order.expires_at'),
+    nullableText(row.paid_at),
+    nullableText(row.settled_at),
+    text(row.created_at, 'wechat_monthly_card_order.created_at'),
+    text(row.updated_at, 'wechat_monthly_card_order.updated_at')
   )
 }
 
@@ -993,6 +1143,8 @@ export function applyCloudMirrorPage(
       else if (page.resource === 'wallet_ledger') applyWalletLedger(database, context, row)
       else if (page.resource === 'monthly_cards') applyMonthlyCard(database, context, row)
       else if (page.resource === 'monthly_card_events') applyMonthlyCardEvent(database, context, row)
+      else if (page.resource === 'monthly_card_payment_orders') applyMonthlyCardPaymentOrder(database, context, row)
+      else if (page.resource === 'wechat_recharge_orders') applyWechatRechargeOrder(database, context, row)
       else if (page.resource === 'business_templates') applyBusinessTemplate(database, context, row)
       else if (page.resource === 'orders') applyOrder(database, context, row)
       else if (page.resource === 'refunds') applyRefund(database, context, row)

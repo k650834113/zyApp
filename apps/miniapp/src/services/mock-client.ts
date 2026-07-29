@@ -24,6 +24,9 @@ import type {
   MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   CreateMemberRechargeOrderRequest,
+  CreateMemberMonthlyCardOrderRequest,
+  MemberMonthlyCardConfiguration,
+  MemberMonthlyCardOrderSummary,
   MiniappHomeSnapshot,
   MiniappIdentity,
   PhoneVerificationChallenge,
@@ -165,11 +168,13 @@ let mockStoreProfile: StoreProfileSummary = {
 let identity: MiniappIdentity = { role: 'guest' }
 let member: MemberSelfServiceSummary | null = null
 let memberHistory: MemberSelfServiceHistory = {
+  activities: [],
   orders: [],
   walletEntries: [],
   monthlyCardEvents: []
 }
 const rechargeOrders = new Map<string, MemberRechargeOrderSummary>()
+const monthlyCardOrders = new Map<string, MemberMonthlyCardOrderSummary>()
 let phoneChallenge:
   | {
       challengeId: string
@@ -326,6 +331,41 @@ function giftFor(principalFen: number): number {
 
 function demoMemberHistory(): MemberSelfServiceHistory {
   return {
+    activities: [
+      {
+        activityId: 'sales-order:mock-order-20260704',
+        kind: 'consumption',
+        businessId: 'mock-order-20260704',
+        businessNumber: 'JD-260704-001',
+        title: '桌位消费',
+        amountFen: 8_600,
+        direction: 'debit',
+        status: 'completed',
+        occurredAt: '2026-07-04T13:18:00.000Z'
+      },
+      {
+        activityId: 'wechat-recharge:mock-wallet-recharge-20260702',
+        kind: 'recharge',
+        businessId: 'mock-wallet-recharge-20260702',
+        businessNumber: 'MOCK-260702-001',
+        title: '微信充值',
+        amountFen: 32_000,
+        direction: 'credit',
+        status: 'settled',
+        occurredAt: '2026-07-02T11:42:00.000Z'
+      },
+      {
+        activityId: 'monthly-card:mock-monthly-card-20260701',
+        kind: 'monthly_card',
+        businessId: 'mock-monthly-card-active',
+        businessNumber: null,
+        title: '月卡续费',
+        amountFen: null,
+        direction: 'neutral',
+        status: 'active',
+        occurredAt: '2026-07-01T04:00:00.000Z'
+      }
+    ],
     orders: [
       {
         orderId: 'mock-order-20260704',
@@ -422,7 +462,7 @@ export class MockMiniappClient implements MiniappClient {
   }
 
   async getRechargeConfiguration(): Promise<MemberRechargeConfiguration> {
-    return { providerMode: 'mock', testAmountFen: null }
+    return { providerMode: 'mock' }
   }
 
   async requestPhoneVerification(
@@ -466,6 +506,7 @@ export class MockMiniappClient implements MiniappClient {
       memberId: 'mock-member',
       nickname: input.nickname.trim(),
       avatarUrl: null,
+      profileCompleted: true,
       phoneMasked: `${input.phone.slice(0, 3)}****${input.phone.slice(-4)}`,
       tier: 'ordinary',
       principalBalanceFen: 0,
@@ -480,6 +521,7 @@ export class MockMiniappClient implements MiniappClient {
         : 'recharge_disabled'
     }
     memberHistory = {
+      activities: [],
       orders: [],
       walletEntries: [],
       monthlyCardEvents: []
@@ -512,6 +554,8 @@ export class MockMiniappClient implements MiniappClient {
         memberId: 'mock-member',
         nickname,
         avatarUrl: input.avatarUrl ?? null,
+        profileCompleted:
+          nickname !== '微信用户' || Boolean(input.avatarUrl),
         phoneMasked: `${phone.slice(0, 3)}****${phone.slice(-4)}`,
         tier: canRecharge ? 'advanced' : 'ordinary',
         principalBalanceFen: canRecharge ? 30_000 : 0,
@@ -529,7 +573,12 @@ export class MockMiniappClient implements MiniappClient {
       }
       memberHistory = canRecharge
         ? demoMemberHistory()
-        : { orders: [], walletEntries: [], monthlyCardEvents: [] }
+        : {
+            activities: [],
+            orders: [],
+            walletEntries: [],
+            monthlyCardEvents: []
+          }
     }
     identity = {
       role: 'member',
@@ -537,6 +586,40 @@ export class MockMiniappClient implements MiniappClient {
       nickname: member.nickname,
       phoneMasked: member.phoneMasked,
       tier: member.tier
+    }
+    return member
+  }
+
+  async updateMemberProfile(
+    nickname: string
+  ): Promise<MemberSelfServiceSummary> {
+    if (!member) throw new Error('请先注册会员')
+    member = {
+      ...member,
+      nickname: nickname.trim(),
+      profileCompleted: true
+    }
+    identity = {
+      ...identity,
+      ...(identity.role === 'member' ? { nickname: member.nickname } : {})
+    }
+    return member
+  }
+
+  async updateMemberProfileWithAvatar(
+    nickname: string,
+    localAvatarPath: string
+  ): Promise<MemberSelfServiceSummary> {
+    if (!member) throw new Error('请先注册会员')
+    member = {
+      ...member,
+      nickname: nickname.trim(),
+      avatarUrl: localAvatarPath,
+      profileCompleted: true
+    }
+    identity = {
+      ...identity,
+      ...(identity.role === 'member' ? { nickname: member.nickname } : {})
     }
     return member
   }
@@ -641,6 +724,20 @@ export class MockMiniappClient implements MiniappClient {
     }
     memberHistory = {
       ...memberHistory,
+      activities: [
+        {
+          activityId: `wechat-recharge:${order.orderId}`,
+          kind: 'recharge',
+          businessId: order.orderId,
+          businessNumber: null,
+          title: '微信充值',
+          amountFen: order.totalCreditFen,
+          direction: 'credit',
+          status: 'settled',
+          occurredAt: settledAt
+        },
+        ...memberHistory.activities
+      ],
       walletEntries: [
         {
           operationId: order.orderId,
@@ -666,6 +763,88 @@ export class MockMiniappClient implements MiniappClient {
       settledAt
     }
     rechargeOrders.set(orderId, settled)
+    return settled
+  }
+
+  async getMonthlyCardConfiguration(): Promise<MemberMonthlyCardConfiguration> {
+    return {
+      providerMode: 'mock',
+      planName: '30 天月卡',
+      priceFen: 20_000,
+      durationDays: 30,
+      scopeType: 'store',
+      purchaseAllowed: member?.monthlyCardStatus !== 'paused',
+      blockedReason:
+        member?.monthlyCardStatus === 'paused'
+          ? '月卡暂停中，请联系店员恢复后再续费'
+          : null
+    }
+  }
+
+  async createMonthlyCardOrder(
+    input: CreateMemberMonthlyCardOrderRequest
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    const orderId = `mock-monthly-order-${Date.now()}`
+    const order: MemberMonthlyCardOrderSummary = {
+      orderId,
+      requestId: input.requestId,
+      planName: '30 天月卡',
+      priceFen: 20_000,
+      durationDays: 30,
+      status: 'pending_payment',
+      providerMode: 'mock',
+      clientPaymentParameters: {
+        timeStamp: String(Math.floor(Date.now() / 1000)),
+        nonceStr: 'mock-monthly',
+        package: `prepay_id=${orderId}`,
+        signType: 'MOCK',
+        paySign: 'mock'
+      },
+      targetCardId: null,
+      expiresBefore: member?.monthlyCardExpiresAt ?? null,
+      expiresAfter: null,
+      expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+      settledAt: null,
+      createdAt: new Date().toISOString(),
+      errorMessage: null
+    }
+    monthlyCardOrders.set(orderId, order)
+    return order
+  }
+
+  async getMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    const order = monthlyCardOrders.get(orderId)
+    if (!order) throw new Error('月卡订单不存在')
+    return order
+  }
+
+  async settleMockMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    const order = await this.getMonthlyCardOrder(orderId)
+    const base = member?.monthlyCardExpiresAt
+      ? Math.max(Date.parse(member.monthlyCardExpiresAt), Date.now())
+      : Date.now()
+    const expiresAfter = new Date(
+      base + order.durationDays * 24 * 60 * 60 * 1000
+    ).toISOString()
+    const settled = {
+      ...order,
+      status: 'settled' as const,
+      targetCardId: 'mock-monthly-card',
+      expiresAfter,
+      settledAt: new Date().toISOString()
+    }
+    monthlyCardOrders.set(orderId, settled)
+    if (member) {
+      member = {
+        ...member,
+        monthlyCardStatus: 'active',
+        monthlyCardExpiresAt: expiresAfter
+      }
+    }
     return settled
   }
 

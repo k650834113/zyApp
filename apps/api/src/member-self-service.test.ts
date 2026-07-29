@@ -6,6 +6,7 @@ import {
   phoneVerificationCodeMatches,
   registrationRequestHash,
   validateWechatOneTapMemberLoginRequest,
+  validateUpdateMemberProfileRequest,
   wechatOneTapLoginRequestHash,
   validateMemberRegistrationRequest,
   validateFillBirthdayRequest,
@@ -84,6 +85,30 @@ describe('member self-service primitives', () => {
         confirmedAtLeast14: true
       }).nickname
     ).toBe('微信用户')
+  })
+
+  it('requires a 2 to 12 character member nickname for profile completion', () => {
+    expect(
+      validateUpdateMemberProfileRequest({
+        requestId: 'profile-20260725-1',
+        nickname: '  林小满  '
+      })
+    ).toEqual({
+      requestId: 'profile-20260725-1',
+      nickname: '林小满'
+    })
+    expect(() =>
+      validateUpdateMemberProfileRequest({
+        requestId: 'profile-20260725-2',
+        nickname: ' '
+      })
+    ).toThrow(/nickname/)
+    expect(() =>
+      validateUpdateMemberProfileRequest({
+        requestId: 'profile-20260725-3',
+        nickname: '1234567890123'
+      })
+    ).toThrow(/nickname/)
   })
 
   it('accepts leap-day birthdays and rejects impossible dates', () => {

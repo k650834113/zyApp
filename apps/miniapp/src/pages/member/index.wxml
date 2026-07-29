@@ -1,223 +1,60 @@
-<view class="page">
-  <view wx:if="{{member}}">
-    <view class="hero member-hero">
-      <view class="member-profile-row">
+<view class="page-shell profile-page {{mode === 'complete' ? 'complete-mode' : ''}}">
+  <view wx:if="{{loading}}" class="empty-state">正在加载会员资料…</view>
+
+  <block wx:elif="{{member}}">
+    <view wx:if="{{mode === 'complete'}}" class="profile-heading">
+      <text class="heading-title">完善会员资料</text>
+      <text class="heading-subtitle">完善资料，享受更好的会员体验</text>
+    </view>
+
+    <view class="avatar-section">
+      <button class="avatar-button" open-type="chooseAvatar" bindchooseavatar="chooseAvatar">
         <image
-          wx:if="{{member.avatarUrl}}"
-          class="member-avatar image-avatar"
-          src="{{member.avatarUrl}}"
+          wx:if="{{localAvatarPath || member.avatarUrl}}"
+          class="profile-avatar"
+          src="{{localAvatarPath || member.avatarUrl}}"
           mode="aspectFill"
         />
-        <view wx:else class="member-avatar">{{member.avatarText}}</view>
-        <view>
-          <text class="hero-title">{{member.nickname}}</text>
-          <text class="hero-subtitle">{{member.phoneMasked}} · {{member.tierText}}</text>
-        </view>
-      </view>
-      <text class="balance-label">储值总余额</text>
-      <text class="balance-total">{{member.totalBalanceText}}</text>
-    </view>
-
-    <view class="balance-grid">
-      <view class="card">
-        <text class="muted">本金余额</text>
-        <text class="money">{{member.principalBalanceText}}</text>
-      </view>
-      <view class="card">
-        <text class="muted">赠送余额</text>
-        <text class="money">{{member.giftBalanceText}}</text>
-      </view>
-    </view>
-
-    <view class="card">
-      <text class="card-title">会员权益</text>
-      <view class="tag-row">
-        <text class="tag">{{member.monthlyCardText}}</text>
-        <text class="tag {{member.ageGate === 'recharge_disabled' ? 'warn' : 'good'}}">
-          {{member.ageGateText}}
-        </text>
-      </view>
-      <text class="muted block">生日：{{member.birthdayText}}</text>
-    </view>
-
-    <form
-      wx:if="{{member.birthdayCanBeFilled}}"
-      class="card birthday-card"
-      bindsubmit="fillBirthday"
-    >
-      <text class="card-title">补填生日</text>
-      <text class="muted block">生日只能由顾客补填一次，之后仅店长可审计修正。</text>
-      <view class="birthday-row">
-        <input
-          class="form-input"
-          name="birthdayMonth"
-          type="number"
-          maxlength="2"
-          placeholder="月"
-        />
-        <input
-          class="form-input"
-          name="birthdayDay"
-          type="number"
-          maxlength="2"
-          placeholder="日"
-        />
-      </view>
-      <button class="secondary-button" form-type="submit" loading="{{busy}}">
-        保存生日
+        <view wx:else class="profile-avatar avatar-fallback">{{avatarText}}</view>
+        <view class="camera-badge">◉</view>
       </button>
-    </form>
-
-    <view class="section-title">
-      <text>在线充值体验</text>
+      <text class="choose-avatar-label">选择头像</text>
+      <text class="muted avatar-tip">头像选填，之后可在「我的资料」中修改</text>
     </view>
-    <view class="recharge-grid">
-      <button class="secondary-button" data-fen="10000" bindtap="recharge">充 ¥100</button>
-      <button class="secondary-button" data-fen="30000" bindtap="recharge">充 ¥300</button>
-      <button class="secondary-button" data-fen="50000" bindtap="recharge">充 ¥500</button>
-      <button class="secondary-button" data-fen="100000" bindtap="recharge">充 ¥1000</button>
-    </view>
-    <text class="mock-tip">当前先创建正式结构的充值订单，Mock 支付与真实微信支付共用同一入账链路。</text>
 
-    <view wx:if="{{rechargeOrder}}" class="card recharge-order-card">
-      <view class="recharge-order-head">
-        <text class="card-title">充值订单</text>
-        <text class="tag {{rechargeOrder.status === 'settled' ? 'good' : ''}}">
-          {{rechargeOrder.statusText}}
-        </text>
+    <view class="profile-form">
+      <text class="form-label">会员名称</text>
+      <input
+        class="form-input nickname-input"
+        type="nickname"
+        maxlength="12"
+        value="{{nickname}}"
+        placeholder="请输入会员名称（2–12 个字）"
+        bindinput="inputNickname"
+      />
+      <text class="count-text">{{nickname.length}}/12</text>
+
+      <view class="account-card card">
+        <view class="account-row">
+          <text class="account-label">绑定手机号</text>
+          <text class="account-value">{{member.phoneMasked}}</text>
+        </view>
+        <view class="account-row">
+          <text class="account-label">会员等级</text>
+          <text class="account-value">{{member.tier === 'advanced' ? '高级会员' : '普通会员'}}</text>
+        </view>
       </view>
-      <view class="recharge-order-line">
-        <text class="muted">支付金额</text>
-        <text>{{rechargeOrder.principalText}}</text>
-      </view>
-      <view class="recharge-order-line">
-        <text class="muted">赠送金额</text>
-        <text>{{rechargeOrder.giftText}}</text>
-      </view>
-      <view class="recharge-order-line">
-        <text class="muted">预计入账</text>
-        <text class="history-amount">{{rechargeOrder.totalCreditText}}</text>
-      </view>
-      <button
-        wx:if="{{rechargeOrder.providerMode === 'mock' && rechargeOrder.status === 'pending_payment'}}"
-        class="primary-button"
-        loading="{{busy}}"
-        bindtap="settleMockRecharge"
-      >
-        模拟微信支付成功
+
+      <button class="primary-button save-button" loading="{{saving}}" bindtap="saveProfile">
+        {{mode === 'complete' ? '保存并进入' : '保存资料'}}
       </button>
+      <text class="privacy-tip">♡　我们将保护您的个人信息安全，仅用于会员服务</text>
     </view>
+  </block>
 
-    <view class="section-title"><text>最近消费单</text></view>
-    <view class="card history-card">
-      <text wx:if="{{orderHistory.length === 0}}" class="muted">暂无消费单</text>
-      <view wx:for="{{orderHistory}}" wx:key="id" class="history-row">
-        <view class="history-main">
-          <text class="history-title">{{item.title}}</text>
-          <text class="muted block">{{item.timeText}}</text>
-        </view>
-        <text class="history-amount">{{item.amountText}}</text>
-      </view>
-    </view>
-
-    <view class="section-title"><text>储值流水</text></view>
-    <view class="card history-card">
-      <text wx:if="{{walletHistory.length === 0}}" class="muted">暂无储值流水</text>
-      <view wx:for="{{walletHistory}}" wx:key="id" class="history-row">
-        <view class="history-main">
-          <text class="history-title">{{item.title}}</text>
-          <text class="muted block">{{item.timeText}}</text>
-        </view>
-        <text class="history-amount">{{item.amountText}}</text>
-      </view>
-    </view>
-
-    <view class="section-title"><text>月卡记录</text></view>
-    <view class="card history-card">
-      <text wx:if="{{monthlyCardHistory.length === 0}}" class="muted">暂无月卡记录</text>
-      <view wx:for="{{monthlyCardHistory}}" wx:key="id" class="history-row">
-        <view class="history-main">
-          <text class="history-title">{{item.title}}</text>
-          <text class="muted block">{{item.timeText}}</text>
-        </view>
-      </view>
-    </view>
-  </view>
-
-  <view wx:else class="card login-card">
-    <text class="card-title">一键登录</text>
-    <button
-      wx:if="{{testVirtualPhoneLoginEnabled}}"
-      class="primary-button"
-      bindtap="loginWithVirtualPhone"
-      loading="{{busy}}"
-    >
-      一键登录
-    </button>
-    <button
-      wx:else
-      class="primary-button"
-      open-type="getPhoneNumber"
-      bindgetphonenumber="loginWithWechat"
-      loading="{{busy}}"
-    >
-      一键登录
-    </button>
-    <text wx:if="{{testVirtualPhoneLoginEnabled}}" class="muted block">
-      ICP备案审核期间使用测试虚拟号码 188****8888
-    </text>
-    <text
-      wx:if="{{!loginFallbackVisible}}"
-      class="login-switch"
-      bindtap="showPhoneLogin"
-    >手机号验证码登录</text>
-    <view wx:if="{{loginFallbackVisible}}" class="fallback-login">
-      <input
-        class="form-input"
-        type="number"
-        maxlength="11"
-        value="{{loginPhone}}"
-        placeholder="手机号"
-        bindinput="updateLoginPhone"
-      />
-      <view class="verification-row">
-        <input
-          class="form-input verification-input"
-          type="number"
-          maxlength="8"
-          value="{{loginCode}}"
-          placeholder="验证码"
-          bindinput="updateLoginCode"
-        />
-        <button
-          class="secondary-button verify-button"
-          loading="{{verificationBusy}}"
-          disabled="{{busy || verificationBusy}}"
-          bindtap="requestLoginVerification"
-        >获取验证码</button>
-      </view>
-      <input
-        class="form-input"
-        maxlength="30"
-        value="{{loginNickname}}"
-        placeholder="昵称（可空）"
-        bindinput="updateLoginNickname"
-      />
-      <view class="age-row">
-        <text>已满 14 周岁</text>
-        <switch
-          checked="{{loginConfirmedAtLeast14}}"
-          color="#3f5a4b"
-          bindchange="toggleLoginAgeGate"
-        />
-      </view>
-      <text wx:if="{{loginVerificationHint}}" class="login-hint">{{loginVerificationHint}}</text>
-      <button
-        class="primary-button"
-        loading="{{busy}}"
-        disabled="{{busy}}"
-        bindtap="loginWithPhoneVerification"
-      >手机号登录</button>
-    </view>
+  <view wx:if="{{mode !== 'complete'}}" class="bottom-nav">
+    <view class="nav-item" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
+    <view class="nav-item" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
+    <view class="nav-item active" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
   </view>
 </view>

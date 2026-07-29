@@ -9,6 +9,7 @@ import {
   createCatalogItem,
   createMember,
   createSalesOrder,
+  debitWallet,
   directFinancialRefund,
   directRefund,
   findEmployeeRecordById,
@@ -77,6 +78,76 @@ function initializedReporting() {
 }
 
 describe('business reporting repository', () => {
+  it('counts a local wallet debit once when its raw cloud echo remains stored', () => {
+    const { localDatabase, store, manager, members } = initializedReporting()
+    const member = members[0]
+    if (!member) throw new Error('Missing member')
+    cashRecharge(
+      localDatabase.connection,
+      { ...store, actor: manager },
+      {
+        requestId: randomUUID(),
+        memberId: member.id,
+        principalFen: 10_000,
+        reason: 'Seed wallet'
+      }
+    )
+    const debit = debitWallet(
+      localDatabase.connection,
+      { ...store, actor: manager },
+      {
+        requestId: randomUUID(),
+        memberId: member.id,
+        amountFen: 1_000,
+        reason: 'Local debit'
+      }
+    )
+    localDatabase.connection
+      .prepare(
+        `UPDATE wallet_ledger
+         SET occurred_at = '2026-06-10T08:00:00.000Z'
+         WHERE tenant_id = ? AND source_id = ?`
+      )
+      .run(store.tenantId, debit.operationId)
+    localDatabase.connection
+      .prepare(
+        `INSERT INTO wallet_ledger
+         (id, tenant_id, store_id, wallet_account_id, member_id, entry_type,
+          principal_delta_fen, gift_delta_fen, principal_balance_after_fen,
+          gift_balance_after_fen, source_id, related_ledger_id, request_id,
+          actor_id, device_id, reason, metadata_json, occurred_at)
+         SELECT ?, tenant_id, store_id, wallet_account_id, member_id, entry_type,
+                principal_delta_fen, gift_delta_fen, principal_balance_after_fen,
+                gift_balance_after_fen, source_id, related_ledger_id, ?,
+                'cloud-sync', device_id, 'Confirmed cloud echo', metadata_json,
+                '2026-06-10T08:01:00.000Z'
+         FROM wallet_ledger
+         WHERE tenant_id = ? AND member_id = ? AND source_id = ?`
+      )
+      .run(
+        randomUUID(),
+        randomUUID(),
+        store.tenantId,
+        member.id,
+        debit.operationId
+      )
+
+    const report = getBusinessReport(localDatabase.connection, store, {
+      fromDate: '2026-06-10',
+      toDate: '2026-06-10'
+    })
+    const rawCount = localDatabase.connection
+      .prepare(
+        `SELECT COUNT(*) count FROM wallet_ledger
+         WHERE tenant_id = ? AND member_id = ? AND source_id = ?`
+      )
+      .get(store.tenantId, member.id, debit.operationId)
+    localDatabase.close()
+
+    expect(report.wallet.consumptionDebitFen).toBe(1_000)
+    expect(rawCount).toEqual({ count: 2 })
+  })
+
   it('keeps current-store reporting isolated and includes occurrence-store wallet entries tenant-wide', () => {
     const { localDatabase, store, manager, members } = initializedReporting()
     const member = members[0]
@@ -219,6 +290,13 @@ describe('business reporting repository', () => {
         now: new Date('2026-06-10T03:00:00.000Z')
       }
     )
+    localDatabase.connection
+      .prepare(
+        `UPDATE monthly_card
+         SET payment_method = 'wechat', source = 'cloud'
+         WHERE id = ?`
+      )
+      .run(activeCard.id)
     useMonthlyCard(
       localDatabase.connection,
       { ...store, actor: manager },
@@ -294,7 +372,7 @@ describe('business reporting repository', () => {
       usageCount: 1,
       activeCount: 1
     })
-    expect(report.actualCashInflowFen).toBe(24_000)
+    expect(report.actualCashInflowFen).toBe(4_000)
     expect(report.items).toEqual([
       {
         itemName: admission.name,

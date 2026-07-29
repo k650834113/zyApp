@@ -71,6 +71,7 @@ import {
   type ExtendMonthlyCardRequest,
   type RestoreDatabaseRequest,
   type ListRecentOrdersRequest,
+  type ListTransactionRecordsRequest,
   type ListFinancialRefundsRequest,
   type ListRefundsRequest,
   type LoginRequest,
@@ -156,6 +157,7 @@ import {
   getMonthlyCardDetails,
   getWalletDetails,
   ensureLegacyImportCloudSyncOutbox,
+  ensureMemberTierReconciliationOutbox,
   importLegacyDatabase,
   inspectLegacyDatabase,
   findRefundableOrder,
@@ -175,6 +177,8 @@ import {
   listAnnouncements,
   listBoardGames,
   listRecentOrders,
+  listRechargeTransactions,
+  listSalesTransactions,
   listPendingSyncBatch,
   listPendingCashierCommandReports,
   listPendingEmployeeFinancialCommandReports,
@@ -1177,6 +1181,17 @@ async function runCloudSyncOnce(
   cloudSyncInProgress = true
   cloudSyncLastAttemptAt = new Date().toISOString()
   try {
+    const repairedMemberTiers = ensureMemberTierReconciliationOutbox(
+      localDatabase.connection,
+      context
+    )
+    if (repairedMemberTiers.created > 0) {
+      logger?.write(
+        'info',
+        'member_tier_cloud_sync_repaired',
+        repairedMemberTiers
+      )
+    }
     const repairedLegacyImports = ensureLegacyImportCloudSyncOutbox(
       localDatabase.connection,
       context
@@ -1384,6 +1399,8 @@ const CLOUD_MIRROR_REFRESH_ORDER: CloudMirrorResource[] = [
   'wallet_ledger',
   'monthly_cards',
   'monthly_card_events',
+  'monthly_card_payment_orders',
+  'wechat_recharge_orders',
   'business_templates',
   'orders',
   'order_items',
@@ -1411,8 +1428,8 @@ async function refreshCloudResourceMirror(
   return eventCursor
 }
 
-async function refreshCloudResourceBeforeRead(
-  resource: CloudMirrorResource
+async function refreshCloudResourcesBeforeRead(
+  resources: CloudMirrorResource[]
 ): Promise<void> {
   if (!cloudConnection || !localDatabase || cloudSyncInProgress) return
   const context = getStoreContext(localDatabase.connection)
@@ -1420,12 +1437,14 @@ async function refreshCloudResourceBeforeRead(
   const runtime = getCloudRuntimeState(localDatabase.connection, context)
   if (!runtime.cloudPrimaryActivated) return
   try {
-    await refreshCloudResourceMirror(
-      cloudConnection,
-      localDatabase,
-      context,
-      resource
-    )
+    for (const resource of resources) {
+      await refreshCloudResourceMirror(
+        cloudConnection,
+        localDatabase,
+        context,
+        resource
+      )
+    }
     await runCloudSyncOnce()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -1437,10 +1456,16 @@ async function refreshCloudResourceBeforeRead(
       { reachable: isCloudConfigurationFailure(error), error: message }
     )
     logger?.write('error', 'cloud_read_fell_back_to_local_mirror', {
-      resource,
+      resources,
       message
     })
   }
+}
+
+async function refreshCloudResourceBeforeRead(
+  resource: CloudMirrorResource
+): Promise<void> {
+  return refreshCloudResourcesBeforeRead([resource])
 }
 
 function isSamePath(left: string, right: string): boolean {
@@ -4013,6 +4038,7 @@ function registerIpcHandlers(): void {
       await refreshCloudResourceBeforeRead('business_templates')
       await refreshCloudResourceBeforeRead('monthly_cards')
       await refreshCloudResourceBeforeRead('monthly_card_events')
+      await refreshCloudResourceBeforeRead('monthly_card_payment_orders')
       const database = requireDatabase()
       const context = getStoreContext(database.connection)
       if (!context) throw new Error('门店配置缺失')
@@ -4490,6 +4516,44 @@ function registerIpcHandlers(): void {
           ? 20
           : requireInteger(request.limit, '订单数量', { min: 1, max: 100 })
       return listRecentOrders(database.connection, context, limit)
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.cashierRefresh, async (event) => {
+    requireSession(event, PERMISSIONS.orderCreate)
+    await refreshCloudResourcesBeforeRead([
+      'members',
+      'catalog',
+      'orders',
+      'order_items',
+      'wallet_accounts',
+      'wallet_ledger',
+      'monthly_cards',
+      'monthly_card_events'
+    ])
+  })
+  ipcMain.handle(
+    IPC_CHANNELS.transactionSalesList,
+    async (event, request?: ListTransactionRecordsRequest) => {
+      requireSession(event, PERMISSIONS.orderCreate)
+      await refreshCloudResourceBeforeRead('orders')
+      await refreshCloudResourceBeforeRead('order_items')
+      const database = requireDatabase()
+      const context = getStoreContext(database.connection)
+      if (!context) throw new Error('门店配置缺失')
+      return listSalesTransactions(database.connection, context, request)
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.transactionRechargeList,
+    async (event, request?: ListTransactionRecordsRequest) => {
+      requireSession(event, PERMISSIONS.memberRead)
+      await refreshCloudResourceBeforeRead('wechat_recharge_orders')
+      await refreshCloudResourceBeforeRead('members')
+      await refreshCloudResourceBeforeRead('wallet_ledger')
+      const database = requireDatabase()
+      const context = getStoreContext(database.connection)
+      if (!context) throw new Error('门店配置缺失')
+      return listRechargeTransactions(database.connection, context, request)
     }
   )
   ipcMain.handle(IPC_CHANNELS.refundFindOrder, async (event, request) => {

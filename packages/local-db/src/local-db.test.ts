@@ -12,9 +12,11 @@ import {
   directRefund,
   findEmployeeRecordById,
   getStoreContext,
+  getMonthlyCardDetails,
   isStoreInitialized,
   listCatalogItems,
-  openLocalDatabase
+  openLocalDatabase,
+  purchaseMonthlyCard
 } from './index'
 import { migrateDatabase } from './migrations'
 
@@ -37,8 +39,17 @@ describe('local database', () => {
       .all()
       .map((row) => (row as { name: string }).name)
 
-    expect(localDatabase.schemaVersion).toBe(25)
+    const effectiveWalletLedgerView = localDatabase.connection
+      .prepare(
+        `SELECT type
+         FROM sqlite_master
+         WHERE name = 'effective_wallet_ledger'`
+      )
+      .get()
+
+    expect(localDatabase.schemaVersion).toBe(29)
     expect(localDatabase.journalMode.toLowerCase()).toBe('wal')
+    expect(effectiveWalletLedgerView).toEqual({ type: 'view' })
     expect(tableNames).toContain('audit_log')
     expect(tableNames).toContain('outbox_operation')
     expect(tableNames).toContain('member')
@@ -50,6 +61,8 @@ describe('local database', () => {
     expect(tableNames).toContain('recharge_gift_rule_state')
     expect(tableNames).toContain('monthly_card')
     expect(tableNames).toContain('monthly_card_event')
+    expect(tableNames).toContain('wechat_recharge_order_mirror')
+    expect(tableNames).toContain('wechat_monthly_card_order_mirror')
     expect(tableNames).toContain('catalog_item')
     expect(tableNames).toContain('sales_order')
     expect(tableNames).toContain('sales_order_item')
@@ -85,8 +98,311 @@ describe('local database', () => {
       .prepare('SELECT COUNT(*) AS count FROM schema_migrations')
       .get() as { count: number }
 
-    expect(migrationCount.count).toBe(25)
+    expect(migrationCount.count).toBe(29)
     reopened.close()
+  })
+
+  it('upgrades schema v28 by repairing only eligible tier actors and preserving raw wallet rows', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-db-v29-upgrade-'))
+    temporaryDirectories.push(directory)
+    const connection = new DatabaseSync(join(directory, 'zyapp.db'))
+    connection.exec('PRAGMA foreign_keys = ON')
+    expect(migrateDatabase(connection, 28)).toBe(28)
+    const bootstrap = bootstrapStore(connection, {
+      storeName: 'Schema 29 Upgrade Store',
+      managerUsername: 'manager',
+      managerPasswordHash: 'scrypt$test',
+      managerDisplayName: 'Owner',
+      deviceName: 'Cashier 01'
+    })
+    const store = getStoreContext(connection)
+    if (!store) throw new Error('Missing store')
+    const manager = findEmployeeRecordById(
+      connection,
+      store.tenantId,
+      bootstrap.managerId
+    )
+    if (!manager) throw new Error('Missing manager')
+    const staffId = randomUUID()
+    connection
+      .prepare(
+        `INSERT INTO employee
+         (id, tenant_id, store_id, username, password_hash, display_name,
+          role, status, created_at, updated_at)
+         VALUES (?, ?, ?, 'staff', 'scrypt$test', 'Staff', 'staff', 'active',
+                 '2026-07-26T00:00:00.000Z', '2099-01-01T00:00:00.000Z')`
+      )
+      .run(staffId, store.tenantId, store.storeId)
+
+    const member = createMember(
+      connection,
+      { ...store, actor: manager },
+      {
+        phone: '13800138000',
+        nickname: 'Schema 29 Member',
+        confirmedAtLeast14: true
+      }
+    )
+    const recharge = cashRecharge(
+      connection,
+      { ...store, actor: manager },
+      {
+        requestId: randomUUID(),
+        memberId: member.id,
+        principalFen: 10_000,
+        reason: 'Schema 29 ledger fixture',
+        now: new Date('2026-07-26T00:00:00.000Z')
+      }
+    )
+    const localLedger = connection
+      .prepare('SELECT id FROM wallet_ledger WHERE source_id = ?')
+      .get(recharge.operationId) as { id: string }
+    const echoLedgerId = randomUUID()
+    connection
+      .prepare(
+        `INSERT INTO wallet_ledger
+         (id, tenant_id, store_id, wallet_account_id, member_id, entry_type,
+          principal_delta_fen, gift_delta_fen, principal_balance_after_fen,
+          gift_balance_after_fen, source_id, related_ledger_id, request_id,
+          actor_id, device_id, reason, metadata_json, occurred_at)
+         SELECT ?, tenant_id, store_id, wallet_account_id, member_id, entry_type,
+                principal_delta_fen, gift_delta_fen, principal_balance_after_fen,
+                gift_balance_after_fen, source_id, related_ledger_id, ?,
+                'cloud-sync', device_id, 'Cloud echo', metadata_json,
+                '2026-07-27T00:00:00.000Z'
+         FROM wallet_ledger
+         WHERE id = ?`
+      )
+      .run(echoLedgerId, randomUUID(), localLedger.id)
+
+    const pendingTierOperationId = randomUUID()
+    const confirmedTierOperationId = randomUUID()
+    const pendingNonTierOperationId = randomUUID()
+    const originalPayload = JSON.stringify({
+      memberId: member.id,
+      effectiveTier: 'ordinary'
+    })
+    const originalHash = 'schema-29-original-payload-hash'
+    const insertOperation = connection.prepare(
+      `INSERT INTO outbox_operation
+       (operation_id, device_id, device_seq, tenant_id, store_id, actor_id,
+        operation_type, aggregate_id, base_version, occurred_at, payload_json,
+        payload_hash, sync_status)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL,
+               '2026-07-26T00:00:00.000Z', ?, ?, ?)`
+    )
+    insertOperation.run(
+      pendingTierOperationId,
+      store.deviceId,
+      10_001,
+      store.tenantId,
+      store.storeId,
+      'member.tier.reconciled',
+      member.id,
+      originalPayload,
+      originalHash,
+      'pending'
+    )
+    insertOperation.run(
+      confirmedTierOperationId,
+      store.deviceId,
+      10_002,
+      store.tenantId,
+      store.storeId,
+      'member.tier.reconciled',
+      member.id,
+      '{"confirmed":true}',
+      'confirmed-tier-hash',
+      'confirmed'
+    )
+    insertOperation.run(
+      pendingNonTierOperationId,
+      store.deviceId,
+      10_003,
+      store.tenantId,
+      store.storeId,
+      'member.updated',
+      member.id,
+      '{"nonTier":true}',
+      'non-tier-hash',
+      'pending'
+    )
+
+    expect(migrateDatabase(connection)).toBe(29)
+
+    const repaired = connection
+      .prepare(
+        `SELECT actor_id, payload_json, payload_hash
+         FROM outbox_operation
+         WHERE operation_id = ?`
+      )
+      .get(pendingTierOperationId)
+    expect(repaired).toEqual({
+      actor_id: manager.id,
+      payload_json: originalPayload,
+      payload_hash: originalHash
+    })
+    expect(
+      connection
+        .prepare(
+          'SELECT actor_id FROM outbox_operation WHERE operation_id = ?'
+        )
+        .get(confirmedTierOperationId)
+    ).toEqual({ actor_id: null })
+    expect(
+      connection
+        .prepare(
+          'SELECT actor_id FROM outbox_operation WHERE operation_id = ?'
+        )
+        .get(pendingNonTierOperationId)
+    ).toEqual({ actor_id: null })
+    expect(
+      connection
+        .prepare(
+          `SELECT id
+           FROM wallet_ledger
+           WHERE id IN (?, ?)
+           ORDER BY id`
+        )
+        .all(localLedger.id, echoLedgerId)
+        .map((row) => (row as { id: string }).id)
+        .sort()
+    ).toEqual([localLedger.id, echoLedgerId].sort())
+    expect(
+      connection
+        .prepare(
+          `SELECT id
+           FROM effective_wallet_ledger
+           WHERE id IN (?, ?)`
+        )
+        .all(localLedger.id, echoLedgerId)
+    ).toEqual([{ id: localLedger.id }])
+    expect(connection.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    connection.close()
+  })
+
+  it('leaves pending actorless tier operations unchanged without active employees', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-db-v29-disabled-'))
+    temporaryDirectories.push(directory)
+    const connection = new DatabaseSync(join(directory, 'zyapp.db'))
+    connection.exec('PRAGMA foreign_keys = ON')
+    expect(migrateDatabase(connection, 28)).toBe(28)
+    const bootstrap = bootstrapStore(connection, {
+      storeName: 'Schema 29 Disabled Store',
+      managerUsername: 'manager',
+      managerPasswordHash: 'scrypt$test',
+      managerDisplayName: 'Owner',
+      deviceName: 'Cashier 01'
+    })
+    const store = getStoreContext(connection)
+    if (!store) throw new Error('Missing store')
+    connection
+      .prepare(
+        `UPDATE employee
+         SET status = 'disabled', disabled_at = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(
+        '2026-07-26T00:00:00.000Z',
+        '2026-07-26T00:00:00.000Z',
+        bootstrap.managerId
+      )
+    connection
+      .prepare(
+        `INSERT INTO employee
+         (id, tenant_id, store_id, username, password_hash, display_name,
+          role, status, created_at, updated_at, disabled_at)
+         VALUES (?, ?, ?, 'disabled-staff', 'scrypt$test', 'Disabled Staff',
+                 'staff', 'disabled', '2026-07-26T00:00:00.000Z',
+                 '2026-07-26T00:00:00.000Z', '2026-07-26T00:00:00.000Z')`
+      )
+      .run(randomUUID(), store.tenantId, store.storeId)
+    const pendingTierOperationId = randomUUID()
+    connection
+      .prepare(
+        `INSERT INTO outbox_operation
+         (operation_id, device_id, device_seq, tenant_id, store_id, actor_id,
+          operation_type, aggregate_id, base_version, occurred_at, payload_json,
+          payload_hash, sync_status)
+         VALUES (?, ?, 10001, ?, ?, NULL, 'member.tier.reconciled', ?, NULL,
+                 '2026-07-26T00:00:00.000Z', '{}', 'disabled-fixture-hash',
+                 'pending')`
+      )
+      .run(
+        pendingTierOperationId,
+        store.deviceId,
+        store.tenantId,
+        store.storeId,
+        randomUUID()
+      )
+
+    expect(migrateDatabase(connection)).toBe(29)
+    expect(
+      connection
+        .prepare(
+          'SELECT actor_id FROM outbox_operation WHERE operation_id = ?'
+        )
+        .get(pendingTierOperationId)
+    ).toEqual({ actor_id: null })
+    connection.close()
+  })
+
+  it('upgrades populated monthly cards from schema 26 and accepts WeChat source', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-db-v27-upgrade-'))
+    temporaryDirectories.push(directory)
+    const connection = new DatabaseSync(join(directory, 'zyapp.db'))
+    connection.exec('PRAGMA foreign_keys = ON')
+    expect(migrateDatabase(connection, 26)).toBe(26)
+    const bootstrap = bootstrapStore(connection, {
+      storeName: 'Upgrade Store',
+      managerUsername: 'manager',
+      managerPasswordHash: 'scrypt$manager',
+      managerDisplayName: 'Manager',
+      deviceName: 'Cashier'
+    })
+    const context = getStoreContext(connection)
+    if (!context) throw new Error('Missing context')
+    const actor = findEmployeeRecordById(
+      connection,
+      context.tenantId,
+      bootstrap.managerId
+    )
+    if (!actor) throw new Error('Missing manager')
+    const member = createMember(
+      connection,
+      { ...context, actor },
+      {
+        phone: '13800138000',
+        nickname: 'Upgrade Member',
+        confirmedAtLeast14: true
+      }
+    )
+    const card = purchaseMonthlyCard(
+      connection,
+      { ...context, actor },
+      {
+        requestId: randomUUID(),
+        memberId: member.id,
+        reason: 'Before schema 27'
+      }
+    )
+
+    expect(migrateDatabase(connection)).toBe(29)
+    expect(
+      getMonthlyCardDetails(connection, context, member.id).current
+    ).toMatchObject({ id: card.id, paymentMethod: 'cash' })
+    connection
+      .prepare(
+        `UPDATE monthly_card
+         SET payment_method = 'wechat', source = 'cloud'
+         WHERE id = ?`
+      )
+      .run(card.id)
+    expect(
+      getMonthlyCardDetails(connection, context, member.id).current
+    ).toMatchObject({ id: card.id, paymentMethod: 'wechat' })
+    expect(connection.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    connection.close()
   })
 
   it('upgrades schema v19 financial command history and accepts activity tier commands', () => {
@@ -392,7 +708,7 @@ describe('local database', () => {
     connection.close()
 
     const upgraded = openLocalDatabase(filePath)
-    expect(upgraded.schemaVersion).toBe(25)
+    expect(upgraded.schemaVersion).toBe(29)
     expect(
       upgraded.connection
         .prepare(
@@ -435,7 +751,7 @@ describe('local database', () => {
     const restored = openLocalDatabase(backupPath)
 
     expect(result.sha256).toMatch(/^[a-f0-9]{64}$/)
-    expect(restored.schemaVersion).toBe(25)
+    expect(restored.schemaVersion).toBe(29)
     restored.close()
     localDatabase.close()
   })

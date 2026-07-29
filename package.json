@@ -1,6 +1,6 @@
 {
   "name": "zyapp",
-  "version": "0.22.3",
+  "version": "0.23.2",
   "private": true,
   "description": "Board-game shop desktop management and cashier system",
   "packageManager": "pnpm@10.12.1",
@@ -21,7 +21,8 @@
     "release:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./infra/scripts/prepare-desktop-release.ps1",
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "vitest run",
+    "test": "pnpm test:release-contract && vitest run",
+    "test:release-contract": "node --test infra/scripts/test-release-contract.mjs",
     "test:watch": "vitest",
     "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./infra/scripts/package-win.ps1"
   },

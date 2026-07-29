@@ -11,6 +11,7 @@ import type {
   WalletDetails
 } from '@zyapp/contracts'
 import { getDesktopApi, readableError } from './api'
+import { refreshCashierSnapshot } from './cashier-refresh'
 
 type CatalogCartLine = {
   kind: 'catalog'
@@ -145,6 +146,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const filteredMembers = useMemo(() => {
@@ -224,6 +226,34 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
       setError(cashierError(reason))
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function manualRefresh(): Promise<void> {
+    if (syncing) return
+    setSyncing(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const snapshot = await refreshCashierSnapshot(
+        getDesktopApi(),
+        selectedMember?.id ?? null
+      )
+      setCatalog(snapshot.catalog)
+      setOrders(snapshot.orders)
+      setMembers(snapshot.members)
+      setSelectedMember(snapshot.selectedMember)
+      setWalletDetails(snapshot.walletDetails)
+      setMonthlyCard(snapshot.monthlyCard)
+      setNotice(
+        snapshot.selectedMember
+          ? `已同步最新数据，${snapshot.selectedMember.nickname} 的余额和月卡已更新`
+          : '已同步最新会员、消费单和收费目录'
+      )
+    } catch (reason) {
+      setError(cashierError(reason))
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -495,7 +525,17 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
           <p className="eyebrow">会员列表与快捷收费</p>
           <h1>前台收银</h1>
         </div>
-        <span className="release-tag">每张消费单独立结算</span>
+        <div className="page-header-actions">
+          <button
+            className="secondary-button"
+            disabled={syncing}
+            type="button"
+            onClick={() => void manualRefresh()}
+          >
+            {syncing ? '正在同步…' : '刷新'}
+          </button>
+          <span className="release-tag">每张消费单独立结算</span>
+        </div>
       </header>
       {error ? (
         <div className="viewport-toast error" role="alert">
@@ -946,6 +986,12 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
                     <span>状态</span>
                     <strong>
                       {monthlyCard.current.status === 'active' ? '生效中' : '已暂停'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>支付方式</span>
+                    <strong>
+                      {monthlyCard.current.paymentMethod === 'wechat' ? '微信支付' : '现金'}
                     </strong>
                   </div>
                   <div>

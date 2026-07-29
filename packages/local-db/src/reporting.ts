@@ -186,7 +186,7 @@ export function getBusinessReport(
     .prepare(
       `SELECT entry_type,
               COALESCE(SUM(ABS(principal_delta_fen) + ABS(gift_delta_fen)), 0) amount_fen
-       FROM wallet_ledger
+       FROM effective_wallet_ledger
        WHERE tenant_id = ?${storeClause()}
          AND occurred_at >= ? AND occurred_at < ?
          AND entry_type IN ('consumption_debit', 'order_refund_credit')
@@ -202,6 +202,17 @@ export function getBusinessReport(
         `SELECT COUNT(*) count, COALESCE(SUM(price_fen), 0) amount_fen
          FROM monthly_card
          WHERE tenant_id = ?${storeClause()}
+           AND purchased_at >= ? AND purchased_at < ?`
+      )
+      .get(...scope) as AmountRow | undefined
+  )
+  const monthlyCashSales = amountRow(
+    database
+      .prepare(
+        `SELECT COUNT(*) count, COALESCE(SUM(price_fen), 0) amount_fen
+         FROM monthly_card
+         WHERE tenant_id = ?${storeClause()}
+           AND payment_method = 'cash'
            AND purchased_at >= ? AND purchased_at < ?`
       )
       .get(...scope) as AmountRow | undefined
@@ -299,6 +310,8 @@ export function getBusinessReport(
   const storedValueSalesFen = paymentAmount('stored_value')
   const storedValueRefundFen = paymentRefundAmount('stored_value')
   const monthlyNetFen = monthlySales.amount_fen - monthlyRefunds.amount_fen
+  const monthlyCashNetFen =
+    monthlyCashSales.amount_fen - monthlyRefunds.amount_fen
   const rechargeNetPrincipalFen =
     recharge.principal_fen - rechargeRefund.principal_fen
 
@@ -344,7 +357,10 @@ export function getBusinessReport(
       activeCount: Number(activeMonthly?.count ?? 0)
     },
     actualCashInflowFen:
-      cashSalesFen - cashRefundFen + rechargeNetPrincipalFen + monthlyNetFen,
+      cashSalesFen -
+      cashRefundFen +
+      rechargeNetPrincipalFen +
+      monthlyCashNetFen,
     items: [...itemMap.values()].sort(
       (left, right) =>
         right.netSalesFen - left.netSalesFen ||

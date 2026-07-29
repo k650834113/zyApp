@@ -19,6 +19,7 @@ import { ReportPage } from './ReportPage'
 import { BackupPage } from './BackupPage'
 import { CloudConnectionPage } from './CloudConnectionPage'
 import { StoreProfilePage } from './StoreProfilePage'
+import { TransactionsPage } from './TransactionsPage'
 
 type Page =
   | 'dashboard'
@@ -36,6 +37,7 @@ type Page =
   | 'cloud'
   | 'store-profile'
   | 'legacy-import'
+  | 'transactions'
 
 type Props = {
   state: ApplicationState
@@ -71,6 +73,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
   const canUseCashier = session.permissions.includes('order.create')
   const canUseRefund = session.permissions.includes('refund.request')
   const canReadReports = session.permissions.includes('report.read')
+  const canReadTransactions = canUseCashier || canUseWallet || canReadReports
   const canMoveDatabase = session.permissions.includes('system.backup.manage')
   const canManageCloud = session.permissions.includes('system.cloud.manage')
   const canManageStoreProfile = session.permissions.includes(
@@ -212,6 +215,17 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             >
               <span className="nav-short">储</span>
               <span className="nav-label">储值账户</span>
+            </button>
+          ) : null}
+          {canReadTransactions ? (
+            <button
+              className={page === 'transactions' ? 'active' : ''}
+              type="button"
+              onClick={() => setPage('transactions')}
+              title="交易明细"
+            >
+              <span className="nav-short">账</span>
+              <span className="nav-label">交易明细</span>
             </button>
           ) : null}
           <button
@@ -371,6 +385,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
         ) : null}
         {page === 'members' && canReadMembers ? <MemberPage session={session} /> : null}
         {page === 'wallet' && canUseWallet ? <WalletPage session={session} /> : null}
+        {page === 'transactions' && canReadTransactions ? <TransactionsPage /> : null}
         {page === 'monthly-card' ? <MonthlyCardPage session={session} /> : null}
         {page === 'catalog' && canReadCatalog ? <CatalogPage session={session} /> : null}
         {page === 'activity' && canReadActivity ? (

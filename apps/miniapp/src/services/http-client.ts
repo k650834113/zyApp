@@ -24,6 +24,9 @@ import type {
   MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
   CreateMemberRechargeOrderRequest,
+  CreateMemberMonthlyCardOrderRequest,
+  MemberMonthlyCardConfiguration,
+  MemberMonthlyCardOrderSummary,
   MiniappHomeSnapshot,
   MiniappIdentity,
   MiniappSessionResult,
@@ -70,6 +73,26 @@ function wxLogin(): Promise<string> {
       fail: (error) => reject(new Error(error.errMsg))
     })
   })
+}
+
+function profileRequestId(): string {
+  return `profile-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function responseMessage(data: unknown, fallback: string): string {
+  const body = data as
+    | { message?: string | string[] }
+    | string
+    | undefined
+  if (typeof body === 'string') return body || fallback
+  if (Array.isArray(body?.message)) return body.message.join('；')
+  return body?.message || fallback
+}
+
+function avatarUploadError(message: string): Error {
+  return message.includes('url not in domain list')
+    ? new Error('头像上传域名尚未生效，请稍后重试或使用默认头像')
+    : new Error(message || '头像上传失败')
 }
 
 export class HttpMiniappClient implements MiniappClient {
@@ -249,6 +272,87 @@ export class HttpMiniappClient implements MiniappClient {
     return this.request('/v1/member/wechat-one-tap-login', 'POST', input)
   }
 
+  updateMemberProfile(
+    nickname: string
+  ): Promise<MemberSelfServiceSummary> {
+    return this.request('/v1/member/profile', 'POST', {
+      requestId: profileRequestId(),
+      nickname
+    })
+  }
+
+  updateMemberProfileWithAvatar(
+    nickname: string,
+    localAvatarPath: string
+  ): Promise<MemberSelfServiceSummary> {
+    return this.uploadMemberProfile(
+      nickname,
+      localAvatarPath,
+      profileRequestId(),
+      true
+    )
+  }
+
+  private async uploadMemberProfile(
+    nickname: string,
+    localAvatarPath: string,
+    requestId: string,
+    retryAfterUnauthorized: boolean
+  ): Promise<MemberSelfServiceSummary> {
+    await this.ensureSession()
+    try {
+      return await new Promise<MemberSelfServiceSummary>((resolve, reject) => {
+        const token = this.options.token()
+        wx.uploadFile({
+          url: `${this.baseUrl()}/v1/member/profile-with-avatar`,
+          filePath: localAvatarPath,
+          name: 'avatar',
+          header: token ? { Authorization: `Bearer ${token}` } : {},
+          formData: { requestId, nickname },
+          success: (response) => {
+            let body: unknown
+            try {
+              body = response.data ? JSON.parse(response.data) : undefined
+            } catch {
+              reject(new Error('服务返回了无法识别的头像上传结果'))
+              return
+            }
+            if (response.statusCode >= 200 && response.statusCode < 300) {
+              resolve(body as MemberSelfServiceSummary)
+              return
+            }
+            reject(
+              new HttpRequestError(
+                responseMessage(
+                  body,
+                  `头像上传失败：${response.statusCode}`
+                ),
+                response.statusCode
+              )
+            )
+          },
+          fail: (error) => reject(avatarUploadError(error.errMsg))
+        })
+      })
+    } catch (error) {
+      if (
+        retryAfterUnauthorized &&
+        error instanceof HttpRequestError &&
+        error.statusCode === 401
+      ) {
+        this.options.clearToken()
+        await this.ensureSession()
+        return this.uploadMemberProfile(
+          nickname,
+          localAvatarPath,
+          requestId,
+          false
+        )
+      }
+      throw error
+    }
+  }
+
   fillBirthday(
     month: number,
     day: number
@@ -279,6 +383,34 @@ export class HttpMiniappClient implements MiniappClient {
     const mockSettlementPath = ['mock', 'settle'].join('-')
     return this.request(
       `/v1/member/recharge-orders/${encodeURIComponent(orderId)}/${mockSettlementPath}`,
+      'POST'
+    )
+  }
+
+  getMonthlyCardConfiguration(): Promise<MemberMonthlyCardConfiguration> {
+    return this.request('/v1/member/monthly-card-configuration')
+  }
+
+  createMonthlyCardOrder(
+    input: CreateMemberMonthlyCardOrderRequest
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    return this.request('/v1/member/monthly-card-orders', 'POST', input)
+  }
+
+  getMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    return this.request(
+      `/v1/member/monthly-card-orders/${encodeURIComponent(orderId)}`
+    )
+  }
+
+  settleMockMonthlyCardOrder(
+    orderId: string
+  ): Promise<MemberMonthlyCardOrderSummary> {
+    const mockSettlementPath = ['mock', 'settle'].join('-')
+    return this.request(
+      `/v1/member/monthly-card-orders/${encodeURIComponent(orderId)}/${mockSettlementPath}`,
       'POST'
     )
   }

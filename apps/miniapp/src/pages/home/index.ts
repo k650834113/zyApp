@@ -1,21 +1,25 @@
 import type {
+  MemberActivitySummary,
+  MemberMonthlyCardConfiguration,
+  MemberMonthlyCardOrderSummary,
   MemberRechargeConfiguration,
   MemberRechargeOrderSummary,
-  MemberSelfServiceHistory,
-  MemberSelfServiceSummary,
-  MiniappHomeSnapshot,
-  MiniappIdentity,
-  PublicActivitySummary
+  MemberSelfServiceSummary
 } from '@zyapp/contracts'
 import {
   getMiniappClient,
-  isCustomerOnlyBuild,
+  isRealWechatPaymentBuild,
   isTestVirtualPhoneLoginEnabled,
   testVirtualPhoneCode
 } from '../../services/client'
+import { loadMemberHomeDetails } from '../../services/member-home'
+import {
+  monthlyCardDisplay,
+  type MonthlyCardDisplay
+} from '../../services/monthly-card-display'
 import {
   defaultConfirmedAtLeast14,
-  normalizeNickname,
+  needsMemberProfileCompletion,
   normalizePhone,
   normalizeVerificationCode,
   phoneAuthorizationFailure,
@@ -23,483 +27,207 @@ import {
   phoneVerificationHint,
   type PhoneNumberEvent
 } from '../../services/member-login'
+import { runRechargeFlow } from '../../services/recharge-flow'
+import {
+  quickRechargeAmounts,
+  resolveRechargeAmountFen
+} from '../../services/recharge-amount'
 import {
   parseWechatPaymentParameters,
-  pollRechargeOrder,
+  pollMonthlyCardOrder,
   requestWechatPayment
 } from '../../services/wechat-payment'
 
 type MemberView = MemberSelfServiceSummary & {
-  avatarText: string
-  principalBalanceText: string
-  giftBalanceText: string
   totalBalanceText: string
+  monthlyCardText: string
   tierText: string
-  ageGateText: string
-  canRecharge: boolean
-  monthlyCardLabel: string
-  monthlyCardExpiresText: string
-  monthlyCardClass: string
+  avatarText: string
 }
 
-type RechargePackageView = {
-  id: string
-  label: string
-  principalFen: number
-  priceText: string
-  giftText: string
-  totalText: string
-  testOnly?: boolean
+type ActivityView = MemberActivitySummary & {
+  amountText: string
+  amountClass: 'debit' | 'credit' | 'neutral'
+  timeText: string
+  statusText: string
+  iconText: string
 }
 
 type RechargeOrderView = MemberRechargeOrderSummary & {
-  principalText: string
-  giftText: string
-  totalCreditText: string
-  statusText: string
-}
-
-type RecentRecordView = {
-  id: string
-  title: string
-  subtitle: string
   amountText: string
-  amountClass: 'positive' | 'negative' | 'neutral'
-}
-
-type InputEvent = {
-  detail: { value: string }
-}
-
-type SwitchEvent = {
-  detail: { value: boolean }
-}
-
-const quickRechargeFen = [10_000, 30_000, 50_000, 100_000]
-const emptyHistory: MemberSelfServiceHistory = {
-  orders: [],
-  walletEntries: [],
-  monthlyCardEvents: []
+  statusText: string
 }
 
 function requestId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-function formatMoney(value: number): string {
-  const text = (value / 100)
-    .toFixed(2)
-    .replace(/\.00$/, '')
-    .replace(/(\.\d)0$/, '$1')
-  return `¥${text}`
+function money(fen: number): string {
+  return `¥${(fen / 100).toFixed(2)}`
 }
 
-function formatSignedMoney(value: number): string {
-  if (value === 0) return formatMoney(0)
-  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value))}`
-}
-
-function shanghaiDate(value: string): Date {
-  return new Date(new Date(value).getTime() + 8 * 60 * 60 * 1000)
-}
-
-function twoDigits(value: number): string {
-  return String(value).padStart(2, '0')
-}
-
-function formatShortTime(value: string): string {
-  const date = shanghaiDate(value)
-  return `${twoDigits(date.getUTCMonth() + 1)}.${twoDigits(
-    date.getUTCDate()
-  )} ${twoDigits(date.getUTCHours())}:${twoDigits(date.getUTCMinutes())}`
-}
-
-function formatExpiry(value: string | null): string {
-  if (!value) return '到期时间待同步'
-  const date = shanghaiDate(value)
-  return `到期 ${date.getUTCFullYear()}.${twoDigits(
-    date.getUTCMonth() + 1
-  )}.${twoDigits(date.getUTCDate())}`
-}
-
-function toMemberView(member: MemberSelfServiceSummary): MemberView {
-  const hasMonthlyCard = member.monthlyCardStatus !== 'none'
-  const monthlyCardLabel =
-    member.monthlyCardStatus === 'active'
-      ? '月卡生效中'
-      : member.monthlyCardStatus === 'paused'
-        ? '月卡已暂停'
-        : '暂无月卡'
-  const canRecharge = member.ageGate !== 'recharge_disabled'
+function memberView(member: MemberSelfServiceSummary): MemberView {
+  const monthlyCardText =
+    member.monthlyCardStatus === 'none'
+      ? '未开通月卡'
+      : member.monthlyCardExpiresAt
+        ? `月卡有效至 ${member.monthlyCardExpiresAt.slice(0, 10)}`
+        : member.monthlyCardStatus === 'paused'
+          ? '月卡已暂停'
+          : '月卡生效中'
   return {
     ...member,
-    avatarText: member.nickname.trim().slice(0, 1) || '会',
-    principalBalanceText: formatMoney(member.principalBalanceFen),
-    giftBalanceText: formatMoney(member.giftBalanceFen),
-    totalBalanceText: formatMoney(
+    totalBalanceText: money(
       member.principalBalanceFen + member.giftBalanceFen
     ),
-    tierText: member.tier === 'advanced' ? '高级会员' : '普通会员',
-    ageGateText: canRecharge ? '可储值' : '暂不可储值',
-    canRecharge,
-    monthlyCardLabel,
-    monthlyCardExpiresText: hasMonthlyCard
-      ? formatExpiry(member.monthlyCardExpiresAt)
-      : '开通后可在首页查看到期时间',
-    monthlyCardClass: hasMonthlyCard ? member.monthlyCardStatus : 'none'
+    monthlyCardText,
+    tierText: member.tier === 'advanced' ? '高级会员' : '会员',
+    avatarText: Array.from(member.nickname)[0] ?? '会'
   }
 }
 
-function rechargeTiers(activities: PublicActivitySummary[]) {
-  return activities
-    .filter((activity) => activity.activityType === 'recharge')
-    .flatMap((activity) => activity.rechargeTiers)
-    .filter(
-      (tier) =>
-        Number.isSafeInteger(tier.principalFen) &&
-        Number.isSafeInteger(tier.giftFen) &&
-        tier.principalFen > 0 &&
-        tier.giftFen >= 0
-    )
-    .sort((left, right) => left.principalFen - right.principalFen)
-}
-
-function giftFor(
-  principalFen: number,
-  activities: PublicActivitySummary[]
-): number {
-  const tiers = rechargeTiers(activities)
-  const highest = tiers[tiers.length - 1]
-  if (highest === undefined) return 0
-
-  let remainderFen = principalFen
-  let giftFen = 0
-  if (remainderFen >= highest.principalFen) {
-    const count = Math.floor(remainderFen / highest.principalFen)
-    giftFen += count * highest.giftFen
-    remainderFen -= count * highest.principalFen
+function activityStatus(activity: MemberActivitySummary): string {
+  const labels: Record<MemberActivitySummary['status'], string> = {
+    completed: '已完成',
+    settled: '已到账',
+    active: '已生效',
+    paused: '已暂停',
+    resumed: '已恢复',
+    used: '已使用',
+    refunded: '已退款',
+    reversed: '已冲正',
+    expired: '已过期'
   }
-
-  const remainderTier = [...tiers]
-    .reverse()
-    .find((tier) => tier.principalFen <= remainderFen)
-  return giftFen + (remainderTier?.giftFen ?? 0)
+  return labels[activity.status]
 }
 
-function buildRegularRechargePackages(
-  activities: PublicActivitySummary[]
-): RechargePackageView[] {
-  return quickRechargeFen.map((principalFen) => {
-    const giftFen = giftFor(principalFen, activities)
-    return {
-      id: `recharge-${principalFen}`,
-      label: giftFen > 0 ? `赠 ${formatMoney(giftFen)}` : '快捷充值',
-      principalFen,
-      priceText: formatMoney(principalFen),
-      giftText: giftFen > 0 ? `赠 ${formatMoney(giftFen)}` : '无赠送',
-      totalText: `到账 ${formatMoney(principalFen + giftFen)}`
-    }
-  })
+function activityView(activity: MemberActivitySummary): ActivityView {
+  const sign =
+    activity.direction === 'credit'
+      ? '+'
+      : activity.direction === 'debit'
+        ? '-'
+        : ''
+  return {
+    ...activity,
+    amountText:
+      activity.amountFen === null ? '' : `${sign}${money(activity.amountFen)}`,
+    amountClass: activity.direction,
+    timeText: activity.occurredAt.replace('T', ' ').slice(5, 16),
+    statusText: activityStatus(activity),
+    iconText:
+      activity.kind === 'consumption'
+        ? '桌'
+        : activity.kind === 'recharge'
+          ? '充'
+          : '卡'
+  }
 }
 
-function buildRechargePackages(
-  activities: PublicActivitySummary[],
-  configuration: MemberRechargeConfiguration | null
-): RechargePackageView[] {
-  const regularPackages = buildRegularRechargePackages(activities)
-  if (configuration?.testAmountFen !== 1) return regularPackages
-  return [
-    {
-      id: 'recharge-live-test-1',
-      label: '真实支付测试',
-      principalFen: 1,
-      priceText: '¥0.01',
-      giftText: '无赠送',
-      totalText: '测试库到账 ¥0.01',
-      testOnly: true
-    },
-    ...regularPackages
-  ]
-}
-
-function toRechargeOrderView(
+function rechargeOrderView(
   order: MemberRechargeOrderSummary
 ): RechargeOrderView {
-  const statusText =
-    order.status === 'creating'
-      ? '创建中'
-      : order.status === 'pending_payment'
-        ? '待支付'
-        : order.status === 'settled'
-          ? '已到账'
-          : order.status === 'expired'
-            ? '已过期'
-            : '支付失败'
   return {
     ...order,
-    principalText: formatMoney(order.principalFen),
-    giftText: formatMoney(order.giftFen),
-    totalCreditText: formatMoney(order.totalCreditFen),
-    statusText
+    amountText: money(order.totalCreditFen),
+    statusText:
+      order.status === 'settled'
+        ? '已到账'
+        : order.status === 'pending_payment'
+          ? '正在确认支付结果'
+          : order.status === 'expired'
+            ? '已过期'
+            : '处理失败'
   }
-}
-
-function walletTitle(eventType: string, reason: string | null): string {
-  if (reason?.trim()) return reason.trim()
-  if (eventType.includes('recharge')) return '充值到账'
-  if (eventType.includes('debit') || eventType.includes('consume')) {
-    return '余额消费'
-  }
-  if (eventType.includes('refund')) return '退款入账'
-  return '余额变动'
-}
-
-function monthlyCardTitle(eventType: string, reason: string | null): string {
-  if (reason?.trim()) return reason.trim()
-  if (eventType.includes('purchase')) return '月卡开通'
-  if (eventType.includes('pause')) return '月卡暂停'
-  if (eventType.includes('resume')) return '月卡恢复'
-  if (eventType.includes('extend')) return '月卡延期'
-  return '月卡记录'
-}
-
-function toRecentRecords(history: MemberSelfServiceHistory): RecentRecordView[] {
-  const records = [
-    ...history.orders.map((item) => ({
-      sortAt: item.completedAt,
-      view: {
-        id: `order-${item.orderId}`,
-        title: '桌位消费',
-        subtitle: `${item.orderNumber} · ${formatShortTime(item.completedAt)}`,
-        amountText: `-${formatMoney(item.totalFen)}`,
-        amountClass: 'negative' as const
-      }
-    })),
-    ...history.walletEntries.map((item) => {
-      const deltaFen = item.principalDeltaFen + item.giftDeltaFen
-      return {
-        sortAt: item.occurredAt,
-        view: {
-          id: `wallet-${item.operationId}`,
-          title: walletTitle(item.eventType, item.reason),
-          subtitle: formatShortTime(item.occurredAt),
-          amountText: formatSignedMoney(deltaFen),
-          amountClass:
-            deltaFen > 0
-              ? ('positive' as const)
-              : deltaFen < 0
-                ? ('negative' as const)
-                : ('neutral' as const)
-        }
-      }
-    }),
-    ...history.monthlyCardEvents.map((item) => ({
-      sortAt: item.occurredAt,
-      view: {
-        id: `monthly-${item.operationId}`,
-        title: monthlyCardTitle(item.eventType, item.reason),
-        subtitle: formatShortTime(item.occurredAt),
-        amountText: '',
-        amountClass: 'neutral' as const
-      }
-    }))
-  ]
-
-  return records
-    .sort((left, right) => Date.parse(right.sortAt) - Date.parse(left.sortAt))
-    .slice(0, 5)
-    .map((item) => item.view)
-}
-
-function redirectForEmployee(identity: MiniappIdentity): boolean {
-  if (isCustomerOnlyBuild()) return false
-  if (identity.role === 'manager') {
-    wx.redirectTo({ url: '/pages/manager/index' })
-    return true
-  }
-  if (identity.role === 'staff') {
-    wx.redirectTo({ url: '/pages/staff/index' })
-    return true
-  }
-  return false
 }
 
 Page({
   data: {
     loading: true,
-    home: null as MiniappHomeSnapshot | null,
-    member: null as MemberView | null,
-    rechargeConfiguration: null as MemberRechargeConfiguration | null,
-    rechargePackages: [] as RechargePackageView[],
-    rechargeOrder: null as RechargeOrderView | null,
-    recentRecords: [] as RecentRecordView[],
     busy: false,
-    verificationBusy: false,
-    testVirtualPhoneLoginEnabled: isTestVirtualPhoneLoginEnabled(),
+    member: null as MemberView | null,
+    recentActivities: [] as ActivityView[],
+    rechargeConfiguration: null as MemberRechargeConfiguration | null,
+    rechargeOrder: null as RechargeOrderView | null,
+    monthlyCardConfiguration: null as MemberMonthlyCardConfiguration | null,
+    monthlyCardOrder: null as MemberMonthlyCardOrderSummary | null,
+    monthlyCardActionText: '微信开通月卡',
+    monthlyCardPriceText: '',
+    monthlyCardStatusText: '',
+    monthlyCardState: 'unopened' as MonthlyCardDisplay['state'],
+    monthlyCardExpiresOn: null as string | null,
+    monthlyCardRemainingDaysText: null as string | null,
     loginFallbackVisible: false,
     loginPhone: '',
     loginCode: '',
-    loginNickname: '',
     loginChallengeId: null as string | null,
-    loginVerificationHint: '',
-    loginConfirmedAtLeast14: defaultConfirmedAtLeast14
+    loginHint: '',
+    verificationBusy: false,
+    testVirtualPhoneLoginEnabled: isTestVirtualPhoneLoginEnabled(),
+    rechargeEnabled: isRealWechatPaymentBuild(),
+    monthlyCardEnabled: isRealWechatPaymentBuild(),
+    quickRechargeAmounts,
+    selectedRechargeAmountFen: 10_000 as number | null,
+    customRechargeAmount: ''
   },
 
-  async onShow() {
-    await this.loadHome()
+  onShow() {
+    void this.load()
   },
 
-  async loadHome() {
-    let redirecting = false
+  async load() {
+    this.setData({ loading: true })
     try {
-      this.setData({ loading: true })
-      const [home, identity] = await Promise.all([
-        getMiniappClient().getHome(),
-        getMiniappClient().getIdentity()
-      ])
-      redirecting = redirectForEmployee(identity)
-      if (redirecting) return
-
       const member = await getMiniappClient().getMemberSummary()
-      const [history, rechargeConfiguration] = member
-        ? await Promise.all([
-            getMiniappClient().getMemberHistory().catch(() => emptyHistory),
-            getMiniappClient().getRechargeConfiguration()
-          ])
-        : [emptyHistory, null]
+      if (!member) {
+        this.setData({
+          member: null,
+          recentActivities: [],
+          rechargeConfiguration: null,
+          monthlyCardConfiguration: null
+        })
+        return
+      }
+      if (needsMemberProfileCompletion(member)) {
+        wx.reLaunch({ url: '/pages/member/index?mode=complete' })
+        return
+      }
+      const miniappClient = getMiniappClient()
+      const { history, rechargeConfiguration } =
+        await loadMemberHomeDetails(
+          {
+            getHistory: () => miniappClient.getMemberHistory(),
+            getRechargeConfiguration: () =>
+              miniappClient.getRechargeConfiguration()
+          },
+          this.data.rechargeEnabled
+        )
+      const monthlyCardConfiguration = this.data.monthlyCardEnabled
+        ? await miniappClient.getMonthlyCardConfiguration()
+        : null
+      const monthlyCard = monthlyCardConfiguration
+        ? monthlyCardDisplay(member, monthlyCardConfiguration)
+        : null
       this.setData({
-        home,
-        member: member ? toMemberView(member) : null,
+        member: memberView(member),
+        recentActivities: history.activities.slice(0, 3).map(activityView),
         rechargeConfiguration,
-        rechargePackages: buildRechargePackages(
-          home.activities,
-          rechargeConfiguration
-        ),
-        recentRecords: toRecentRecords(history)
+        monthlyCardConfiguration,
+        monthlyCardActionText:
+          monthlyCard?.actionText ?? '微信开通月卡',
+        monthlyCardPriceText: monthlyCard?.priceText ?? '',
+        monthlyCardStatusText: monthlyCard?.statusText ?? '',
+        monthlyCardState: monthlyCard?.state ?? 'unopened',
+        monthlyCardExpiresOn: monthlyCard?.expiresOn ?? null,
+        monthlyCardRemainingDaysText: monthlyCard?.remainingDaysText ?? null
       })
     } catch (error) {
       wx.showToast({
-        title: error instanceof Error ? error.message : '加载失败',
+        title: error instanceof Error ? error.message : '会员信息加载失败',
         icon: 'none'
       })
     } finally {
-      if (!redirecting) this.setData({ loading: false })
-    }
-  },
-
-  openActivities() {
-    wx.navigateTo({ url: '/pages/activities/index' })
-  },
-
-  openMember() {
-    wx.navigateTo({ url: '/pages/member/index' })
-  },
-
-  showPhoneLogin() {
-    this.setData({ loginFallbackVisible: true })
-  },
-
-  updateLoginPhone(event: InputEvent) {
-    this.setData({
-      loginPhone: event.detail.value,
-      loginChallengeId: null,
-      loginVerificationHint: ''
-    })
-  },
-
-  updateLoginCode(event: InputEvent) {
-    this.setData({ loginCode: event.detail.value })
-  },
-
-  updateLoginNickname(event: InputEvent) {
-    this.setData({ loginNickname: event.detail.value })
-  },
-
-  toggleLoginAgeGate(event: SwitchEvent) {
-    this.setData({ loginConfirmedAtLeast14: event.detail.value })
-  },
-
-  async requestLoginVerification() {
-    if (this.data.busy || this.data.verificationBusy) return
-    const phone = normalizePhone(this.data.loginPhone)
-    if (!phone) {
-      wx.showToast({ title: '请输入正确的手机号', icon: 'none' })
-      return
-    }
-
-    this.setData({ verificationBusy: true })
-    try {
-      const challenge = await getMiniappClient().requestPhoneVerification(phone)
-      this.setData({
-        loginPhone: phone,
-        loginChallengeId: challenge.challengeId,
-        loginVerificationHint: phoneVerificationHint(challenge)
-      })
-      wx.showToast({ title: '验证码已发送', icon: 'success' })
-    } catch (error) {
-      wx.showToast({
-        title: error instanceof Error ? error.message : '验证码发送失败',
-        icon: 'none',
-        duration: 3000
-      })
-    } finally {
-      this.setData({ verificationBusy: false })
-    }
-  },
-
-  async loginWithPhoneVerification() {
-    if (this.data.busy) return
-    const phone = normalizePhone(this.data.loginPhone)
-    const verificationCode = normalizeVerificationCode(this.data.loginCode)
-    if (!phone) {
-      wx.showToast({ title: '请输入正确的手机号', icon: 'none' })
-      return
-    }
-    if (!verificationCode) {
-      wx.showToast({ title: '请输入正确的验证码', icon: 'none' })
-      return
-    }
-    if (!this.data.loginChallengeId) {
-      wx.showToast({ title: '请先获取验证码', icon: 'none' })
-      return
-    }
-
-    this.setData({ busy: true })
-    try {
-      const member = await getMiniappClient().registerMember({
-        requestId: requestId('home-phone-login'),
-        challengeId: this.data.loginChallengeId,
-        verificationCode,
-        phone,
-        nickname: normalizeNickname(this.data.loginNickname),
-        confirmedAtLeast14: this.data.loginConfirmedAtLeast14
-      })
-      const [history, rechargeConfiguration] = await Promise.all([
-        getMiniappClient().getMemberHistory().catch(() => emptyHistory),
-        getMiniappClient().getRechargeConfiguration()
-      ])
-      this.setData({
-        member: toMemberView(member),
-        recentRecords: toRecentRecords(history),
-        rechargeConfiguration,
-        rechargePackages: buildRechargePackages(
-          this.data.home?.activities ?? [],
-          rechargeConfiguration
-        ),
-        loginFallbackVisible: false,
-        loginChallengeId: null,
-        loginCode: '',
-        loginVerificationHint: ''
-      })
-      wx.showToast({ title: '登录成功', icon: 'success' })
-    } catch (error) {
-      wx.showToast({
-        title: error instanceof Error ? error.message : '登录失败',
-        icon: 'none',
-        duration: 3000
-      })
-    } finally {
-      this.setData({ busy: false })
+      this.setData({ loading: false })
     }
   },
 
@@ -515,7 +243,6 @@ Page({
       })
       return
     }
-
     await this.loginWithPhoneCode(phoneCode)
   },
 
@@ -528,23 +255,15 @@ Page({
     this.setData({ busy: true })
     try {
       const member = await getMiniappClient().loginWithWechatProfile({
-        requestId: requestId('home-wechat-login'),
+        requestId: requestId('member-login'),
         phoneCode,
         confirmedAtLeast14: defaultConfirmedAtLeast14
       })
-      const [history, rechargeConfiguration] = await Promise.all([
-        getMiniappClient().getMemberHistory().catch(() => emptyHistory),
-        getMiniappClient().getRechargeConfiguration()
-      ])
-      this.setData({
-        member: toMemberView(member),
-        recentRecords: toRecentRecords(history),
-        rechargeConfiguration,
-        rechargePackages: buildRechargePackages(
-          this.data.home?.activities ?? [],
-          rechargeConfiguration
-        )
-      })
+      if (needsMemberProfileCompletion(member)) {
+        wx.reLaunch({ url: '/pages/member/index?mode=complete' })
+        return
+      }
+      await this.load()
       wx.showToast({ title: '登录成功', icon: 'success' })
     } catch (error) {
       wx.showToast({
@@ -556,75 +275,120 @@ Page({
     }
   },
 
-  quickRecharge(event: { currentTarget: { dataset: { fen?: number } } }) {
-    const fen = Number(event.currentTarget.dataset.fen)
-    void this.performRecharge(fen)
+  inputPhone(event: WechatMiniprogram.Input) {
+    this.setData({ loginPhone: String(event.detail.value ?? '') })
   },
 
-  async performRecharge(principalFen: number) {
-    if (this.data.busy) return
-    if (!this.data.member) {
-      wx.showToast({ title: '请先一键登录', icon: 'none' })
+  inputCode(event: WechatMiniprogram.Input) {
+    this.setData({ loginCode: String(event.detail.value ?? '') })
+  },
+
+  async requestVerification() {
+    const phone = normalizePhone(this.data.loginPhone)
+    if (!phone || this.data.verificationBusy) {
+      wx.showToast({ title: '请输入正确手机号', icon: 'none' })
       return
     }
-    if (!this.data.member.canRecharge) {
-      wx.showToast({ title: '当前账号暂不能储值', icon: 'none' })
+    this.setData({ verificationBusy: true })
+    try {
+      const challenge =
+        await getMiniappClient().requestPhoneVerification(phone)
+      this.setData({
+        loginChallengeId: challenge.challengeId,
+        loginHint: phoneVerificationHint(challenge)
+      })
+    } catch (error) {
+      wx.showToast({
+        title: error instanceof Error ? error.message : '验证码发送失败',
+        icon: 'none'
+      })
+    } finally {
+      this.setData({ verificationBusy: false })
+    }
+  },
+
+  async submitFallbackLogin() {
+    const phone = normalizePhone(this.data.loginPhone)
+    const code = normalizeVerificationCode(this.data.loginCode)
+    if (!phone || !code || !this.data.loginChallengeId || this.data.busy) {
+      wx.showToast({ title: '请填写手机号和验证码', icon: 'none' })
       return
     }
     this.setData({ busy: true })
     try {
-      const stableRequestId = requestId('home-recharge')
-      const order = await getMiniappClient().createRechargeOrder({
-        requestId: stableRequestId,
-        principalFen
+      const member = await getMiniappClient().registerMember({
+        requestId: requestId('member-register'),
+        challengeId: this.data.loginChallengeId,
+        verificationCode: code,
+        phone,
+        nickname: '微信用户',
+        confirmedAtLeast14: defaultConfirmedAtLeast14
       })
-      this.setData({ rechargeOrder: toRechargeOrderView(order) })
-      if (order.providerMode === 'mock') {
-        wx.showToast({ title: '充值单已创建', icon: 'success' })
+      if (needsMemberProfileCompletion(member)) {
+        wx.reLaunch({ url: '/pages/member/index?mode=complete' })
         return
       }
+      await this.load()
+      wx.showToast({ title: '登录成功', icon: 'success' })
+    } catch (error) {
+      wx.showToast({
+        title: error instanceof Error ? error.message : '登录失败',
+        icon: 'none'
+      })
+    } finally {
+      this.setData({ busy: false })
+    }
+  },
 
-      let paymentFailure: Error | null = null
-      try {
-        const parameters = parseWechatPaymentParameters(
-          order.clientPaymentParameters
-        )
-        await requestWechatPayment(parameters)
-      } catch (error) {
-        paymentFailure =
-          error instanceof Error ? error : new Error('微信支付调用失败')
+  async recharge() {
+    const configuration = this.data.rechargeConfiguration
+    if (!configuration || this.data.busy) return
+    let principalFen: number
+    try {
+      principalFen = resolveRechargeAmountFen(
+        this.data.selectedRechargeAmountFen,
+        this.data.customRechargeAmount
+      )
+    } catch (error) {
+      wx.showToast({
+        title: error instanceof Error ? error.message : '充值金额不正确',
+        icon: 'none'
+      })
+      return
+    }
+    this.setData({ busy: true, rechargeOrder: null })
+    try {
+      if (configuration.providerMode === 'mock') {
+        const order = await getMiniappClient().createRechargeOrder({
+          requestId: requestId('recharge'),
+          principalFen
+        })
+        this.setData({ rechargeOrder: rechargeOrderView(order) })
+        return
       }
-
-      const confirmed = await pollRechargeOrder({
-        orderId: order.orderId,
+      const result = await runRechargeFlow({
+        createOrder: () =>
+          getMiniappClient().createRechargeOrder({
+            requestId: requestId('recharge'),
+            principalFen
+          }),
+        requestPayment: requestWechatPayment,
         getOrder: (orderId) =>
           getMiniappClient().getRechargeOrder(orderId)
       })
-      this.setData({ rechargeOrder: toRechargeOrderView(confirmed) })
-      if (confirmed.status === 'settled') {
-        const [member, history] = await Promise.all([
-          getMiniappClient().getMemberSummary(),
-          getMiniappClient().getMemberHistory()
-        ])
-        this.setData({
-          member: member ? toMemberView(member) : null,
-          recentRecords: toRecentRecords(history)
-        })
+      if (result.kind === 'cancelled') {
+        this.setData({ rechargeOrder: null })
+        wx.showToast({ title: '已取消支付', icon: 'none' })
+        return
+      }
+      if (result.kind === 'confirmed') {
+        this.setData({ rechargeOrder: null })
+        await this.load()
         wx.showToast({ title: '充值已到账', icon: 'success' })
         return
       }
-      if (confirmed.status === 'pending_payment') {
-        wx.showToast({
-          title: '支付结果确认中',
-          icon: 'none',
-          duration: 3000
-        })
-        return
-      }
-      if (paymentFailure) throw paymentFailure
-      throw new Error(
-        confirmed.errorMessage || '支付未完成，请稍后重试'
-      )
+      this.setData({ rechargeOrder: rechargeOrderView(result.order) })
+      wx.showToast({ title: '正在确认支付结果', icon: 'none' })
     } catch (error) {
       wx.showToast({
         title: error instanceof Error ? error.message : '充值失败',
@@ -636,32 +400,120 @@ Page({
     }
   },
 
-  async settleMockRecharge() {
-    const order = this.data.rechargeOrder
-    if (!order || this.data.busy) return
-    this.setData({ busy: true })
+  async purchaseMonthlyCard() {
+    const configuration = this.data.monthlyCardConfiguration
+    if (!configuration || !configuration.purchaseAllowed || this.data.busy) {
+      return
+    }
+    this.setData({ busy: true, monthlyCardOrder: null })
     try {
-      const settled = await getMiniappClient().settleMockRechargeOrder(
-        order.orderId
-      )
-      const [member, history] = await Promise.all([
-        getMiniappClient().getMemberSummary(),
-        getMiniappClient().getMemberHistory()
-      ])
-      this.setData({
-        rechargeOrder: toRechargeOrderView(settled),
-        member: member ? toMemberView(member) : null,
-        recentRecords: toRecentRecords(history)
+      const client = getMiniappClient()
+      const order = await client.createMonthlyCardOrder({
+        requestId: requestId('monthly-card')
       })
-      wx.showToast({ title: '测试支付已到账', icon: 'success' })
+      this.setData({ monthlyCardOrder: order })
+      if (order.status === 'settled') {
+        this.setData({ monthlyCardOrder: null })
+        await this.load()
+        wx.showToast({ title: '月卡已生效', icon: 'success' })
+        return
+      }
+      if (
+        order.status === 'creating' ||
+        order.status === 'failed' ||
+        order.status === 'expired'
+      ) {
+        throw new Error(
+          order.errorMessage ||
+            (order.status === 'creating'
+              ? '月卡订单正在创建，请稍后重试'
+              : '月卡订单不可支付')
+        )
+      }
+      if (order.providerMode === 'mock') {
+        await client.settleMockMonthlyCardOrder(order.orderId)
+        this.setData({ monthlyCardOrder: null })
+        await this.load()
+        wx.showToast({ title: '月卡已开通', icon: 'success' })
+        return
+      }
+      const paymentResult = await requestWechatPayment(
+        parseWechatPaymentParameters(order.clientPaymentParameters)
+      )
+      if (paymentResult === 'cancelled') {
+        this.setData({ monthlyCardOrder: null })
+        wx.showToast({ title: '已取消支付', icon: 'none' })
+        return
+      }
+      const confirmed = await pollMonthlyCardOrder({
+        orderId: order.orderId,
+        getOrder: (orderId) => client.getMonthlyCardOrder(orderId)
+      })
+      this.setData({ monthlyCardOrder: confirmed })
+      if (confirmed.status === 'settled') {
+        this.setData({ monthlyCardOrder: null })
+        await this.load()
+        wx.showToast({ title: '月卡已生效', icon: 'success' })
+        return
+      }
+      wx.showToast({
+        title:
+          confirmed.status === 'pending_payment'
+            ? '正在确认支付结果'
+            : confirmed.errorMessage || '月卡支付未完成',
+        icon: 'none',
+        duration: 3000
+      })
     } catch (error) {
       wx.showToast({
-        title: error instanceof Error ? error.message : '入账失败',
+        title: error instanceof Error ? error.message : '月卡支付失败',
         icon: 'none',
         duration: 3000
       })
     } finally {
       this.setData({ busy: false })
     }
-  }
+  },
+
+  selectRechargeAmount(event: {
+    currentTarget: { dataset: { principalFen?: number | string } }
+  }) {
+    const principalFen = Number(event.currentTarget.dataset.principalFen)
+    if (!Number.isSafeInteger(principalFen) || principalFen <= 0) return
+    this.setData({
+      selectedRechargeAmountFen: principalFen,
+      customRechargeAmount: ''
+    })
+  },
+
+  inputCustomRechargeAmount(event: WechatMiniprogram.Input) {
+    this.setData({
+      selectedRechargeAmountFen: null,
+      customRechargeAmount: String(event.detail.value ?? '')
+    })
+  },
+
+  async settleMockRecharge() {
+    const order = this.data.rechargeOrder
+    if (!order || this.data.busy) return
+    this.setData({ busy: true })
+    try {
+      await getMiniappClient().settleMockRechargeOrder(order.orderId)
+      this.setData({ rechargeOrder: null })
+      await this.load()
+      wx.showToast({ title: '测试充值已到账', icon: 'success' })
+    } finally {
+      this.setData({ busy: false })
+    }
+  },
+
+  goHistory() {
+    wx.navigateTo({ url: '/pages/history/index' })
+  },
+
+  goProfile() {
+    wx.navigateTo({ url: '/pages/member/index?mode=edit' })
+  },
+
+  goHome() {}
 })

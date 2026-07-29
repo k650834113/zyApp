@@ -59,6 +59,94 @@ test('builds the customer-only production test against judian.icu', () => {
   })
 })
 
+test('builds the released customer app only against the production API', () => {
+  const result = readBuildConfiguration(
+    {
+      ZYAPP_MINIAPP_MODE: 'production-wechat',
+      ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'false'
+    },
+    {
+      miniappProductionApiBaseUrl: 'https://judian.icu',
+      miniappProductionStoreId: '22222222-2222-4222-8222-222222222222',
+      miniappTestApiBaseUrl: 'https://judian.icu/test',
+      miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
+    }
+  )
+
+  assert.deepEqual(result.configuration, {
+    useMock: false,
+    testVirtualPhoneEnabled: false,
+    authMode: 'wechat',
+    apiBaseUrl: 'https://judian.icu',
+    storeId: '22222222-2222-4222-8222-222222222222',
+    developmentProviderSubject: '',
+    customerOnly: true,
+    realWechatPayment: true
+  })
+})
+
+test('keeps customer features identical between test and production releases', () => {
+  const endpoints = {
+    miniappProductionApiBaseUrl: 'https://judian.icu',
+    miniappProductionStoreId: '22222222-2222-4222-8222-222222222222',
+    miniappTestApiBaseUrl: 'https://judian.icu/test',
+    miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
+  }
+  const production = readBuildConfiguration(
+    { ZYAPP_MINIAPP_MODE: 'production-wechat' },
+    endpoints
+  ).configuration
+  const productionTest = readBuildConfiguration(
+    { ZYAPP_MINIAPP_MODE: 'production-test-wechat' },
+    endpoints
+  ).configuration
+  const normalize = ({ apiBaseUrl, storeId, ...configuration }) =>
+    configuration
+
+  assert.deepEqual(normalize(production), normalize(productionTest))
+})
+
+test('rejects a test store override in the released production build', () => {
+  assert.throws(
+    () =>
+      readBuildConfiguration(
+        {
+          ZYAPP_MINIAPP_MODE: 'production-wechat',
+          ZYAPP_MINIAPP_STORE_ID:
+            '11111111-1111-4111-8111-111111111111'
+        },
+        {
+          miniappProductionApiBaseUrl: 'https://judian.icu',
+          miniappProductionStoreId:
+            '22222222-2222-4222-8222-222222222222'
+        }
+      ),
+    /production-wechat store must match miniappProductionStoreId/
+  )
+})
+
+for (const invalidUrl of [
+  'http://judian.icu',
+  'https://124.220.69.209',
+  'https://judian.icu/test'
+]) {
+  test(`rejects production endpoint ${invalidUrl}`, () => {
+    assert.throws(
+      () =>
+        readBuildConfiguration(
+          {
+            ZYAPP_MINIAPP_MODE: 'production-wechat',
+            ZYAPP_MINIAPP_API_BASE_URL: invalidUrl,
+            ZYAPP_MINIAPP_STORE_ID:
+              '22222222-2222-4222-8222-222222222222'
+          },
+          {}
+        ),
+      /production-wechat must use https:\/\/judian\.icu/
+    )
+  })
+}
+
 for (const invalidUrl of [
   'http://judian.icu/test',
   'https://124.220.69.209/test',
@@ -99,12 +187,12 @@ test('rejects virtual phone login in the production test build', () => {
   )
 })
 
-test('removes employee routes from the customer-only app manifest', () => {
+test('keeps only the approved member pages in the customer app manifest', () => {
   assert.deepEqual(
     filterCustomerAppManifest({
       pages: [
         'pages/home/index',
-        'pages/activities/index',
+        'pages/history/index',
         'pages/member/index',
         'pages/staff/index',
         'pages/manager/index',
@@ -115,12 +203,28 @@ test('removes employee routes from the customer-only app manifest', () => {
     {
       pages: [
         'pages/home/index',
-        'pages/activities/index',
+        'pages/history/index',
         'pages/member/index'
       ],
       window: { navigationBarTitleText: '桌游吧' }
     }
   )
+})
+
+test('source app manifest exposes only home, history, and member pages', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const app = JSON.parse(
+    await readFile(new URL('../src/app.json', import.meta.url), 'utf8')
+  )
+
+  assert.deepEqual(app.pages, [
+    'pages/home/index',
+    'pages/history/index',
+    'pages/member/index'
+  ])
+  assert.equal(JSON.stringify(app).includes('staff'), false)
+  assert.equal(JSON.stringify(app).includes('manager'), false)
+  assert.equal(JSON.stringify(app).includes('activities'), false)
 })
 
 test('keeps Mock mode available only when explicitly selected', () => {

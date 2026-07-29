@@ -246,6 +246,7 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
               <>
                 <div className="card-facts">
                   <div><span>购买金额</span><strong>{formatFen(details.current.priceFen)}</strong></div>
+                  <div><span>支付方式</span><strong>{details.current.paymentMethod === 'wechat' ? '微信支付' : '现金'}</strong></div>
                   <div><span>到期时间</span><strong>{new Date(details.current.expiresAt).toLocaleString('zh-CN')}</strong></div>
                   <div><span>已使用</span><strong>{details.current.usageCount} 次</strong></div>
                 </div>
@@ -270,6 +271,11 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
                     <span>该月卡已经使用；店长特殊退款需勾选并填写原因</span>
                   </label>
                 ) : null}
+                {details.current.paymentMethod === 'wechat' ? (
+                  <p className="monthly-refund-warning">
+                    微信支付月卡不能在 PC 端按现金退款，请通过微信支付退款流程处理。
+                  </p>
+                ) : null}
                 <div className="monthly-actions">
                   {details.current.status === 'active' ? (
                     <>
@@ -285,7 +291,7 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
                       恢复并顺延
                     </button>
                   )}
-                  {!canApprove ? (
+                  {details.current.paymentMethod === 'wechat' ? null : !canApprove ? (
                     <button
                       className="secondary-button"
                       disabled={busy}

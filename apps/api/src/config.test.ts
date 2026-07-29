@@ -10,6 +10,7 @@ function baseEnvironment(
     DATABASE_URL: 'postgres://local/database',
     REDIS_URL: 'redis://local',
     DEVICE_ENROLLMENT_SECRET: 'local-enrollment-secret-32-characters',
+    MINIAPP_PUBLIC_BASE_URL: 'https://judian.icu/test',
     PHONE_VERIFICATION_SECRET:
       'local-phone-verification-secret-32-characters',
     MINIAPP_WECHAT_AUTH_MODE: 'wechat',
@@ -52,6 +53,8 @@ describe('API configuration', () => {
         REDIS_URL: 'redis://local',
         DEVICE_ENROLLMENT_SECRET: 'local-enrollment-secret-32-characters',
         DESKTOP_UPDATE_DIRECTORY: 'C:/updates/windows',
+        MEMBER_AVATAR_DIRECTORY: 'C:/member-avatars/test',
+        MINIAPP_PUBLIC_BASE_URL: 'https://judian.icu/test',
         PHONE_VERIFICATION_SECRET:
           'local-phone-verification-secret-32-characters',
         PHONE_VERIFICATION_MODE: 'mock',
@@ -70,6 +73,8 @@ describe('API configuration', () => {
       redisUrl: 'redis://local',
       deviceEnrollmentSecret: 'local-enrollment-secret-32-characters',
       desktopUpdateDirectory: 'C:/updates/windows',
+      memberAvatarDirectory: 'C:/member-avatars/test',
+      miniappPublicBaseUrl: 'https://judian.icu/test',
       phoneVerificationSecret:
         'local-phone-verification-secret-32-characters',
       phoneVerificationMode: 'mock',
@@ -82,7 +87,6 @@ describe('API configuration', () => {
       wechatPayApiV3KeyPath: null,
       wechatPayNotifyUrl: null,
       wechatPayOutTradeNoPrefix: 'ZY-',
-      wechatPaymentTestAmountFen: null,
       miniappDevelopmentAuthEnabled: true,
       miniappWechatAuthMode: 'wechat',
       wechatMiniappAppId: 'wx-test-appid',
@@ -103,6 +107,16 @@ describe('API configuration', () => {
         DEVICE_ENROLLMENT_SECRET: 'local-enrollment-secret-32-characters'
       })
     ).toThrow('API_PORT')
+  })
+
+  it('requires an HTTPS miniapp public base URL in production', () => {
+    expect(() =>
+      readApiConfig(
+        baseEnvironment({
+          MINIAPP_PUBLIC_BASE_URL: 'http://judian.icu/test'
+        })
+      )
+    ).toThrow('MINIAPP_PUBLIC_BASE_URL must use HTTPS')
   })
 
   it('forbids mock verification in production', () => {
@@ -139,26 +153,10 @@ describe('API configuration', () => {
     ).toThrow(/WECHAT_PAY_MERCHANT_ID/)
   })
 
-  it('allows the one-cent tier only in the test deployment', () => {
-    expect(() =>
-      readApiConfig(
-        completeWechatEnvironment({
-          DEPLOYMENT_ENVIRONMENT: 'production',
-          WECHAT_PAYMENT_TEST_AMOUNT_FEN: '1'
-        })
-      )
-    ).toThrow(/only allowed in the test deployment/)
-  })
-
   it('accepts real payment in the isolated test deployment', () => {
-    const config = readApiConfig(
-      completeWechatEnvironment({
-        WECHAT_PAYMENT_TEST_AMOUNT_FEN: '1'
-      })
-    )
+    const config = readApiConfig(completeWechatEnvironment())
 
     expect(config.wechatPaymentMode).toBe('wechat')
-    expect(config.wechatPaymentTestAmountFen).toBe(1)
     expect(config.wechatPayMerchantId).toBe('1748654937')
     expect(config.wechatPayNotifyUrl).toBe(
       'https://judian.icu/test/v1/payments/wechat/recharge/notify'
@@ -169,11 +167,10 @@ describe('API configuration', () => {
     expect(() =>
       readApiConfig(
         completeWechatEnvironment({
-          WECHAT_PAYMENT_TEST_AMOUNT_FEN: '1',
           MINIAPP_TEST_VIRTUAL_PHONE: '18888888888'
         })
       )
-    ).toThrow(/forbids MINIAPP_TEST_VIRTUAL_PHONE/)
+    ).toThrow(/Real WeChat payment forbids MINIAPP_TEST_VIRTUAL_PHONE/)
   })
 
   it('requires WeChat Mini Program secrets when real auth is enabled', () => {

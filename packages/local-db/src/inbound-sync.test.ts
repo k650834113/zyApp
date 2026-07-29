@@ -600,7 +600,19 @@ describe('safe inbound event application', () => {
              AND operation_type NOT LIKE 'wallet.%'`
         )
         .get()
-    ).toEqual({ count: 0 })
+    ).toEqual({ count: 1 })
+    expect(
+      local.connection
+        .prepare(
+          `SELECT operation_type, aggregate_id
+           FROM outbox_operation
+           WHERE operation_type = 'member.tier.reconciled'`
+        )
+        .get()
+    ).toEqual({
+      operation_type: 'member.tier.reconciled',
+      aggregate_id: 'member-cloud'
+    })
 
     local.close()
   })

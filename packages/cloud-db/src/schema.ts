@@ -203,6 +203,7 @@ export const cloudMembers = pgTable(
     phone: text('phone').notNull(),
     nickname: text('nickname').notNull(),
     avatarUrl: text('avatar_url'),
+    profileCompleted: boolean('profile_completed').notNull().default(false),
     tier: text('tier').notNull(),
     status: text('status').notNull(),
     birthdayMonth: integer('birthday_month'),
@@ -695,33 +696,6 @@ export const wechatRechargeOrders = pgTable(
   ]
 )
 
-export const paymentCallbackInbox = pgTable(
-  'payment_callback_inbox',
-  {
-    provider: text('provider').notNull(),
-    eventId: text('event_id').notNull(),
-    payloadHash: text('payload_hash').notNull(),
-    orderId: uuid('order_id').references(() => wechatRechargeOrders.id),
-    status: text('status').notNull(),
-    payloadJson: jsonb('payload_json').notNull(),
-    errorMessage: text('error_message'),
-    receivedAt: timestamp('received_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    processedAt: timestamp('processed_at', { withTimezone: true })
-  },
-  (table) => [
-    uniqueIndex('uq_payment_callback_inbox_provider_event').on(
-      table.provider,
-      table.eventId
-    ),
-    index('idx_payment_callback_inbox_order').on(
-      table.orderId,
-      table.receivedAt
-    )
-  ]
-)
-
 export const cloudMonthlyCards = pgTable(
   'cloud_monthly_card',
   {
@@ -739,13 +713,105 @@ export const cloudMonthlyCards = pgTable(
     pausedAt: timestamp('paused_at', { withTimezone: true }),
     usageCount: integer('usage_count').notNull(),
     serverVersion: bigint('server_version', { mode: 'number' }).notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+    scopeType: text('scope_type').notNull().default('store')
   },
   (table) => [
     index('idx_cloud_monthly_card_member').on(
       table.tenantId,
       table.memberId,
       table.purchasedAt
+    )
+  ]
+)
+
+export const wechatMonthlyCardOrders = pgTable(
+  'wechat_monthly_card_order',
+  {
+    id: uuid('id').primaryKey(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+    storeId: uuid('store_id').notNull().references(() => stores.id),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => cloudMembers.id),
+    identityId: uuid('identity_id')
+      .notNull()
+      .references(() => miniappIdentities.id),
+    requestId: text('request_id').notNull(),
+    requestHash: text('request_hash').notNull(),
+    outTradeNo: text('out_trade_no').notNull(),
+    providerMode: text('provider_mode').notNull(),
+    providerPrepayId: text('provider_prepay_id'),
+    providerTransactionId: text('provider_transaction_id'),
+    planName: text('plan_name').notNull(),
+    priceFen: bigint('price_fen', { mode: 'number' }).notNull(),
+    durationDays: integer('duration_days').notNull(),
+    scopeType: text('scope_type').notNull(),
+    clientPaymentJson: jsonb('client_payment_json'),
+    status: text('status').notNull(),
+    targetCardId: uuid('target_card_id').references(() => cloudMonthlyCards.id),
+    expiresBefore: timestamp('expires_before', { withTimezone: true }),
+    expiresAfter: timestamp('expires_after', { withTimezone: true }),
+    errorMessage: text('error_message'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    ...timestamps
+  },
+  (table) => [
+    uniqueIndex('uq_wechat_monthly_card_order_out_trade_no').on(
+      table.outTradeNo
+    ),
+    uniqueIndex('uq_wechat_monthly_card_order_provider_transaction').on(
+      table.providerTransactionId
+    ),
+    uniqueIndex('uq_wechat_monthly_card_order_identity_request').on(
+      table.tenantId,
+      table.identityId,
+      table.requestId
+    ),
+    index('idx_wechat_monthly_card_order_member').on(
+      table.tenantId,
+      table.memberId,
+      table.createdAt
+    ),
+    index('idx_wechat_monthly_card_order_status').on(
+      table.status,
+      table.expiresAt
+    )
+  ]
+)
+
+export const paymentCallbackInbox = pgTable(
+  'payment_callback_inbox',
+  {
+    provider: text('provider').notNull(),
+    eventId: text('event_id').notNull(),
+    payloadHash: text('payload_hash').notNull(),
+    orderId: uuid('order_id').references(() => wechatRechargeOrders.id),
+    monthlyCardOrderId: uuid('monthly_card_order_id').references(
+      () => wechatMonthlyCardOrders.id
+    ),
+    status: text('status').notNull(),
+    payloadJson: jsonb('payload_json').notNull(),
+    errorMessage: text('error_message'),
+    receivedAt: timestamp('received_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    processedAt: timestamp('processed_at', { withTimezone: true })
+  },
+  (table) => [
+    uniqueIndex('uq_payment_callback_inbox_provider_event').on(
+      table.provider,
+      table.eventId
+    ),
+    index('idx_payment_callback_inbox_order').on(
+      table.orderId,
+      table.receivedAt
+    ),
+    index('idx_payment_callback_inbox_monthly_card_order').on(
+      table.monthlyCardOrderId,
+      table.receivedAt
     )
   ]
 )

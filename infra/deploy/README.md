@@ -8,6 +8,21 @@ Target: Ubuntu Server 24.04 LTS x86_64 with Docker Engine and Compose v2.
 - Allow inbound UDP 443 for HTTP/3, or remove that port mapping if UDP is unavailable.
 - Do not expose PostgreSQL 5432, Redis 6379 or API 3100 publicly.
 
+## WeChat Mini Program legal domains
+
+For the production-test Mini Program, save these values in “Mini Program admin
+console → Development management → Development settings → Server domains”:
+
+```text
+request: https://judian.icu
+uploadFile: https://judian.icu
+downloadFile: https://judian.icu
+socket: leave empty
+```
+
+Wait for propagation, enable legal-domain validation in WeChat DevTools, rebuild,
+and verify avatar upload plus persisted avatar display on a physical phone.
+
 ## Files and secrets
 
 1. Copy `production.env.example` to `production.env` on the server.

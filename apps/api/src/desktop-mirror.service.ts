@@ -33,6 +33,14 @@ const TABLES: Record<
     table: 'cloud_monthly_card_event',
     idColumn: 'operation_id'
   },
+  monthly_card_payment_orders: {
+    table: 'wechat_monthly_card_order',
+    idColumn: 'id'
+  },
+  wechat_recharge_orders: {
+    table: 'wechat_recharge_order',
+    idColumn: 'id'
+  },
   business_templates: {
     table: 'cloud_merchant_business_template',
     idColumn: 'id'
@@ -102,6 +110,14 @@ export class DesktopMirrorService {
             JOIN cloud_monthly_card card
               ON card.id = event.card_id AND card.tenant_id = event.tenant_id
             WHERE card.scope_type = 'tenant' OR card.store_id = $2)`
+        : selected === 'wechat_recharge_orders'
+          ? `(SELECT recharge.*,
+                     ledger.operation_id wallet_operation_id
+              FROM wechat_recharge_order recharge
+              LEFT JOIN cloud_wallet_ledger ledger
+                ON ledger.tenant_id = recharge.tenant_id
+               AND ledger.source_operation_id = recharge.id::text
+               AND ledger.event_type = 'wallet.wechat_recharged')`
         : selected === 'catalog'
           ? `(SELECT item.id, item.tenant_id, $2::uuid store_id,
                      item.code, item.name, item.item_type,
@@ -161,7 +177,8 @@ export class DesktopMirrorService {
           ? 'model.tenant_id = $1'
         : [
             'members', 'wallet_accounts', 'wallet_ledger', 'orders',
-            'order_items', 'refunds', 'refund_events', 'financial_refunds'
+            'order_items', 'refunds', 'refund_events', 'financial_refunds',
+            'wechat_recharge_orders', 'monthly_card_payment_orders'
           ].includes(selected)
           ? 'model.tenant_id = $1'
           : selected === 'monthly_cards'
@@ -193,6 +210,8 @@ export class DesktopMirrorService {
       'wallet_ledger',
       'monthly_cards',
       'monthly_card_events'
+      ,'monthly_card_payment_orders'
+      ,'wechat_recharge_orders'
       ,'store', 'orders', 'order_items', 'refunds', 'refund_events', 'financial_refunds'
       ,'business_templates'
       ,'catalog'

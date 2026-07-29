@@ -177,21 +177,46 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 cd '$RemoteDirectory'
+production_container_before=`$(sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml ps -q api)
+caddy_container_before=`$(sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml ps -q caddy)
+if [ -z "`$production_container_before" ] || [ -z "`$caddy_container_before" ]; then
+  echo 'Production API and Caddy must already be running before a test-only deployment.' >&2
+  exit 1
+fi
+
 sudo BACKUP_ENVIRONMENTS=test DEPLOY_DIR='$RemoteDirectory' bash infra/deploy/backup-postgres.sh
 sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml build --no-cache migrate-test api-test
 sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml run --rm --no-deps migrate-test
-sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml up -d --no-deps --force-recreate api-test caddy
+sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml up -d --no-deps --force-recreate api-test
+
+production_container_after=`$(sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml ps -q api)
+caddy_container_after=`$(sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml ps -q caddy)
+if [ "`$production_container_before" != "`$production_container_after" ]; then
+  echo 'Test deployment changed the production API container; aborting verification.' >&2
+  exit 1
+fi
+if [ "`$caddy_container_before" != "`$caddy_container_after" ]; then
+  echo 'Test deployment changed the Caddy container; aborting verification.' >&2
+  exit 1
+fi
 
 for attempt in `$(seq 1 36); do
-  if curl --fail --silent --show-error 'https://judian.icu/test/v1/health/ready' >/dev/null; then
-    echo 'Miniapp production-test API and dual HTTPS routing are healthy.'
+  test_health=`$(curl --silent --output /dev/null --write-out '%{http_code}' 'https://judian.icu/test/v1/health/ready' || true)
+  production_health=`$(curl --silent --output /dev/null --write-out '%{http_code}' 'https://judian.icu/v1/health/ready' || true)
+  profile_status=`$(curl --silent --output /dev/null --write-out '%{http_code}' --request POST 'https://judian.icu/test/v1/member/profile' || true)
+  avatar_status=`$(curl --silent --output /dev/null --write-out '%{http_code}' --request POST 'https://judian.icu/test/v1/member/profile-with-avatar' || true)
+  if [ "`$test_health" = '200' ] &&
+     [ "`$production_health" = '200' ] &&
+     [ "`$profile_status" = '401' ] &&
+     [ "`$avatar_status" = '401' ]; then
+    echo 'Test API is healthy, profile routes exist, and production containers remained unchanged.'
     exit 0
   fi
   sleep 5
 done
 
-echo 'Deployment completed, but the test API health check did not pass.' >&2
-sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml logs --tail 120 api-test caddy >&2
+echo "Deployment verification failed (test_health=`$test_health, production_health=`$production_health, profile=`$profile_status, avatar=`$avatar_status)." >&2
+sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml logs --tail 120 api-test >&2
 exit 1
 "@
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  needsMemberProfileCompletion,
+  normalizeMemberNickname,
   normalizeNickname,
   normalizePhone,
   normalizeVerificationCode,
@@ -9,6 +11,21 @@ import {
 } from './member-login'
 
 describe('member login helpers', () => {
+  it('requires profile completion only for incomplete new members', () => {
+    expect(
+      needsMemberProfileCompletion({ profileCompleted: false })
+    ).toBe(true)
+    expect(
+      needsMemberProfileCompletion({ profileCompleted: true })
+    ).toBe(false)
+  })
+
+  it('validates a member nickname for profile completion', () => {
+    expect(normalizeMemberNickname('  林小满  ')).toBe('林小满')
+    expect(() => normalizeMemberNickname('A')).toThrow(/2 至 12/)
+    expect(() => normalizeMemberNickname('1234567890123')).toThrow(/2 至 12/)
+  })
+
   it('extracts the phone authorization code from a successful event', () => {
     expect(
       phoneCodeFromEvent({

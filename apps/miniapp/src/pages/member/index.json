@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "会员中心"
+  "navigationBarTitleText": "我的资料",
+  "navigationBarBackgroundColor": "#fbf7ef",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#fbf7ef"
 }

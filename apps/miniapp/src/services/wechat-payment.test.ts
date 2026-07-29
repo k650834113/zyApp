@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { MemberRechargeOrderSummary } from '@zyapp/contracts'
+import type {
+  MemberMonthlyCardOrderSummary,
+  MemberRechargeOrderSummary
+} from '@zyapp/contracts'
 import {
   parseWechatPaymentParameters,
+  pollMonthlyCardOrder,
   pollRechargeOrder,
   requestWechatPayment
 } from './wechat-payment'
@@ -26,6 +30,30 @@ function order(
     status,
     providerMode: 'wechat',
     clientPaymentParameters: validParameters,
+    expiresAt: '2026-07-25T04:15:00.000Z',
+    settledAt:
+      status === 'settled' ? '2026-07-25T04:01:00.000Z' : null,
+    createdAt: '2026-07-25T04:00:00.000Z',
+    errorMessage: null
+  }
+}
+
+function monthlyOrder(
+  status: MemberMonthlyCardOrderSummary['status']
+): MemberMonthlyCardOrderSummary {
+  return {
+    orderId: 'monthly-order-1',
+    requestId: 'monthly-request-1',
+    planName: '30 天月卡',
+    priceFen: 20_000,
+    durationDays: 30,
+    status,
+    providerMode: 'wechat',
+    clientPaymentParameters: validParameters,
+    targetCardId: status === 'settled' ? 'card-1' : null,
+    expiresBefore: null,
+    expiresAfter:
+      status === 'settled' ? '2026-08-24T04:00:00.000Z' : null,
     expiresAt: '2026-07-25T04:15:00.000Z',
     settledAt:
       status === 'settled' ? '2026-07-25T04:01:00.000Z' : null,
@@ -140,5 +168,25 @@ describe('WeChat JSAPI payment client', () => {
     ).resolves.toBe(pending)
     expect(wait.mock.calls.map(([delay]) => delay)).toEqual(delays)
     expect(getOrder).toHaveBeenCalledTimes(delays.length)
+  })
+
+  it('polls monthly-card orders until the card is settled', async () => {
+    const pending = monthlyOrder('pending_payment')
+    const settled = monthlyOrder('settled')
+    const getOrder = vi
+      .fn()
+      .mockResolvedValueOnce(pending)
+      .mockResolvedValueOnce(settled)
+    const wait = vi.fn(async () => undefined)
+
+    await expect(
+      pollMonthlyCardOrder({
+        orderId: 'monthly-order-1',
+        getOrder,
+        wait,
+        delays: [0, 800, 1500]
+      })
+    ).resolves.toBe(settled)
+    expect(getOrder).toHaveBeenCalledTimes(2)
   })
 })

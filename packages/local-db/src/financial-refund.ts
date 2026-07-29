@@ -227,7 +227,8 @@ function readTarget(
   if (targetType === 'monthly_card') {
     const row = database
       .prepare(
-        `SELECT c.id, c.member_id, c.price_fen, c.status, c.purchased_at,
+        `SELECT c.id, c.member_id, c.price_fen, c.payment_method,
+                c.status, c.purchased_at,
                 c.legacy_import_batch_id,
                 (SELECT COUNT(*) FROM monthly_card_event e
                  WHERE e.tenant_id = c.tenant_id AND e.card_id = c.id
@@ -240,6 +241,7 @@ function readTarget(
           id: string
           member_id: string
           price_fen: number
+          payment_method: string
           status: string
           purchased_at: string
           legacy_import_batch_id: string | null
@@ -249,6 +251,11 @@ function readTarget(
     if (!row) throw new Error('Monthly card was not found')
     if (row.legacy_import_batch_id) {
       throw new Error('旧库月卡的原支付渠道未知，不能在程序中自动退款')
+    }
+    if (row.payment_method !== 'cash') {
+      throw new Error(
+        'WeChat monthly cards cannot be refunded as PC cash; use the WeChat refund flow'
+      )
     }
     if (row.status !== 'active' && row.status !== 'paused') {
       throw new Error('Monthly card cannot be refunded in its current status')

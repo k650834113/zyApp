@@ -32,6 +32,14 @@ describe('miniapp mock client', () => {
       role: 'member',
       nickname: '微信玩家'
     })
+
+    await expect(
+      client.updateMemberProfileWithAvatar('林小满', 'wxfile://new-avatar')
+    ).resolves.toMatchObject({
+      nickname: '林小满',
+      avatarUrl: 'wxfile://new-avatar',
+      profileCompleted: true
+    })
   })
 
   it('blocks stored-value recharge when age confirmation was declined', async () => {
@@ -79,6 +87,12 @@ describe('miniapp mock client', () => {
     expect(member.giftBalanceFen).toBe(22_000)
     expect(member.tier).toBe('advanced')
     const history = await client.getMemberHistory()
+    expect(history.activities[0]).toMatchObject({
+      kind: 'recharge',
+      title: '微信充值',
+      amountFen: 152_000,
+      status: 'settled'
+    })
     expect(history.walletEntries[0]).toMatchObject({
       principalDeltaFen: 130_000,
       giftDeltaFen: 22_000

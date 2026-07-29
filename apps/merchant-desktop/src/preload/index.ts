@@ -148,6 +148,11 @@ const desktopApi: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.boardGameReadImage, request),
   createSalesOrder: (request) => ipcRenderer.invoke(IPC_CHANNELS.orderCreate, request),
   listRecentOrders: (request) => ipcRenderer.invoke(IPC_CHANNELS.orderRecent, request),
+  refreshCashierData: () => ipcRenderer.invoke(IPC_CHANNELS.cashierRefresh),
+  listSalesTransactions: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.transactionSalesList, request),
+  listRechargeTransactions: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.transactionRechargeList, request),
   findRefundableOrder: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.refundFindOrder, request),
   createRefundRequest: (request) => ipcRenderer.invoke(IPC_CHANNELS.refundCreate, request),

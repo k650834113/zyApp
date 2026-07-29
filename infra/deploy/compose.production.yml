@@ -82,15 +82,27 @@ services:
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       DEVICE_ENROLLMENT_SECRET: ${DEVICE_ENROLLMENT_SECRET:?DEVICE_ENROLLMENT_SECRET is required}
       DESKTOP_UPDATE_DIRECTORY: /app/updates/windows
+      MEMBER_AVATAR_DIRECTORY: /app/data/member-avatars
+      MINIAPP_PUBLIC_BASE_URL: https://${MINIAPP_DOMAIN:?MINIAPP_DOMAIN is required}
       PHONE_VERIFICATION_SECRET: ${PHONE_VERIFICATION_SECRET:?PHONE_VERIFICATION_SECRET is required}
       PHONE_VERIFICATION_MODE: disabled
-      WECHAT_PAYMENT_MODE: disabled
+      WECHAT_PAYMENT_MODE: ${PRODUCTION_WECHAT_PAYMENT_MODE:-disabled}
+      WECHAT_PAY_MERCHANT_ID: ${WECHAT_PAY_MERCHANT_ID:-}
+      WECHAT_PAY_MERCHANT_CERTIFICATE_SERIAL: ${WECHAT_PAY_MERCHANT_CERTIFICATE_SERIAL:-}
+      WECHAT_PAY_MERCHANT_PRIVATE_KEY_FILE: /run/secrets/wechatpay/apiclient_key.pem
+      WECHAT_PAY_PUBLIC_KEY_ID: ${WECHAT_PAY_PUBLIC_KEY_ID:-}
+      WECHAT_PAY_PUBLIC_KEY_FILE: /run/secrets/wechatpay/wechatpay_public_key.pem
+      WECHAT_PAY_API_V3_KEY_FILE: /run/secrets/wechatpay/apiv3.key
+      WECHAT_PAY_NOTIFY_URL: https://judian.icu/v1/payments/wechat/recharge/notify
+      WECHAT_PAY_OUT_TRADE_NO_PREFIX: ZYP-
       MINIAPP_DEVELOPMENT_AUTH_ENABLED: "false"
       MINIAPP_WECHAT_AUTH_MODE: ${MINIAPP_WECHAT_AUTH_MODE:-disabled}
       WECHAT_MINIAPP_APP_ID: ${WECHAT_MINIAPP_APP_ID:-}
       WECHAT_MINIAPP_APP_SECRET: ${WECHAT_MINIAPP_APP_SECRET:-}
     volumes:
       - ./updates/production/windows:/app/updates/windows:ro
+      - ${WECHATPAY_SECRETS_DIRECTORY:-/opt/zyapp/secrets/wechatpay}:/run/secrets/wechatpay:ro
+      - member-avatar-production:/app/data/member-avatars
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -138,6 +150,8 @@ services:
       REDIS_URL: ${TEST_REDIS_URL:?TEST_REDIS_URL is required}
       DEVICE_ENROLLMENT_SECRET: ${TEST_DEVICE_ENROLLMENT_SECRET:?TEST_DEVICE_ENROLLMENT_SECRET is required}
       DESKTOP_UPDATE_DIRECTORY: /app/updates/windows
+      MEMBER_AVATAR_DIRECTORY: /app/data/member-avatars
+      MINIAPP_PUBLIC_BASE_URL: https://${MINIAPP_DOMAIN:?MINIAPP_DOMAIN is required}/test
       PHONE_VERIFICATION_SECRET: ${TEST_PHONE_VERIFICATION_SECRET:?TEST_PHONE_VERIFICATION_SECRET is required}
       PHONE_VERIFICATION_MODE: disabled
       WECHAT_PAYMENT_MODE: ${TEST_WECHAT_PAYMENT_MODE:-disabled}
@@ -149,7 +163,6 @@ services:
       WECHAT_PAY_API_V3_KEY_FILE: /run/secrets/wechatpay/apiv3.key
       WECHAT_PAY_NOTIFY_URL: https://judian.icu/test/v1/payments/wechat/recharge/notify
       WECHAT_PAY_OUT_TRADE_NO_PREFIX: ZYT-
-      WECHAT_PAYMENT_TEST_AMOUNT_FEN: "1"
       MINIAPP_DEVELOPMENT_AUTH_ENABLED: "false"
       MINIAPP_WECHAT_AUTH_MODE: ${TEST_MINIAPP_WECHAT_AUTH_MODE:-disabled}
       WECHAT_MINIAPP_APP_ID: ${WECHAT_MINIAPP_APP_ID:-}
@@ -158,6 +171,7 @@ services:
     volumes:
       - ./updates/test/windows:/app/updates/windows:ro
       - ${WECHATPAY_SECRETS_DIRECTORY:-/opt/zyapp/secrets/wechatpay}:/run/secrets/wechatpay:ro
+      - member-avatar-test:/app/data/member-avatars
     depends_on:
       migrate-test:
         condition: service_completed_successfully
@@ -244,6 +258,8 @@ volumes:
   redis-data:
   caddy-data:
   caddy-config:
+  member-avatar-production:
+  member-avatar-test:
 
 networks:
   frontend:

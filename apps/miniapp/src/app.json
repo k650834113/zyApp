@@ -1,18 +1,15 @@
 {
   "pages": [
     "pages/home/index",
-    "pages/activities/index",
-    "pages/member/index",
-    "pages/staff/index",
-    "pages/manager/index",
-    "pages/content/index"
+    "pages/history/index",
+    "pages/member/index"
   ],
   "window": {
-    "navigationBarTitleText": "桌游吧",
-    "navigationBarBackgroundColor": "#32453b",
+    "navigationBarTitleText": "会员中心",
+    "navigationBarBackgroundColor": "#174f3b",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#f5f1e8",
-    "backgroundTextStyle": "light"
+    "backgroundColor": "#fbf7ef",
+    "backgroundTextStyle": "dark"
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json",
