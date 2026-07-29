@@ -62,11 +62,23 @@ function copyAssets(directory) {
 function applyCustomerOnlyOutput() {
   const appManifestPath = join(output, 'app.json')
   const appManifest = JSON.parse(readFileSync(appManifestPath, 'utf8'))
+  const customerManifest = filterCustomerAppManifest(appManifest)
   writeFileSync(
     appManifestPath,
-    `${JSON.stringify(filterCustomerAppManifest(appManifest), null, 2)}\n`,
+    `${JSON.stringify(customerManifest, null, 2)}\n`,
     'utf8'
   )
+  const approvedPageDirectories = new Set(
+    customerManifest.pages
+      .map((page) => page.split('/')[1])
+      .filter(Boolean)
+  )
+  const pagesOutput = join(output, 'pages')
+  for (const entry of readdirSync(pagesOutput, { withFileTypes: true })) {
+    if (entry.isDirectory() && !approvedPageDirectories.has(entry.name)) {
+      rmSync(join(pagesOutput, entry.name), { recursive: true, force: true })
+    }
+  }
 }
 
 async function buildProject() {
