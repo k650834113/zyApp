@@ -100,6 +100,8 @@ docker compose up -d --no-deps --force-recreate api caddy
 
 生产环境备份必须保存到 Docker 构建上下文以外的 root-only 目录；`.dockerignore` 必须排除 `infra/deploy/*.env*`。生产与测试 API 的数据库完整身份必须分别精确为 `postgres:5432/zyapp` 和 `postgres:5432/zyapp_test`，确保容器内核验及备份针对实际 API 数据库。发布必须由 `git archive` 从显式 `-ExpectedCommit` 生成，且 tracked worktree 必须干净；镜像在独立候选目录中构建，随后使用 `--no-build` 启动，避免服务器旧源码残留进入运行产物。构建前必须给旧 API 镜像增加专用回滚标签，防止重建期间镜像被回收；发布后门禁必须输出明确失败原因。发布失败时恢复旧环境文件和旧 API 镜像，但不自动恢复数据库。
 
+服务器对短时间连续新建 SSH 会话限流时，只读预检、文件上传和临时目录清理可使用 keepalive 与有上限的退避重试；真正执行生产变更的远程部署命令不得自动重试，避免连接中断时重复执行发布。
+
 - [ ] **Step 6: 增加头像路由与支付验证**
 
 健康循环中增加：

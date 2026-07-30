@@ -34,6 +34,35 @@ function Resolve-RequiredFile(
   return $resolved
 }
 
+function Invoke-RetryableNativeCommand(
+  [scriptblock]$Action,
+  [string]$Description,
+  [int]$MaximumAttempts = 4
+) {
+  for ($attempt = 1; $attempt -le $MaximumAttempts; $attempt += 1) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+      & $Action
+      $exitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($exitCode -eq 0) {
+      return
+    }
+    if ($attempt -eq $MaximumAttempts) {
+      throw "$Description failed after $MaximumAttempts attempts."
+    }
+    $delaySeconds = 5 * $attempt
+    Write-Warning (
+      "$Description failed with exit code $exitCode; retrying in " +
+      "$delaySeconds seconds (attempt $attempt of $MaximumAttempts)."
+    )
+    Start-Sleep -Seconds $delaySeconds
+  }
+}
+
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $key = Resolve-RequiredFile $KeyPath 'SSH private key'
 $candidateCommit = (& git -C $workspace rev-parse HEAD).Trim()
@@ -103,7 +132,10 @@ $target = "$SshUser@$HostName"
 $sshOptions = @(
   '-i', $key,
   '-o', 'BatchMode=yes',
-  '-o', 'StrictHostKeyChecking=accept-new'
+  '-o', 'StrictHostKeyChecking=accept-new',
+  '-o', 'ConnectTimeout=15',
+  '-o', 'ServerAliveInterval=15',
+  '-o', 'ServerAliveCountMax=12'
 )
 
 $preflightScript = @'
@@ -270,20 +302,33 @@ try {
   } else {
     'false'
   }
-  & scp @sshOptions `
-    $preflightScriptPath `
-    "${target}:$remotePreflightPath"
-  if ($LASTEXITCODE -ne 0) {
-    throw 'Production miniapp preflight upload failed.'
-  }
-  $preflightOutput = & ssh @sshOptions $target `
-    "bash -n '$remotePreflightPath' && bash '$remotePreflightPath' '$RemoteDirectory' '$enablePaymentArgument' '$expectedMigrationVersion'"
-  if ($LASTEXITCODE -ne 0) {
-    throw 'Production miniapp preflight failed.'
-  }
+  Invoke-RetryableNativeCommand `
+    -Description 'Production miniapp preflight upload' `
+    -Action {
+      & scp @sshOptions `
+        $preflightScriptPath `
+        "${target}:$remotePreflightPath"
+    }
+  $preflightOutput = @(
+    Invoke-RetryableNativeCommand `
+      -Description 'Production miniapp preflight' `
+      -Action {
+        & ssh @sshOptions $target `
+          "bash -n '$remotePreflightPath' && bash '$remotePreflightPath' '$RemoteDirectory' '$enablePaymentArgument' '$expectedMigrationVersion'"
+      }
+  )
   $preflightOutput | Write-Output
 } finally {
-  & ssh @sshOptions $target "rm -f '$remotePreflightPath'" 2>$null
+  try {
+    Invoke-RetryableNativeCommand `
+      -Description 'Production miniapp preflight cleanup' `
+      -MaximumAttempts 2 `
+      -Action {
+        & ssh @sshOptions $target "rm -f '$remotePreflightPath'" 2>$null
+      }
+  } catch {
+    Write-Warning $_
+  }
 }
 if ($PreflightOnly) {
   Write-Output 'Production miniapp remote preflight passed.'
@@ -308,19 +353,21 @@ try {
 }
 
 $remoteTemporaryDirectory = '/tmp/zyapp-miniapp-production'
-& ssh @sshOptions $target `
-  "rm -rf '$remoteTemporaryDirectory' && mkdir -p '$remoteTemporaryDirectory'"
-if ($LASTEXITCODE -ne 0) {
-  throw 'Remote deployment directory creation failed.'
-}
+Invoke-RetryableNativeCommand `
+  -Description 'Remote deployment directory creation' `
+  -Action {
+    & ssh @sshOptions $target `
+      "rm -rf '$remoteTemporaryDirectory' && mkdir -p '$remoteTemporaryDirectory'"
+  }
 
 try {
-  & scp @sshOptions `
-    $archive `
-    "${target}:$remoteTemporaryDirectory/source.tgz"
-  if ($LASTEXITCODE -ne 0) {
-    throw 'Production source upload failed.'
-  }
+  Invoke-RetryableNativeCommand `
+    -Description 'Production source upload' `
+    -Action {
+      & scp @sshOptions `
+        $archive `
+        "${target}:$remoteTemporaryDirectory/source.tgz"
+    }
 
   $remoteScriptTemplate = @'
 set -euo pipefail
@@ -619,20 +666,37 @@ sudo docker image rm "$rollback_api_tag" >/dev/null 2>&1 || true
     [Text.UTF8Encoding]::new($false)
   )
 
-  & scp @sshOptions `
-    $remoteScriptPath `
-    "${target}:$remoteTemporaryDirectory/deploy.sh"
-  if ($LASTEXITCODE -ne 0) {
-    throw 'Remote deployment script upload failed.'
+  Invoke-RetryableNativeCommand `
+    -Description 'Remote deployment script upload' `
+    -Action {
+      & scp @sshOptions `
+        $remoteScriptPath `
+        "${target}:$remoteTemporaryDirectory/deploy.sh"
+    }
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & ssh @sshOptions $target `
+      "bash -n '$remoteTemporaryDirectory/deploy.sh' && sudo bash '$remoteTemporaryDirectory/deploy.sh'"
+    $deploymentExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
   }
-  & ssh @sshOptions $target `
-    "bash -n '$remoteTemporaryDirectory/deploy.sh' && sudo bash '$remoteTemporaryDirectory/deploy.sh'"
-  if ($LASTEXITCODE -ne 0) {
+  if ($deploymentExitCode -ne 0) {
     throw 'Formal miniapp API deployment failed.'
   }
 } finally {
-  & ssh @sshOptions $target `
-    "rm -rf '$remoteTemporaryDirectory'" 2>$null
+  try {
+    Invoke-RetryableNativeCommand `
+      -Description 'Remote deployment cleanup' `
+      -MaximumAttempts 2 `
+      -Action {
+        & ssh @sshOptions $target `
+          "rm -rf '$remoteTemporaryDirectory'" 2>$null
+      }
+  } catch {
+    Write-Warning $_
+  }
 }
 
 Write-Output 'Formal miniapp API deployment completed.'
