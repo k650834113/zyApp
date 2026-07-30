@@ -63,6 +63,9 @@ test('formal production deployment enables and verifies WeChat authentication', 
     resolve(scriptDirectory, 'deploy-miniapp-production.ps1'),
     'utf8'
   )
+  const remoteDeploymentScript = deploymentScript.slice(
+    deploymentScript.indexOf("$remoteScriptTemplate = @'")
+  )
 
   assert.match(
     deploymentScript,
@@ -92,4 +95,35 @@ test('formal production deployment enables and verifies WeChat authentication', 
     deploymentScript,
     /TEST_AUTH_MODE=unchanged/u
   )
+
+  const databaseBackupPosition = remoteDeploymentScript.indexOf(
+    'sudo BACKUP_ENVIRONMENTS=production'
+  )
+  const imageBuildPosition = remoteDeploymentScript.indexOf(
+    'build --no-cache migrate api'
+  )
+  const migrationPosition = remoteDeploymentScript.lastIndexOf(
+    'run --rm --no-deps migrate'
+  )
+  const environmentBackupPosition = remoteDeploymentScript.indexOf(
+    'environment_backup="$environment_backup_directory'
+  )
+  const paymentMutationPosition = remoteDeploymentScript.indexOf(
+    "'s/^PRODUCTION_WECHAT_PAYMENT_MODE=.*/PRODUCTION_WECHAT_PAYMENT_MODE=wechat/'"
+  )
+  const authenticationMutationPosition = remoteDeploymentScript.indexOf(
+    "'s/^MINIAPP_WECHAT_AUTH_MODE=.*/MINIAPP_WECHAT_AUTH_MODE=wechat/'"
+  )
+  const serviceActivationPosition = remoteDeploymentScript.indexOf(
+    'up -d --no-build --no-deps --force-recreate api caddy'
+  )
+
+  assert.ok(databaseBackupPosition >= 0)
+  assert.ok(imageBuildPosition > databaseBackupPosition)
+  assert.ok(migrationPosition > imageBuildPosition)
+  assert.ok(environmentBackupPosition > migrationPosition)
+  assert.ok(paymentMutationPosition > environmentBackupPosition)
+  assert.ok(authenticationMutationPosition > environmentBackupPosition)
+  assert.ok(serviceActivationPosition > authenticationMutationPosition)
+  assert.ok(serviceActivationPosition > paymentMutationPosition)
 })

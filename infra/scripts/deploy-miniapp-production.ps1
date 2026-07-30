@@ -513,32 +513,6 @@ sudo test -s "$backup_file"
 sudo test -s "$backup_file.sha256"
 sudo sh -lc "cd '$(dirname "$backup_file")' && sha256sum -c '$(basename "$backup_file").sha256'"
 
-environment_backup_directory='/var/backups/zyapp-config'
-sudo install -d -o root -g root -m 0700 "$environment_backup_directory"
-environment_backup="$environment_backup_directory/production.env.before-miniapp-go-live-$(date -u +%Y%m%dT%H%M%SZ)"
-sudo cp --preserve=mode,ownership,timestamps "$env_file" "$environment_backup"
-sudo chmod 0600 "$environment_backup"
-if [ "$enable_payment" = 'true' ]; then
-  if sudo grep -Eq '^PRODUCTION_WECHAT_PAYMENT_MODE=' "$env_file"; then
-    sudo sed -i \
-      's/^PRODUCTION_WECHAT_PAYMENT_MODE=.*/PRODUCTION_WECHAT_PAYMENT_MODE=wechat/' \
-      "$env_file"
-  else
-    printf '%s\n' 'PRODUCTION_WECHAT_PAYMENT_MODE=wechat' |
-      sudo tee -a "$env_file" >/dev/null
-  fi
-  if sudo grep -Eq '^MINIAPP_WECHAT_AUTH_MODE=' "$env_file"; then
-    sudo sed -i \
-      's/^MINIAPP_WECHAT_AUTH_MODE=.*/MINIAPP_WECHAT_AUTH_MODE=wechat/' \
-      "$env_file"
-  else
-    printf '%s\n' 'MINIAPP_WECHAT_AUTH_MODE=wechat' |
-      sudo tee -a "$env_file" >/dev/null
-  fi
-fi
-sudo grep -Eq '^PRODUCTION_WECHAT_PAYMENT_MODE=wechat$' "$env_file"
-sudo grep -Eq '^MINIAPP_WECHAT_AUTH_MODE=wechat$' "$env_file"
-
 mkdir -p "$candidate_dir"
 tar -xzf "$remote_temp/source.tgz" -C "$candidate_dir"
 test -f "$candidate_compose_file"
@@ -560,6 +534,33 @@ migrate_database_identity="$(
 test "$migrate_database_identity" = "$production_database_identity_before"
 sudo docker compose --env-file "$env_file" \
   -f "$candidate_compose_file" run --rm --no-deps migrate
+
+environment_backup_directory='/var/backups/zyapp-config'
+sudo install -d -o root -g root -m 0700 "$environment_backup_directory"
+environment_backup="$environment_backup_directory/production.env.before-miniapp-go-live-$(date -u +%Y%m%dT%H%M%SZ)"
+sudo cp --preserve=mode,ownership,timestamps "$env_file" "$environment_backup"
+sudo chmod 0600 "$environment_backup"
+
+if [ "$enable_payment" = 'true' ]; then
+  if sudo grep -Eq '^PRODUCTION_WECHAT_PAYMENT_MODE=' "$env_file"; then
+    sudo sed -i \
+      's/^PRODUCTION_WECHAT_PAYMENT_MODE=.*/PRODUCTION_WECHAT_PAYMENT_MODE=wechat/' \
+      "$env_file"
+  else
+    printf '%s\n' 'PRODUCTION_WECHAT_PAYMENT_MODE=wechat' |
+      sudo tee -a "$env_file" >/dev/null
+  fi
+  if sudo grep -Eq '^MINIAPP_WECHAT_AUTH_MODE=' "$env_file"; then
+    sudo sed -i \
+      's/^MINIAPP_WECHAT_AUTH_MODE=.*/MINIAPP_WECHAT_AUTH_MODE=wechat/' \
+      "$env_file"
+  else
+    printf '%s\n' 'MINIAPP_WECHAT_AUTH_MODE=wechat' |
+      sudo tee -a "$env_file" >/dev/null
+  fi
+fi
+sudo grep -Eq '^PRODUCTION_WECHAT_PAYMENT_MODE=wechat$' "$env_file"
+sudo grep -Eq '^MINIAPP_WECHAT_AUTH_MODE=wechat$' "$env_file"
 
 sudo tar -xzf "$remote_temp/source.tgz" -C "$deploy_dir"
 cd "$deploy_dir"
