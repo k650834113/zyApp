@@ -32,7 +32,7 @@
 - Consumes: `-HostName`, `-KeyPath`, `-ExpectedCommit`, `-RemoteDirectory`, `-ValidateOnly`, `-PreflightOnly`。
 - Produces: 新增 `-EnableProductionPayment` 显式开关；发布输出包含生产备份、迁移、头像路由、支付环境和测试隔离证据。
 
-- [ ] **Step 1: 保存当前失败证据**
+- [x] **Step 1: 保存当前失败证据**
 
 Run:
 
@@ -44,7 +44,7 @@ ssh -i E:\AIproject\zyApp\.tmp\ssh\kaifa_PC.pem `
 
 Expected: `404`。
 
-- [ ] **Step 2: 在参数层增加显式支付授权**
+- [x] **Step 2: 在参数层增加显式支付授权**
 
 在 `deploy-miniapp-production.ps1` 的 `param` 中加入：
 
@@ -54,7 +54,7 @@ Expected: `404`。
 
 不传该开关时，脚本不得把关闭的生产支付改为 `wechat`；传入开关时，只有 AppID/AppSecret、商户号、证书序列号、公钥标识和三份只读密钥文件均存在，才允许继续。
 
-- [ ] **Step 3: 将远端预检拆成只读资格检查**
+- [x] **Step 3: 将远端预检拆成只读资格检查**
 
 预检必须输出非敏感结果并检查：
 
@@ -68,7 +68,7 @@ TEST_DATABASE=zyapp_test
 
 数据库名称必须不同；`migrate` 服务必须与生产 API 使用同一个正式数据库；不得输出数据库 URL。
 
-- [ ] **Step 4: 在数据库备份后启用正式支付**
+- [x] **Step 4: 在数据库备份后启用正式支付**
 
 远端部署脚本先生成并验证生产数据库备份，再备份现有 `production.env`，然后仅在 `-EnableProductionPayment` 存在时幂等写入：
 
@@ -78,7 +78,7 @@ PRODUCTION_WECHAT_PAYMENT_MODE=wechat
 
 不得修改 `TEST_WECHAT_PAYMENT_MODE` 或其他测试配置。
 
-- [ ] **Step 5: 固定测试环境不变门禁**
+- [x] **Step 5: 固定测试环境不变门禁**
 
 发布前记录：
 
@@ -102,7 +102,7 @@ docker compose up -d --no-deps --force-recreate api caddy
 
 服务器对短时间连续新建 SSH 会话限流时，只读预检、文件上传和临时目录清理可使用 keepalive 与有上限的退避重试；真正执行生产变更的远程部署命令不得自动重试，避免连接中断时重复执行发布。
 
-- [ ] **Step 6: 增加头像路由与支付验证**
+- [x] **Step 6: 增加头像路由与支付验证**
 
 健康循环中增加：
 
@@ -123,7 +123,7 @@ WECHAT_PAY_OUT_TRADE_NO_PREFIX=ZYP-
 WECHAT_PAYMENT_TEST_AMOUNT_FEN is absent
 ```
 
-- [ ] **Step 7: 执行静态与自动测试**
+- [x] **Step 7: 执行静态与自动测试**
 
 Run:
 
@@ -150,7 +150,7 @@ Expected: PowerShell 无解析错误；96 个测试文件、415 项测试或更�
 - Consumes: `config/public-endpoints.local.json` 中的正式 API、正式门店和 AppID。
 - Produces: `production-wechat` 顾客正式构建。
 
-- [ ] **Step 1: 运行小程序测试和类型检查**
+- [x] **Step 1: 运行小程序测试和类型检查**
 
 Run:
 
@@ -161,7 +161,7 @@ corepack pnpm miniapp:test
 
 Expected: 全部通过。
 
-- [ ] **Step 2: 构建正式产物**
+- [x] **Step 2: 构建正式产物**
 
 Run:
 
@@ -173,7 +173,7 @@ corepack pnpm miniapp:build
 
 Expected: `[miniapp] built production-wechat mode`。
 
-- [ ] **Step 3: 检查产物隔离**
+- [x] **Step 3: 检查产物隔离**
 
 Run:
 
@@ -195,7 +195,7 @@ Expected: 正式配置为 `https://judian.icu`、正式门店、`useMock:false`�
 - Consumes: 当前提交、服务器 SSH 密钥、远端正式环境和只读支付密钥。
 - Produces: 新正式 API 容器、已启用的正式支付、已校验生产备份。
 
-- [ ] **Step 1: 运行完整只读预检**
+- [x] **Step 1: 运行完整只读预检**
 
 Run:
 
@@ -212,7 +212,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 Expected: 正式门店唯一、充赠规则存在、生产/测试数据库不同、双健康正常，支付变更显示 `required` 或 `not-required`。
 
-- [ ] **Step 2: 执行正式发布**
+- [x] **Step 2: 执行正式发布**
 
 Run:
 
@@ -239,7 +239,7 @@ Expected: 生产备份 SHA-256 通过；迁移为 18；生产和测试健康；�
 - Consumes: 本地验证输出、生产预检输出、备份文件名/大小、发布后状态。
 - Produces: 不含密钥的可审计正式发布记录和负责人验收入口。
 
-- [ ] **Step 1: 写入自动发布证据**
+- [x] **Step 1: 写入自动发布证据**
 
 记录：
 
@@ -258,7 +258,7 @@ test migration unchanged
 formal miniapp build configuration
 ```
 
-- [ ] **Step 2: 标记负责人验收边界**
+- [x] **Step 2: 标记负责人验收边界**
 
 文档必须明确仍待负责人完成：
 
@@ -272,7 +272,7 @@ PC/小程序/数据库账务一致性
 微信审核与最终发布
 ```
 
-- [ ] **Step 3: 最终验证并提交**
+- [x] **Step 3: 最终验证并提交**
 
 Run:
 
