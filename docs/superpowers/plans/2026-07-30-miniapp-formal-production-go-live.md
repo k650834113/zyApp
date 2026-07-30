@@ -98,7 +98,7 @@ docker compose up -d --no-deps --force-recreate api caddy
 
 发布后逐项比较测试 API 容器 ID、测试数据库名称和测试迁移版本；任一变化即失败。脚本中不得调用 `migrate-test`、重建 `api-test` 或执行测试库迁移/数据导入。
 
-生产环境备份必须保存到 Docker 构建上下文以外的 root-only 目录；`.dockerignore` 必须排除 `infra/deploy/*.env*`。生产与测试 API 的数据库完整身份必须分别精确为 `postgres:5432/zyapp` 和 `postgres:5432/zyapp_test`，确保容器内核验及备份针对实际 API 数据库。发布必须由 `git archive` 从显式 `-ExpectedCommit` 生成，且 tracked worktree 必须干净；镜像在独立候选目录中构建，随后使用 `--no-build` 启动，避免服务器旧源码残留进入运行产物。发布失败时恢复旧环境文件和旧 API 镜像，但不自动恢复数据库。
+生产环境备份必须保存到 Docker 构建上下文以外的 root-only 目录；`.dockerignore` 必须排除 `infra/deploy/*.env*`。生产与测试 API 的数据库完整身份必须分别精确为 `postgres:5432/zyapp` 和 `postgres:5432/zyapp_test`，确保容器内核验及备份针对实际 API 数据库。发布必须由 `git archive` 从显式 `-ExpectedCommit` 生成，且 tracked worktree 必须干净；镜像在独立候选目录中构建，随后使用 `--no-build` 启动，避免服务器旧源码残留进入运行产物。构建前必须给旧 API 镜像增加专用回滚标签，防止重建期间镜像被回收；发布后门禁必须输出明确失败原因。发布失败时恢复旧环境文件和旧 API 镜像，但不自动恢复数据库。
 
 - [ ] **Step 6: 增加头像路由与支付验证**
 

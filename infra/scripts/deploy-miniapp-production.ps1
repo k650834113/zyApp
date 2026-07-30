@@ -338,6 +338,7 @@ candidate_compose_file="$candidate_dir/infra/deploy/compose.production.yml"
 environment_backup=''
 previous_api_image=''
 previous_api_image_name=''
+rollback_api_tag=''
 
 cleanup() {
   status="$?"
@@ -346,13 +347,14 @@ cleanup() {
   if [ "$status" -ne 0 ] &&
     [ -n "$environment_backup" ] &&
     [ -n "$previous_api_image" ] &&
+    [ -n "$rollback_api_tag" ] &&
     sudo test -s "$environment_backup"
   then
     echo 'Deployment failed; restoring the previous production environment and API image.' >&2
     sudo cp --preserve=mode,ownership,timestamps \
       "$environment_backup" "$env_file"
     sudo chmod 0600 "$env_file"
-    sudo docker image tag "$previous_api_image" "$previous_api_image_name"
+    sudo docker image tag "$rollback_api_tag" "$previous_api_image_name"
     sudo docker compose --env-file "$env_file" -f "$compose_file" \
       up -d --no-deps --force-recreate api caddy
     rollback_health=''
@@ -419,6 +421,8 @@ previous_api_image_name="$(
 )"
 test -n "$previous_api_image"
 test -n "$previous_api_image_name"
+rollback_api_tag="zyapp-cloud-api:rollback-${candidate_commit}"
+sudo docker image tag "$previous_api_image" "$rollback_api_tag"
 production_database_identity_before="$(database_identity api)"
 test_database_identity_before="$(database_identity api-test)"
 production_database_before="${production_database_identity_before##*/}"
@@ -535,27 +539,52 @@ test_database_identity_after="$(database_identity api-test)"
 production_database_after="${production_database_identity_after##*/}"
 test_database_after="${test_database_identity_after##*/}"
 test_migration_after="$(database_migration "$test_database_after")"
-test "$test_api_container_after" = "$test_api_container_before"
-test "$production_database_identity_after" = "$production_database_identity_before"
-test "$test_database_identity_after" = "$test_database_identity_before"
-test "$test_migration_after" = "$test_migration_before"
+if [ "$test_api_container_after" != "$test_api_container_before" ]; then
+  echo 'Test API container changed during the production deployment.' >&2
+  exit 1
+fi
+if [ "$production_database_identity_after" != "$production_database_identity_before" ]; then
+  echo 'Production database identity changed during the deployment.' >&2
+  exit 1
+fi
+if [ "$test_database_identity_after" != "$test_database_identity_before" ]; then
+  echo 'Test database identity changed during the production deployment.' >&2
+  exit 1
+fi
+if [ "$test_migration_after" != "$test_migration_before" ]; then
+  echo 'Test database migration changed during the production deployment.' >&2
+  exit 1
+fi
+echo 'DATABASE_AND_TEST_ISOLATION=verified'
 
 sudo docker compose --env-file infra/deploy/production.env \
   -f infra/deploy/compose.production.yml exec -T api sh -lc '
-    test "$DEPLOYMENT_ENVIRONMENT" = production &&
-    test "$WECHAT_PAYMENT_MODE" = wechat &&
-    test "$WECHAT_PAY_NOTIFY_URL" = https://judian.icu/v1/payments/wechat/recharge/notify &&
-    test "$WECHAT_PAY_OUT_TRADE_NO_PREFIX" = ZYP- &&
-    test -z "${WECHAT_PAYMENT_TEST_AMOUNT_FEN:-}"
+    test "$DEPLOYMENT_ENVIRONMENT" = production ||
+      { echo "Unexpected production deployment environment." >&2; exit 1; }
+    test "$WECHAT_PAYMENT_MODE" = wechat ||
+      { echo "Production WeChat payment mode is not enabled." >&2; exit 1; }
+    test "$WECHAT_PAY_NOTIFY_URL" = https://judian.icu/v1/payments/wechat/recharge/notify ||
+      { echo "Unexpected production payment callback." >&2; exit 1; }
+    test "$WECHAT_PAY_OUT_TRADE_NO_PREFIX" = ZYP- ||
+      { echo "Unexpected production payment order prefix." >&2; exit 1; }
+    test -z "${WECHAT_PAYMENT_TEST_AMOUNT_FEN:-}" ||
+      { echo "Production payment test amount must be empty." >&2; exit 1; }
   '
+echo 'PRODUCTION_PAYMENT_ENVIRONMENT=verified'
 sudo docker compose --env-file infra/deploy/production.env \
   -f infra/deploy/compose.production.yml exec -T api-test sh -lc '
-    test "$DEPLOYMENT_ENVIRONMENT" = test &&
-    test "$WECHAT_PAYMENT_MODE" = wechat &&
-    test "$WECHAT_PAY_NOTIFY_URL" = https://judian.icu/test/v1/payments/wechat/recharge/notify &&
-    test "$WECHAT_PAY_OUT_TRADE_NO_PREFIX" = ZYT- &&
-    test -z "${WECHAT_PAYMENT_TEST_AMOUNT_FEN:-}"
+    test "$DEPLOYMENT_ENVIRONMENT" = test ||
+      { echo "Unexpected test deployment environment." >&2; exit 1; }
+    test "$WECHAT_PAYMENT_MODE" = wechat ||
+      { echo "Test WeChat payment mode changed." >&2; exit 1; }
+    test "$WECHAT_PAY_NOTIFY_URL" = https://judian.icu/test/v1/payments/wechat/recharge/notify ||
+      { echo "Unexpected test payment callback." >&2; exit 1; }
+    test "$WECHAT_PAY_OUT_TRADE_NO_PREFIX" = ZYT- ||
+      { echo "Unexpected test payment order prefix." >&2; exit 1; }
+    test -z "${WECHAT_PAYMENT_TEST_AMOUNT_FEN:-}" ||
+      { echo "Test payment test amount must be empty." >&2; exit 1; }
   '
+echo 'TEST_PAYMENT_ENVIRONMENT=verified'
 
 backup_size="$(sudo stat -c %s "$backup_file")"
 echo "PRODUCTION_BACKUP=$(basename "$backup_file")"
@@ -576,6 +605,7 @@ echo "AVATAR_ROUTE=$avatar_status"
 echo 'PRODUCTION_PAYMENT_MODE=wechat'
 echo 'PRODUCTION_API=healthy'
 echo 'TEST_API=healthy'
+sudo docker image rm "$rollback_api_tag" >/dev/null 2>&1 || true
 '@
   $remoteScript = $remoteScriptTemplate.
     Replace('__REMOTE_DIRECTORY__', $RemoteDirectory).
