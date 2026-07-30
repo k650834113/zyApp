@@ -175,11 +175,11 @@ Run:
 ```powershell
 rg -n "apiBaseUrl|storeId|useMock|authMode|customerOnly|realWechatPayment" `
   apps/miniapp/dist/services/client.js
-rg -n "judian\.icu/test|mock-phone|development-session|18888888888" `
-  apps/miniapp/dist
+rg -n "judian\.icu/test|18888888888" `
+  apps/miniapp/dist/services/client.js apps/miniapp/dist/app.json
 ```
 
-Expected: 正式配置为 `https://judian.icu`、正式门店、`useMock:false`、`authMode:"wechat"`、`customerOnly:true`、`realWechatPayment:true`；第二条搜索无测试运行时配置命中。
+Expected: 正式配置为 `https://judian.icu`、正式门店、`useMock:false`、`authMode:"wechat"`、`customerOnly:true`、`realWechatPayment:true`；第二条搜索无测试运行时配置命中。Source map 和未选择的客户端实现可以保留调试源码文本，但生产 API 必须继续拒绝开发会话、Mock 支付和虚拟手机号。
 
 ### Task 3: 执行生产预检、备份与发布
 
