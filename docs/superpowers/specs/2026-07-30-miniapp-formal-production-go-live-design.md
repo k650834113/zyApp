@@ -53,6 +53,7 @@
 ### 4.2 禁止变更
 
 - 不把 `/test`、测试门店、测试数据库、测试 Redis、测试头像卷或 `ZYT-` 订单前缀带入正式环境。
+- 测试库中的会员、钱包、月卡、订单、支付回调、头像和任何历史数据不得复制、导入、合并、回填或重放到生产库；本次只对生产库执行结构迁移和正式环境自身的业务操作。
 - 不启用开发会话、虚拟手机号、Mock 支付或测试金额替换。
 - 不覆盖用户现有未跟踪文件 `infra/deploy/production.env.before-domain-20260725`。
 - 不删除或改写已有会员、钱包、月卡、订单、支付回调、审计或账本记录。
@@ -66,6 +67,7 @@
 - 正式构建只包含 `https://judian.icu` 和正式门店，不包含 `/test`、Mock、开发身份或虚拟手机号。
 - 正式环境文件权限为 600，所需微信和支付配置均存在。
 - 正式环境恰有一个启用门店，并有有效充赠规则。
+- 正式 API、正式迁移服务与测试 API 使用不同的数据库名称；正式迁移服务必须只连接正式数据库。
 - 正式与测试健康检查均为 HTTP 200。
 - 正式数据库迁移版本等于仓库最新迁移 18。
 - 生产支付回调固定为 `https://judian.icu/v1/payments/wechat/recharge/notify`，订单前缀固定为 `ZYP-`。
@@ -81,6 +83,7 @@
 - 未携带会话的 `POST https://judian.icu/v1/member/profile-with-avatar` 返回 HTTP 401，不再返回 404。
 - 正式 API 容器内 `DEPLOYMENT_ENVIRONMENT=production`、`WECHAT_PAYMENT_MODE=wechat`、回调地址为正式根域名、订单前缀为 `ZYP-`，且不存在测试金额。
 - 测试 API 仍为 `DEPLOYMENT_ENVIRONMENT=test`，使用 `/test` 回调和 `ZYT-` 前缀。
+- 测试 API 容器 ID、测试数据库名称和测试数据库迁移版本在正式发布前后保持不变；发布命令不得启动 `migrate-test`、重建 `api-test` 或执行任何测试库数据命令。
 - 正式数据库迁移保持 18，生产备份文件与校验文件非空且校验通过。
 - 最终小程序产物为 `production-wechat`，只包含顾客正式页面和正式端点。
 
