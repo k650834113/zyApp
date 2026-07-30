@@ -112,6 +112,8 @@ deploy_dir="$1"
 enable_payment="$2"
 expected_migration="$3"
 expected_formal_store_id='7755df34-4309-43ed-8800-c0dc2049bb17'
+expected_production_database_identity='postgres:5432/zyapp'
+expected_test_database_identity='postgres:5432/zyapp_test'
 compose_file="$deploy_dir/infra/deploy/compose.production.yml"
 env_file="$deploy_dir/infra/deploy/production.env"
 secret_dir="$deploy_dir/secrets/wechatpay"
@@ -168,12 +170,12 @@ production_database_identity="$(database_identity api)"
 test_database_identity="$(database_identity api-test)"
 production_database="${production_database_identity##*/}"
 test_database="${test_database_identity##*/}"
-if [ "$production_database" != 'zyapp' ]; then
-  echo "Unexpected production database name: $production_database" >&2
+if [ "$production_database_identity" != "$expected_production_database_identity" ]; then
+  echo "Unexpected production database identity: $production_database_identity" >&2
   exit 1
 fi
-if [ "$test_database" != 'zyapp_test' ]; then
-  echo "Unexpected test database name: $test_database" >&2
+if [ "$test_database_identity" != "$expected_test_database_identity" ]; then
+  echo "Unexpected test database identity: $test_database_identity" >&2
   exit 1
 fi
 if [ "$production_database" = "$test_database" ]; then
@@ -327,6 +329,8 @@ deploy_dir="__REMOTE_DIRECTORY__"
 expected_migration="__EXPECTED_MIGRATION__"
 enable_payment="__ENABLE_PRODUCTION_PAYMENT__"
 candidate_commit="__CANDIDATE_COMMIT__"
+expected_production_database_identity='postgres:5432/zyapp'
+expected_test_database_identity='postgres:5432/zyapp_test'
 compose_file="$deploy_dir/infra/deploy/compose.production.yml"
 env_file="$deploy_dir/infra/deploy/production.env"
 candidate_dir="$remote_temp/candidate"
@@ -419,8 +423,8 @@ production_database_identity_before="$(database_identity api)"
 test_database_identity_before="$(database_identity api-test)"
 production_database_before="${production_database_identity_before##*/}"
 test_database_before="${test_database_identity_before##*/}"
-test "$production_database_before" = 'zyapp'
-test "$test_database_before" = 'zyapp_test'
+test "$production_database_identity_before" = "$expected_production_database_identity"
+test "$test_database_identity_before" = "$expected_test_database_identity"
 test "$production_database_identity_before" != "$test_database_identity_before"
 test_migration_before="$(database_migration "$test_database_before")"
 production_migration_before="$(database_migration "$production_database_before")"
