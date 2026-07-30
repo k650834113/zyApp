@@ -15,6 +15,7 @@
 - 测试库中的会员、钱包、月卡、订单、支付、头像和历史数据不得复制、导入、合并、回填或重放到生产库。
 - 正式数据库只执行仓库迁移；当前最新迁移必须为 18。
 - 正式支付回调固定为 `https://judian.icu/v1/payments/wechat/recharge/notify`，订单前缀固定为 `ZYP-`。
+- 正式微信认证模式固定为 `MINIAPP_WECHAT_AUTH_MODE=wechat`，不得因 AppID/AppSecret 已配置而省略运行模式检查。
 - 不读取、修改、暂存或提交 `infra/deploy/production.env.before-domain-20260725`。
 - 密钥内容不得进入源码、日志、聊天、截图或发布记录。
 - 微信体验版上传、真实头像、真实手机号、真实付款、商户平台对账、审核和最终发布由账号负责人完成。
@@ -30,7 +31,7 @@
 
 **Interfaces:**
 - Consumes: `-HostName`, `-KeyPath`, `-ExpectedCommit`, `-RemoteDirectory`, `-ValidateOnly`, `-PreflightOnly`。
-- Produces: 新增 `-EnableProductionPayment` 显式开关；发布输出包含生产备份、迁移、头像路由、支付环境和测试隔离证据。
+- Produces: 新增 `-EnableProductionPayment` 显式正式微信启用开关；发布输出包含生产备份、迁移、头像路由、认证/支付环境和测试隔离证据。
 
 - [x] **Step 1: 保存当前失败证据**
 
@@ -52,7 +53,7 @@ Expected: `404`。
 [switch]$EnableProductionPayment
 ```
 
-不传该开关时，脚本不得把关闭的生产支付改为 `wechat`；传入开关时，只有 AppID/AppSecret、商户号、证书序列号、公钥标识和三份只读密钥文件均存在，才允许继续。
+不传该开关时，脚本不得把关闭的生产认证或支付改为 `wechat`；传入开关时，只有 AppID/AppSecret、商户号、证书序列号、公钥标识和三份只读密钥文件均存在，才允许继续。
 
 - [x] **Step 3: 将远端预检拆成只读资格检查**
 
@@ -62,6 +63,7 @@ Expected: `404`。
 FORMAL_STORE=<tenant>|<store>|<name>|active
 GIFT_TIER=<principalFen>|<giftFen>
 PRODUCTION_PAYMENT_CHANGE=required|not-required
+PRODUCTION_AUTH_CHANGE=required|not-required
 PRODUCTION_DATABASE=zyapp
 TEST_DATABASE=zyapp_test
 ```
@@ -74,9 +76,10 @@ TEST_DATABASE=zyapp_test
 
 ```dotenv
 PRODUCTION_WECHAT_PAYMENT_MODE=wechat
+MINIAPP_WECHAT_AUTH_MODE=wechat
 ```
 
-不得修改 `TEST_WECHAT_PAYMENT_MODE` 或其他测试配置。
+不得修改 `TEST_MINIAPP_WECHAT_AUTH_MODE`、`TEST_WECHAT_PAYMENT_MODE` 或其他测试配置。
 
 - [x] **Step 5: 固定测试环境不变门禁**
 
@@ -117,6 +120,7 @@ avatar_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
 
 ```text
 DEPLOYMENT_ENVIRONMENT=production
+MINIAPP_WECHAT_AUTH_MODE=wechat
 WECHAT_PAYMENT_MODE=wechat
 WECHAT_PAY_NOTIFY_URL=https://judian.icu/v1/payments/wechat/recharge/notify
 WECHAT_PAY_OUT_TRADE_NO_PREFIX=ZYP-
@@ -210,7 +214,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -PreflightOnly
 ```
 
-Expected: 正式门店唯一、充赠规则存在、生产/测试数据库不同、双健康正常，支付变更显示 `required` 或 `not-required`。
+Expected: 正式门店唯一、充赠规则存在、生产/测试数据库不同、双健康正常，认证和支付变更分别显示 `required` 或 `not-required`。
 
 - [x] **Step 2: 执行正式发布**
 
@@ -226,7 +230,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -EnableProductionPayment
 ```
 
-Expected: 生产备份 SHA-256 通过；迁移为 18；生产和测试健康；资料与头像路由均为 401；正式支付为 `wechat`；测试 API 容器、数据库和迁移不变。
+Expected: 生产备份 SHA-256 通过；迁移为 18；生产和测试健康；资料与头像路由均为 401；正式认证和支付均为 `wechat`；测试 API 容器、数据库、迁移和认证配置不变。
 
 ### Task 4: 记录正式发布证据
 

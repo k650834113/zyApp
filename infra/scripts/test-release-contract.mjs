@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -54,5 +55,41 @@ test('accepts the current repository release candidate', () => {
   assert.match(
     result.stdout,
     /\[release-contract\] 0\.23\.2 metadata and isolation gates verified/u
+  )
+})
+
+test('formal production deployment enables and verifies WeChat authentication', () => {
+  const deploymentScript = readFileSync(
+    resolve(scriptDirectory, 'deploy-miniapp-production.ps1'),
+    'utf8'
+  )
+
+  assert.match(
+    deploymentScript,
+    /PRODUCTION_AUTH_CHANGE=\$auth_change/u
+  )
+  assert.match(
+    deploymentScript,
+    /MINIAPP_WECHAT_AUTH_MODE=wechat/u
+  )
+  assert.match(
+    deploymentScript,
+    /test "\$MINIAPP_WECHAT_AUTH_MODE" = wechat/u
+  )
+  assert.match(
+    deploymentScript,
+    /PRODUCTION_AUTH_MODE=wechat/u
+  )
+  assert.match(
+    deploymentScript,
+    /test_auth_mode_before/u
+  )
+  assert.match(
+    deploymentScript,
+    /test_auth_mode_after/u
+  )
+  assert.match(
+    deploymentScript,
+    /TEST_AUTH_MODE=unchanged/u
   )
 })

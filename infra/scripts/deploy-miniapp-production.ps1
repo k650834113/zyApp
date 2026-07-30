@@ -170,6 +170,14 @@ else
   echo 'Production WeChat payment is disabled; pass -EnableProductionPayment for a formal go-live.' >&2
   exit 1
 fi
+if sudo grep -Eq '^MINIAPP_WECHAT_AUTH_MODE=wechat$' "$env_file"; then
+  auth_change='not-required'
+elif [ "$enable_payment" = 'true' ]; then
+  auth_change='required'
+else
+  echo 'Production WeChat authentication is disabled; pass -EnableProductionPayment for a formal go-live.' >&2
+  exit 1
+fi
 
 curl --fail --silent --show-error \
   "https://judian.icu/v1/health/ready" >/dev/null
@@ -281,6 +289,7 @@ fi
 echo "FORMAL_STORE=$formal_store"
 printf '%s\n' "$gift_tiers" | sed 's/^/GIFT_TIER=/'
 echo "PRODUCTION_PAYMENT_CHANGE=$payment_change"
+echo "PRODUCTION_AUTH_CHANGE=$auth_change"
 echo "PRODUCTION_DATABASE=$production_database"
 echo "TEST_DATABASE=$test_database"
 echo "PRODUCTION_DATABASE_IDENTITY=$production_database_identity"
@@ -485,6 +494,11 @@ test_payment_test_amount_before="$(
     exec -T api-test sh -lc \
     'printf "%s" "${WECHAT_PAYMENT_TEST_AMOUNT_FEN:-}"'
 )"
+test_auth_mode_before="$(
+  sudo docker compose --env-file "$env_file" -f "$compose_file" \
+    exec -T api-test sh -lc \
+    'printf "%s" "${MINIAPP_WECHAT_AUTH_MODE:-}"'
+)"
 
 sudo BACKUP_ENVIRONMENTS=production DEPLOY_DIR="$deploy_dir" \
   bash infra/deploy/backup-postgres.sh
@@ -513,8 +527,17 @@ if [ "$enable_payment" = 'true' ]; then
     printf '%s\n' 'PRODUCTION_WECHAT_PAYMENT_MODE=wechat' |
       sudo tee -a "$env_file" >/dev/null
   fi
+  if sudo grep -Eq '^MINIAPP_WECHAT_AUTH_MODE=' "$env_file"; then
+    sudo sed -i \
+      's/^MINIAPP_WECHAT_AUTH_MODE=.*/MINIAPP_WECHAT_AUTH_MODE=wechat/' \
+      "$env_file"
+  else
+    printf '%s\n' 'MINIAPP_WECHAT_AUTH_MODE=wechat' |
+      sudo tee -a "$env_file" >/dev/null
+  fi
 fi
 sudo grep -Eq '^PRODUCTION_WECHAT_PAYMENT_MODE=wechat$' "$env_file"
+sudo grep -Eq '^MINIAPP_WECHAT_AUTH_MODE=wechat$' "$env_file"
 
 mkdir -p "$candidate_dir"
 tar -xzf "$remote_temp/source.tgz" -C "$candidate_dir"
@@ -596,6 +619,11 @@ test_payment_test_amount_after="$(
     exec -T api-test sh -lc \
     'printf "%s" "${WECHAT_PAYMENT_TEST_AMOUNT_FEN:-}"'
 )"
+test_auth_mode_after="$(
+  sudo docker compose --env-file "$env_file" -f "$compose_file" \
+    exec -T api-test sh -lc \
+    'printf "%s" "${MINIAPP_WECHAT_AUTH_MODE:-}"'
+)"
 if [ "$test_api_container_after" != "$test_api_container_before" ]; then
   echo 'Test API container changed during the production deployment.' >&2
   exit 1
@@ -616,12 +644,18 @@ if [ "$test_payment_test_amount_after" != "$test_payment_test_amount_before" ]; 
   echo 'Test payment amount configuration changed during the production deployment.' >&2
   exit 1
 fi
+if [ "$test_auth_mode_after" != "$test_auth_mode_before" ]; then
+  echo 'Test WeChat authentication mode changed during the production deployment.' >&2
+  exit 1
+fi
 echo 'DATABASE_AND_TEST_ISOLATION=verified'
 
 sudo docker compose --env-file infra/deploy/production.env \
   -f infra/deploy/compose.production.yml exec -T api sh -lc '
     test "$DEPLOYMENT_ENVIRONMENT" = production ||
       { echo "Unexpected production deployment environment." >&2; exit 1; }
+    test "$MINIAPP_WECHAT_AUTH_MODE" = wechat ||
+      { echo "Production WeChat authentication mode is not enabled." >&2; exit 1; }
     test "$WECHAT_PAYMENT_MODE" = wechat ||
       { echo "Production WeChat payment mode is not enabled." >&2; exit 1; }
     test "$WECHAT_PAY_NOTIFY_URL" = https://judian.icu/v1/payments/wechat/recharge/notify ||
@@ -632,10 +666,13 @@ sudo docker compose --env-file infra/deploy/production.env \
       { echo "Production payment test amount must be empty." >&2; exit 1; }
   '
 echo 'PRODUCTION_PAYMENT_ENVIRONMENT=verified'
+echo 'PRODUCTION_AUTHENTICATION_ENVIRONMENT=verified'
 sudo docker compose --env-file infra/deploy/production.env \
   -f infra/deploy/compose.production.yml exec -T api-test sh -lc '
     test "$DEPLOYMENT_ENVIRONMENT" = test ||
       { echo "Unexpected test deployment environment." >&2; exit 1; }
+    test "$MINIAPP_WECHAT_AUTH_MODE" = wechat ||
+      { echo "Test WeChat authentication mode changed." >&2; exit 1; }
     test "$WECHAT_PAYMENT_MODE" = wechat ||
       { echo "Test WeChat payment mode changed." >&2; exit 1; }
     test "$WECHAT_PAY_NOTIFY_URL" = https://judian.icu/test/v1/payments/wechat/recharge/notify ||
@@ -645,6 +682,7 @@ sudo docker compose --env-file infra/deploy/production.env \
   '
 echo 'TEST_PAYMENT_ENVIRONMENT=verified'
 echo 'TEST_PAYMENT_TEST_AMOUNT=unchanged'
+echo 'TEST_AUTH_MODE=unchanged'
 
 backup_size="$(sudo stat -c %s "$backup_file")"
 echo "PRODUCTION_BACKUP=$(basename "$backup_file")"
@@ -663,6 +701,7 @@ echo 'TEST_API_CONTAINER=unchanged'
 echo "PROFILE_ROUTE=$profile_status"
 echo "AVATAR_ROUTE=$avatar_status"
 echo 'PRODUCTION_PAYMENT_MODE=wechat'
+echo 'PRODUCTION_AUTH_MODE=wechat'
 echo 'PRODUCTION_API=healthy'
 echo 'TEST_API=healthy'
 sudo docker image rm "$rollback_api_tag" >/dev/null 2>&1 || true

@@ -15,6 +15,7 @@
 ## 2. 已确认现状
 
 - 正式小程序构建模式为 `production-wechat`，API 固定为 `https://judian.icu`，正式门店 ID 固定为 `7755df34-4309-43ed-8800-c0dc2049bb17`。
+- 正式 API 必须同时使用 `MINIAPP_WECHAT_AUTH_MODE=wechat`；已配置的 AppID/AppSecret 只有在该模式启用后才会参与 `wx.login` 会话交换。
 - 当前正式环境对 `POST /v1/member/profile-with-avatar` 返回 HTTP 404，表明正式 API 镜像落后于小程序代码。
 - 当前正式 PostgreSQL 的 `cloud_schema_migration` 已达到 18，与仓库最新迁移一致。
 - 当前正式环境的 `PRODUCTION_WECHAT_PAYMENT_MODE` 尚未满足 `wechat`，不符合完整正式投产要求。
@@ -27,7 +28,7 @@
 采用“完整正式环境晋升”方案：
 
 1. 保持正式小程序连接 `https://judian.icu`，不切换到 `/test`。
-2. 在服务器现有生产环境文件中将正式微信支付模式明确设置为 `wechat`，保留测试环境的独立配置。
+2. 在服务器现有生产环境文件中将正式微信认证与微信支付模式明确设置为 `wechat`，保留测试环境的独立配置。
 3. 使用仓库的正式小程序生产部署流程，发布前执行门店、充赠规则、密钥、双环境健康和数据库状态预检。
 4. 发布前生成并校验生产 PostgreSQL 备份。
 5. 无缓存重建并重启正式 `api`，应用幂等迁移；除共享入口验证所需范围外，不重建测试 API、测试数据库或 PC 更新通道。
@@ -44,7 +45,7 @@
 
 ### 4.1 允许变更
 
-- 服务器正式环境中的 `PRODUCTION_WECHAT_PAYMENT_MODE`。
+- 服务器正式环境中的 `MINIAPP_WECHAT_AUTH_MODE` 和 `PRODUCTION_WECHAT_PAYMENT_MODE`。
 - 正式 API 使用的当前仓库源码和容器镜像。
 - 正式数据库的幂等迁移执行记录；当前目标版本仍为 18。
 - 正式头像持久化卷中的后续会员头像文件。
@@ -81,7 +82,7 @@
 - `GET https://judian.icu/test/v1/health/ready` 仍返回 HTTP 200。
 - 未携带会话的 `POST https://judian.icu/v1/member/profile` 返回 HTTP 401。
 - 未携带会话的 `POST https://judian.icu/v1/member/profile-with-avatar` 返回 HTTP 401，不再返回 404。
-- 正式 API 容器内 `DEPLOYMENT_ENVIRONMENT=production`、`WECHAT_PAYMENT_MODE=wechat`、回调地址为正式根域名、订单前缀为 `ZYP-`，且不存在测试金额。
+- 正式 API 容器内 `DEPLOYMENT_ENVIRONMENT=production`、`MINIAPP_WECHAT_AUTH_MODE=wechat`、`WECHAT_PAYMENT_MODE=wechat`、回调地址为正式根域名、订单前缀为 `ZYP-`，且不存在测试金额。
 - 测试 API 仍为 `DEPLOYMENT_ENVIRONMENT=test`，使用 `/test` 回调和 `ZYT-` 前缀。
 - 测试 API 容器 ID、测试数据库名称和测试数据库迁移版本在正式发布前后保持不变；发布命令不得启动 `migrate-test`、重建 `api-test` 或执行任何测试库数据命令。
 - 正式数据库迁移保持 18，生产备份文件与校验文件非空且校验通过。
