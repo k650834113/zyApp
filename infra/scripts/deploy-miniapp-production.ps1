@@ -8,6 +8,10 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$KeyPath,
 
+  [Parameter(Mandatory = $true)]
+  [ValidatePattern('^[0-9a-f]{40}$')]
+  [string]$ExpectedCommit,
+
   [string]$RemoteDirectory = '/opt/zyapp',
 
   [switch]$ValidateOnly,
@@ -32,12 +36,32 @@ function Resolve-RequiredFile(
 
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $key = Resolve-RequiredFile $KeyPath 'SSH private key'
+$candidateCommit = (& git -C $workspace rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $candidateCommit -cne $ExpectedCommit) {
+  throw "Expected candidate commit $ExpectedCommit, got $candidateCommit."
+}
+$trackedChanges = @(
+  & git -C $workspace status --porcelain --untracked-files=no
+)
+if ($LASTEXITCODE -ne 0) {
+  throw 'Failed to inspect the candidate worktree.'
+}
+if ($trackedChanges.Count -gt 0) {
+  throw 'Tracked files must be clean before a production deployment.'
+}
+$candidateVersion = (
+  Get-Content -Raw -Encoding utf8 (Join-Path $workspace 'package.json') |
+    ConvertFrom-Json
+).version
+if ($candidateVersion -cne '0.23.2') {
+  throw "Expected candidate version 0.23.2, got $candidateVersion."
+}
 
 if ($RemoteDirectory -notmatch '^/[a-zA-Z0-9._/-]+$') {
   throw 'RemoteDirectory must be an absolute safe Linux path.'
 }
 
-foreach ($command in @('ssh', 'scp', 'tar')) {
+foreach ($command in @('git', 'ssh', 'scp')) {
   if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
     throw "$command is required but was not found."
   }
@@ -86,6 +110,8 @@ $preflightScript = @'
 set -euo pipefail
 deploy_dir="$1"
 enable_payment="$2"
+expected_migration="$3"
+expected_formal_store_id='7755df34-4309-43ed-8800-c0dc2049bb17'
 compose_file="$deploy_dir/infra/deploy/compose.production.yml"
 env_file="$deploy_dir/infra/deploy/production.env"
 secret_dir="$deploy_dir/secrets/wechatpay"
@@ -117,18 +143,31 @@ curl --fail --silent --show-error \
   "https://judian.icu/test/v1/health/ready" >/dev/null
 
 cd "$deploy_dir"
-database_name() {
+database_identity() {
   service="$1"
   sudo docker compose --env-file "$env_file" -f "$compose_file" \
     exec -T "$service" node -e '
       const value = process.env.DATABASE_URL
-      const name = value ? decodeURIComponent(new URL(value).pathname.slice(1)) : ""
-      if (!name) process.exit(1)
-      console.log(name)
+      const url = value ? new URL(value) : null
+      const name = url ? decodeURIComponent(url.pathname.slice(1)) : ""
+      if (!url || !url.hostname || !name) process.exit(1)
+      console.log(`${url.hostname.toLowerCase()}:${url.port || "5432"}/${name}`)
     '
 }
-production_database="$(database_name api)"
-test_database="$(database_name api-test)"
+migrate_database_identity="$(
+  sudo docker compose --env-file "$env_file" -f "$compose_file" \
+    run --rm --no-deps migrate node -e '
+      const value = process.env.DATABASE_URL
+      const url = value ? new URL(value) : null
+      const name = url ? decodeURIComponent(url.pathname.slice(1)) : ""
+      if (!url || !url.hostname || !name) process.exit(1)
+      console.log(`${url.hostname.toLowerCase()}:${url.port || "5432"}/${name}`)
+    '
+)"
+production_database_identity="$(database_identity api)"
+test_database_identity="$(database_identity api-test)"
+production_database="${production_database_identity##*/}"
+test_database="${test_database_identity##*/}"
 if [ "$production_database" != 'zyapp' ]; then
   echo "Unexpected production database name: $production_database" >&2
   exit 1
@@ -139,6 +178,19 @@ if [ "$test_database" != 'zyapp_test' ]; then
 fi
 if [ "$production_database" = "$test_database" ]; then
   echo 'Production and test APIs must use different databases.' >&2
+  exit 1
+fi
+if [ "$migrate_database_identity" != "$production_database_identity" ]; then
+  echo 'The migration service must target the same database as the production API.' >&2
+  exit 1
+fi
+production_migration="$(
+  sudo docker compose --env-file "$env_file" -f "$compose_file" \
+    exec -T postgres sh -lc \
+    "psql -U \"\$POSTGRES_USER\" -d '$production_database' -Atc 'SELECT version FROM cloud_schema_migration ORDER BY version DESC LIMIT 1'"
+)"
+if [ "$production_migration" != "$expected_migration" ]; then
+  echo "Expected production migration $expected_migration before deployment; found $production_migration." >&2
   exit 1
 fi
 store_sql="SELECT tenant_id::text || '|' || id::text || '|' || name || '|' || status FROM store ORDER BY id"
@@ -160,6 +212,10 @@ if [ "$store_count" != "1" ]; then
 fi
 formal_store="$(printf '%s\n' "$active_stores" | head -1)"
 formal_store_id="$(printf '%s\n' "$formal_store" | cut -d'|' -f2)"
+if [ "$formal_store_id" != "$expected_formal_store_id" ]; then
+  echo "Expected formal store $expected_formal_store_id; found $formal_store_id." >&2
+  exit 1
+fi
 
 template_sql="SELECT (tier->>'principalFen') || '|' || (tier->>'giftFen') FROM cloud_merchant_business_template template LEFT JOIN cloud_store_business_template_override override ON override.tenant_id = template.tenant_id AND override.store_id = '${formal_store_id}'::uuid AND override.template_id = template.id AND override.active = TRUE CROSS JOIN LATERAL jsonb_array_elements(COALESCE(override.payload_json, template.payload_json)->'tiers') tier WHERE template.tenant_id = (SELECT tenant_id FROM store WHERE id = '${formal_store_id}'::uuid) AND template.template_type = 'recharge_gift_tier' AND template.active = TRUE ORDER BY (tier->>'principalFen')::bigint"
 gift_tiers="$(
@@ -193,6 +249,10 @@ printf '%s\n' "$gift_tiers" | sed 's/^/GIFT_TIER=/'
 echo "PRODUCTION_PAYMENT_CHANGE=$payment_change"
 echo "PRODUCTION_DATABASE=$production_database"
 echo "TEST_DATABASE=$test_database"
+echo "PRODUCTION_DATABASE_IDENTITY=$production_database_identity"
+echo "TEST_DATABASE_IDENTITY=$test_database_identity"
+echo "MIGRATE_DATABASE_IDENTITY=$migrate_database_identity"
+echo "PRODUCTION_MIGRATION=$production_migration"
 '@
 
 $preflightScriptPath = Join-Path $tempDirectory 'preflight.sh'
@@ -215,7 +275,7 @@ try {
     throw 'Production miniapp preflight upload failed.'
   }
   $preflightOutput = & ssh @sshOptions $target `
-    "bash '$remotePreflightPath' '$RemoteDirectory' '$enablePaymentArgument'"
+    "bash -n '$remotePreflightPath' && bash '$remotePreflightPath' '$RemoteDirectory' '$enablePaymentArgument' '$expectedMigrationVersion'"
   if ($LASTEXITCODE -ne 0) {
     throw 'Production miniapp preflight failed.'
   }
@@ -234,21 +294,12 @@ if (Test-Path -LiteralPath $archive) {
 
 Push-Location $workspace
 try {
-  & tar -czf $archive `
-    --exclude=.git `
-    --exclude=.worktrees `
-    --exclude=node_modules `
-    --exclude=.tmp `
-    --exclude=.tmp-artifact-acceptance `
-    --exclude=outputs `
-    --exclude=legacy-data `
-    --exclude=apps/merchant-desktop/dist-installer `
-    --exclude='infra/deploy/*.env*' `
-    --exclude=secrets `
-    --exclude='*证书*' `
-    .
+  & git archive `
+    --format=tar.gz `
+    "--output=$archive" `
+    $ExpectedCommit
   if ($LASTEXITCODE -ne 0) {
-    throw 'Failed to create the source archive.'
+    throw 'Failed to create the immutable source archive.'
   }
 } finally {
   Pop-Location
@@ -275,23 +326,64 @@ remote_temp="/tmp/zyapp-miniapp-production"
 deploy_dir="__REMOTE_DIRECTORY__"
 expected_migration="__EXPECTED_MIGRATION__"
 enable_payment="__ENABLE_PRODUCTION_PAYMENT__"
+candidate_commit="__CANDIDATE_COMMIT__"
 compose_file="$deploy_dir/infra/deploy/compose.production.yml"
 env_file="$deploy_dir/infra/deploy/production.env"
+candidate_dir="$remote_temp/candidate"
+candidate_compose_file="$candidate_dir/infra/deploy/compose.production.yml"
+environment_backup=''
+previous_api_image=''
+previous_api_image_name=''
 
 cleanup() {
+  status="$?"
+  trap - EXIT
+  set +e
+  if [ "$status" -ne 0 ] &&
+    [ -n "$environment_backup" ] &&
+    [ -n "$previous_api_image" ] &&
+    sudo test -s "$environment_backup"
+  then
+    echo 'Deployment failed; restoring the previous production environment and API image.' >&2
+    sudo cp --preserve=mode,ownership,timestamps \
+      "$environment_backup" "$env_file"
+    sudo chmod 0600 "$env_file"
+    sudo docker image tag "$previous_api_image" "$previous_api_image_name"
+    sudo docker compose --env-file "$env_file" -f "$compose_file" \
+      up -d --no-deps --force-recreate api caddy
+    rollback_health=''
+    for rollback_attempt in $(seq 1 36); do
+      rollback_health="$(
+        curl --silent --output /dev/null --write-out '%{http_code}' \
+          'https://judian.icu/v1/health/ready' || true
+      )"
+      if [ "$rollback_health" = '200' ]; then
+        echo 'Previous production environment and API image restored.' >&2
+        break
+      fi
+      sleep 5
+    done
+    if [ "$rollback_health" != '200' ]; then
+      echo 'Automatic API rollback did not become healthy; manual recovery is required.' >&2
+      sudo docker compose --env-file "$env_file" -f "$compose_file" \
+        logs --tail 120 api caddy >&2
+    fi
+  fi
   rm -rf "$remote_temp"
+  exit "$status"
 }
 trap cleanup EXIT
 
 cd "$deploy_dir"
-database_name() {
+database_identity() {
   service="$1"
   sudo docker compose --env-file "$env_file" -f "$compose_file" \
     exec -T "$service" node -e '
       const value = process.env.DATABASE_URL
-      const name = value ? decodeURIComponent(new URL(value).pathname.slice(1)) : ""
-      if (!name) process.exit(1)
-      console.log(name)
+      const url = value ? new URL(value) : null
+      const name = url ? decodeURIComponent(url.pathname.slice(1)) : ""
+      if (!url || !url.hostname || !name) process.exit(1)
+      console.log(`${url.hostname.toLowerCase()}:${url.port || "5432"}/${name}`)
     '
 }
 database_migration() {
@@ -307,16 +399,32 @@ database_migration() {
     "psql -U \"\$POSTGRES_USER\" -d '$database' -Atc 'SELECT version FROM cloud_schema_migration ORDER BY version DESC LIMIT 1'"
 }
 
+api_container_before="$(
+  sudo docker compose --env-file "$env_file" -f "$compose_file" ps -q api
+)"
 test_api_container_before="$(
   sudo docker compose --env-file "$env_file" -f "$compose_file" ps -q api-test
 )"
+test -n "$api_container_before"
 test -n "$test_api_container_before"
-production_database_before="$(database_name api)"
-test_database_before="$(database_name api-test)"
+previous_api_image="$(
+  sudo docker inspect --format '{{.Image}}' "$api_container_before"
+)"
+previous_api_image_name="$(
+  sudo docker inspect --format '{{.Config.Image}}' "$api_container_before"
+)"
+test -n "$previous_api_image"
+test -n "$previous_api_image_name"
+production_database_identity_before="$(database_identity api)"
+test_database_identity_before="$(database_identity api-test)"
+production_database_before="${production_database_identity_before##*/}"
+test_database_before="${test_database_identity_before##*/}"
 test "$production_database_before" = 'zyapp'
 test "$test_database_before" = 'zyapp_test'
-test "$production_database_before" != "$test_database_before"
+test "$production_database_identity_before" != "$test_database_identity_before"
 test_migration_before="$(database_migration "$test_database_before")"
+production_migration_before="$(database_migration "$production_database_before")"
+test "$production_migration_before" = "$expected_migration"
 
 sudo BACKUP_ENVIRONMENTS=production DEPLOY_DIR="$deploy_dir" \
   bash infra/deploy/backup-postgres.sh
@@ -331,7 +439,9 @@ sudo test -s "$backup_file"
 sudo test -s "$backup_file.sha256"
 sudo sh -lc "cd '$(dirname "$backup_file")' && sha256sum -c '$(basename "$backup_file").sha256'"
 
-environment_backup="$deploy_dir/infra/deploy/production.env.before-miniapp-go-live-$(date -u +%Y%m%dT%H%M%SZ)"
+environment_backup_directory='/var/backups/zyapp-config'
+sudo install -d -o root -g root -m 0700 "$environment_backup_directory"
+environment_backup="$environment_backup_directory/production.env.before-miniapp-go-live-$(date -u +%Y%m%dT%H%M%SZ)"
 sudo cp --preserve=mode,ownership,timestamps "$env_file" "$environment_backup"
 sudo chmod 0600 "$environment_backup"
 if [ "$enable_payment" = 'true' ]; then
@@ -346,26 +456,32 @@ if [ "$enable_payment" = 'true' ]; then
 fi
 sudo grep -Eq '^PRODUCTION_WECHAT_PAYMENT_MODE=wechat$' "$env_file"
 
-sudo tar -xzf "$remote_temp/source.tgz" -C "$deploy_dir"
-cd "$deploy_dir"
-sudo docker compose --env-file infra/deploy/production.env \
-  -f infra/deploy/compose.production.yml build --no-cache migrate api
-migrate_database="$(
-  sudo docker compose --env-file infra/deploy/production.env \
-    -f infra/deploy/compose.production.yml run --rm --no-deps migrate \
+mkdir -p "$candidate_dir"
+tar -xzf "$remote_temp/source.tgz" -C "$candidate_dir"
+test -f "$candidate_compose_file"
+
+cd "$candidate_dir"
+sudo docker compose --env-file "$env_file" \
+  -f "$candidate_compose_file" build --no-cache migrate api
+migrate_database_identity="$(
+  sudo docker compose --env-file "$env_file" \
+    -f "$candidate_compose_file" run --rm --no-deps migrate \
     node -e '
       const value = process.env.DATABASE_URL
-      const name = value ? decodeURIComponent(new URL(value).pathname.slice(1)) : ""
-      if (!name) process.exit(1)
-      console.log(name)
+      const url = value ? new URL(value) : null
+      const name = url ? decodeURIComponent(url.pathname.slice(1)) : ""
+      if (!url || !url.hostname || !name) process.exit(1)
+      console.log(`${url.hostname.toLowerCase()}:${url.port || "5432"}/${name}`)
     '
 )"
-test "$migrate_database" = "$production_database_before"
-sudo docker compose --env-file infra/deploy/production.env \
-  -f infra/deploy/compose.production.yml run --rm --no-deps migrate
-sudo docker compose --env-file infra/deploy/production.env \
-  -f infra/deploy/compose.production.yml up -d --no-deps \
-  --force-recreate api caddy
+test "$migrate_database_identity" = "$production_database_identity_before"
+sudo docker compose --env-file "$env_file" \
+  -f "$candidate_compose_file" run --rm --no-deps migrate
+
+sudo tar -xzf "$remote_temp/source.tgz" -C "$deploy_dir"
+cd "$deploy_dir"
+sudo docker compose --env-file "$env_file" -f "$compose_file" \
+  up -d --no-build --no-deps --force-recreate api caddy
 
 for attempt in $(seq 1 36); do
   production_health="$(
@@ -410,12 +526,14 @@ test "$production_migration" = "$expected_migration"
 test_api_container_after="$(
   sudo docker compose --env-file "$env_file" -f "$compose_file" ps -q api-test
 )"
-production_database_after="$(database_name api)"
-test_database_after="$(database_name api-test)"
+production_database_identity_after="$(database_identity api)"
+test_database_identity_after="$(database_identity api-test)"
+production_database_after="${production_database_identity_after##*/}"
+test_database_after="${test_database_identity_after##*/}"
 test_migration_after="$(database_migration "$test_database_after")"
 test "$test_api_container_after" = "$test_api_container_before"
-test "$production_database_after" = "$production_database_before"
-test "$test_database_after" = "$test_database_before"
+test "$production_database_identity_after" = "$production_database_identity_before"
+test "$test_database_identity_after" = "$test_database_identity_before"
 test "$test_migration_after" = "$test_migration_before"
 
 sudo docker compose --env-file infra/deploy/production.env \
@@ -440,9 +558,13 @@ echo "PRODUCTION_BACKUP=$(basename "$backup_file")"
 echo "PRODUCTION_BACKUP_BYTES=$backup_size"
 echo "PRODUCTION_BACKUP_SHA256=verified"
 echo "PRODUCTION_ENVIRONMENT_BACKUP=$(basename "$environment_backup")"
+echo "CANDIDATE_COMMIT=$candidate_commit"
 echo "PRODUCTION_MIGRATION=$production_migration"
 echo "PRODUCTION_DATABASE=$production_database_after"
 echo "TEST_DATABASE=$test_database_after"
+echo "PRODUCTION_DATABASE_IDENTITY=$production_database_identity_after"
+echo "TEST_DATABASE_IDENTITY=$test_database_identity_after"
+echo "MIGRATE_DATABASE_IDENTITY=$migrate_database_identity"
 echo "TEST_MIGRATION=$test_migration_after"
 echo 'TEST_API_CONTAINER=unchanged'
 echo "PROFILE_ROUTE=$profile_status"
@@ -454,7 +576,8 @@ echo 'TEST_API=healthy'
   $remoteScript = $remoteScriptTemplate.
     Replace('__REMOTE_DIRECTORY__', $RemoteDirectory).
     Replace('__EXPECTED_MIGRATION__', [string]$expectedMigrationVersion).
-    Replace('__ENABLE_PRODUCTION_PAYMENT__', $enablePaymentArgument)
+    Replace('__ENABLE_PRODUCTION_PAYMENT__', $enablePaymentArgument).
+    Replace('__CANDIDATE_COMMIT__', $ExpectedCommit)
   $remoteScriptPath = Join-Path $tempDirectory 'deploy.sh'
   [IO.File]::WriteAllText(
     $remoteScriptPath,
@@ -469,7 +592,7 @@ echo 'TEST_API=healthy'
     throw 'Remote deployment script upload failed.'
   }
   & ssh @sshOptions $target `
-    "sudo bash '$remoteTemporaryDirectory/deploy.sh'"
+    "bash -n '$remoteTemporaryDirectory/deploy.sh' && sudo bash '$remoteTemporaryDirectory/deploy.sh'"
   if ($LASTEXITCODE -ne 0) {
     throw 'Formal miniapp API deployment failed.'
   }

@@ -11,7 +11,7 @@ docs
 NEXT_SESSION_HANDOFF.md
 config/public-endpoints.local.json
 infra/docker/cloud.env
-infra/deploy/production.env
+infra/deploy/*.env*
 infra/deploy/backups
 apps/miniapp/project.private.config.json
 *.db

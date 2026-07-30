@@ -24,11 +24,12 @@
 ### Task 1: 加固正式部署脚本的支付与数据库隔离门禁
 
 **Files:**
+- Modify: `.dockerignore`
 - Modify: `infra/scripts/deploy-miniapp-production.ps1`
 - Test: live preflight and route probes defined below
 
 **Interfaces:**
-- Consumes: `-HostName`, `-KeyPath`, `-RemoteDirectory`, `-ValidateOnly`, `-PreflightOnly`。
+- Consumes: `-HostName`, `-KeyPath`, `-ExpectedCommit`, `-RemoteDirectory`, `-ValidateOnly`, `-PreflightOnly`。
 - Produces: 新增 `-EnableProductionPayment` 显式开关；发布输出包含生产备份、迁移、头像路由、支付环境和测试隔离证据。
 
 - [ ] **Step 1: 保存当前失败证据**
@@ -96,6 +97,8 @@ docker compose up -d --no-deps --force-recreate api caddy
 ```
 
 发布后逐项比较测试 API 容器 ID、测试数据库名称和测试迁移版本；任一变化即失败。脚本中不得调用 `migrate-test`、重建 `api-test` 或执行测试库迁移/数据导入。
+
+生产环境备份必须保存到 Docker 构建上下文以外的 root-only 目录；`.dockerignore` 必须排除 `infra/deploy/*.env*`。发布必须由 `git archive` 从显式 `-ExpectedCommit` 生成，且 tracked worktree 必须干净；镜像在独立候选目录中构建，随后使用 `--no-build` 启动，避免服务器旧源码残留进入运行产物。发布失败时恢复旧环境文件和旧 API 镜像，但不自动恢复数据库。
 
 - [ ] **Step 6: 增加头像路由与支付验证**
 
@@ -195,10 +198,12 @@ Expected: 正式配置为 `https://judian.icu`、正式门店、`useMock:false`�
 Run:
 
 ```powershell
+$candidateCommit = (git rev-parse HEAD).Trim()
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File infra/scripts/deploy-miniapp-production.ps1 `
   -HostName 124.220.69.209 `
   -KeyPath E:\AIproject\zyApp\.tmp\ssh\kaifa_PC.pem `
+  -ExpectedCommit $candidateCommit `
   -EnableProductionPayment `
   -PreflightOnly
 ```
@@ -210,10 +215,12 @@ Expected: 正式门店唯一、充赠规则存在、生产/测试数据库不同
 Run:
 
 ```powershell
+$candidateCommit = (git rev-parse HEAD).Trim()
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File infra/scripts/deploy-miniapp-production.ps1 `
   -HostName 124.220.69.209 `
   -KeyPath E:\AIproject\zyApp\.tmp\ssh\kaifa_PC.pem `
+  -ExpectedCommit $candidateCommit `
   -EnableProductionPayment
 ```
 
