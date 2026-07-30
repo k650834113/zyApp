@@ -480,6 +480,11 @@ test "$production_database_identity_before" != "$test_database_identity_before"
 test_migration_before="$(database_migration "$test_database_before")"
 production_migration_before="$(database_migration "$production_database_before")"
 test "$production_migration_before" = "$expected_migration"
+test_payment_test_amount_before="$(
+  sudo docker compose --env-file "$env_file" -f "$compose_file" \
+    exec -T api-test sh -lc \
+    'printf "%s" "${WECHAT_PAYMENT_TEST_AMOUNT_FEN:-}"'
+)"
 
 sudo BACKUP_ENVIRONMENTS=production DEPLOY_DIR="$deploy_dir" \
   bash infra/deploy/backup-postgres.sh
@@ -586,6 +591,11 @@ test_database_identity_after="$(database_identity api-test)"
 production_database_after="${production_database_identity_after##*/}"
 test_database_after="${test_database_identity_after##*/}"
 test_migration_after="$(database_migration "$test_database_after")"
+test_payment_test_amount_after="$(
+  sudo docker compose --env-file "$env_file" -f "$compose_file" \
+    exec -T api-test sh -lc \
+    'printf "%s" "${WECHAT_PAYMENT_TEST_AMOUNT_FEN:-}"'
+)"
 if [ "$test_api_container_after" != "$test_api_container_before" ]; then
   echo 'Test API container changed during the production deployment.' >&2
   exit 1
@@ -600,6 +610,10 @@ if [ "$test_database_identity_after" != "$test_database_identity_before" ]; then
 fi
 if [ "$test_migration_after" != "$test_migration_before" ]; then
   echo 'Test database migration changed during the production deployment.' >&2
+  exit 1
+fi
+if [ "$test_payment_test_amount_after" != "$test_payment_test_amount_before" ]; then
+  echo 'Test payment amount configuration changed during the production deployment.' >&2
   exit 1
 fi
 echo 'DATABASE_AND_TEST_ISOLATION=verified'
@@ -628,10 +642,9 @@ sudo docker compose --env-file infra/deploy/production.env \
       { echo "Unexpected test payment callback." >&2; exit 1; }
     test "$WECHAT_PAY_OUT_TRADE_NO_PREFIX" = ZYT- ||
       { echo "Unexpected test payment order prefix." >&2; exit 1; }
-    test -z "${WECHAT_PAYMENT_TEST_AMOUNT_FEN:-}" ||
-      { echo "Test payment test amount must be empty." >&2; exit 1; }
   '
 echo 'TEST_PAYMENT_ENVIRONMENT=verified'
+echo 'TEST_PAYMENT_TEST_AMOUNT=unchanged'
 
 backup_size="$(sudo stat -c %s "$backup_file")"
 echo "PRODUCTION_BACKUP=$(basename "$backup_file")"
