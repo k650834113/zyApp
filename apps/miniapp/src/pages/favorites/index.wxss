@@ -1,0 +1,43 @@
+.favorites-page {
+  padding-top: 24rpx;
+}
+
+.favorites-heading {
+  margin-bottom: 28rpx;
+}
+
+.page-title,
+.page-subtitle,
+.empty-favorites text {
+  display: block;
+}
+
+.page-title {
+  font-size: 44rpx;
+  font-weight: 850;
+}
+
+.page-subtitle {
+  margin-top: 8rpx;
+  color: #7f817b;
+  font-size: 24rpx;
+}
+
+.load-error,
+.loading-line {
+  margin-bottom: 20rpx;
+  color: #9b5c47;
+  text-align: center;
+  font-size: 24rpx;
+}
+
+.empty-favorites {
+  margin-top: 80rpx;
+  padding: 48rpx 32rpx;
+  color: #7f817b;
+  text-align: center;
+}
+
+.empty-favorites .primary-button {
+  margin-top: 28rpx;
+}

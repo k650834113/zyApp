@@ -44,3 +44,33 @@ test('board-game library renders four first-level navigation choices', () => {
     position = next
   }
 })
+
+test('every first-level customer page uses the same four-choice navigation order', () => {
+  const pages = [
+    '../src/pages/home/index.wxml',
+    '../src/pages/games/index.wxml',
+    '../src/pages/history/index.wxml',
+    '../src/pages/member/index.wxml'
+  ]
+  for (const page of pages) {
+    const wxml = source(page)
+    let position = -1
+    for (const label of ['首页', '桌游库', '明细', '我的']) {
+      const next = wxml.indexOf(`>${label}</text>`, position + 1)
+      assert.notEqual(next, -1, `${page} missing ${label}`)
+      assert.ok(next > position, `${page} has ${label} out of order`)
+      position = next
+    }
+  }
+})
+
+test('My links to a separate favorites page that reuses board-game cards', () => {
+  const member = source('../src/pages/member/index.wxml')
+  const favorites = source('../src/pages/favorites/index.wxml')
+
+  assert.match(member, /我喜欢的/)
+  assert.match(member, /已收藏 {{favoriteCount}} 款桌游/)
+  assert.match(member, /bindtap="goFavorites"/)
+  assert.match(favorites, /<board-game-card/)
+  assert.match(favorites, /还没有喜欢的桌游，去桌游库逛逛吧/)
+})

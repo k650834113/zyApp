@@ -1,0 +1,24 @@
+<view class="page-shell favorites-page">
+  <view class="favorites-heading">
+    <text class="page-title">我喜欢的</text>
+    <text class="page-subtitle">收藏的桌游都在这里</text>
+  </view>
+
+  <view wx:if="{{loadFailed}}" class="load-error" bindtap="retry">加载失败，点击重试</view>
+  <view wx:if="{{loading && games.length}}" class="loading-line">正在更新收藏…</view>
+
+  <board-game-card
+    wx:for="{{games}}"
+    wx:key="id"
+    game="{{item}}"
+    bindtoggle="toggleGame"
+    bindlike="likeGame"
+    bindimageerror="imageError"
+  />
+
+  <view wx:if="{{loading && !games.length}}" class="empty-state">正在加载收藏…</view>
+  <view wx:elif="{{!loading && !games.length && !loadFailed}}" class="empty-favorites card">
+    <text>还没有喜欢的桌游，去桌游库逛逛吧</text>
+    <button class="primary-button" bindtap="goLibrary">去桌游库</button>
+  </view>
+</view>

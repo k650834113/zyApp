@@ -153,7 +153,11 @@ Page({
 
   goHistory() {},
 
+  goGames() {
+    wx.reLaunch({ url: '/pages/games/index' })
+  },
+
   goProfile() {
-    wx.navigateTo({ url: '/pages/member/index?mode=edit' })
+    wx.reLaunch({ url: '/pages/member/index?mode=edit' })
   }
 })

@@ -23,6 +23,7 @@ Page({
     saving: false,
     mode: 'edit' as ProfileMode,
     member: null as MemberSelfServiceSummary | null,
+    favoriteCount: 0,
     nickname: '',
     localAvatarPath: '',
     avatarText: '会'
@@ -41,13 +42,27 @@ Page({
   async load() {
     this.setData({ loading: true })
     try {
-      const member = await getMiniappClient().getMemberSummary()
+      const client = getMiniappClient()
+      const member = await client.getMemberSummary()
       if (!member) {
-        wx.reLaunch({ url: '/pages/home/index' })
+        if (this.data.mode === 'complete') {
+          wx.reLaunch({ url: '/pages/home/index' })
+          return
+        }
+        let favoriteCount = 0
+        try {
+          favoriteCount = (await client.listFavoriteGames()).length
+        } catch {}
+        this.setData({ member: null, favoriteCount })
         return
       }
+      let favoriteCount = this.data.favoriteCount
+      try {
+        favoriteCount = (await client.listFavoriteGames()).length
+      } catch {}
       this.setData({
         member,
+        favoriteCount,
         nickname:
           member.nickname === '微信用户' ? '' : member.nickname,
         avatarText: Array.from(member.nickname)[0] ?? '会'
@@ -134,7 +149,15 @@ Page({
   },
 
   goHistory() {
-    wx.navigateTo({ url: '/pages/history/index' })
+    wx.reLaunch({ url: '/pages/history/index' })
+  },
+
+  goGames() {
+    wx.reLaunch({ url: '/pages/games/index' })
+  },
+
+  goFavorites() {
+    wx.navigateTo({ url: '/pages/favorites/index' })
   },
 
   goProfile() {}

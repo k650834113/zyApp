@@ -141,6 +141,52 @@
   font-weight: 600;
 }
 
+.favorites-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 24rpx;
+  padding: 28rpx;
+}
+
+.favorites-title,
+.favorites-subtitle,
+.guest-title,
+.guest-subtitle {
+  display: block;
+}
+
+.favorites-title,
+.guest-title {
+  color: #28352f;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.favorites-subtitle,
+.guest-subtitle {
+  margin-top: 8rpx;
+  color: #888a85;
+  font-size: 23rpx;
+}
+
+.entry-arrow {
+  color: #a29c91;
+  font-size: 36rpx;
+}
+
+.guest-profile {
+  padding-top: 36rpx;
+}
+
+.guest-card {
+  padding: 34rpx 28rpx;
+}
+
+.guest-card .secondary-button {
+  margin-top: 28rpx;
+}
+
 .save-button {
   margin-top: 42rpx;
   box-shadow: 0 14rpx 28rpx rgba(23, 79, 59, 0.18);

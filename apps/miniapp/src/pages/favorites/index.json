@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "我喜欢的",
+  "usingComponents": {
+    "board-game-card": "/components/board-game-card/index"
+  }
+}

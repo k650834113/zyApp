@@ -542,11 +542,15 @@ Page({
   },
 
   goHistory() {
-    wx.navigateTo({ url: '/pages/history/index' })
+    wx.reLaunch({ url: '/pages/history/index' })
   },
 
   goProfile() {
-    wx.navigateTo({ url: '/pages/member/index?mode=edit' })
+    wx.reLaunch({ url: '/pages/member/index?mode=edit' })
+  },
+
+  goGames() {
+    wx.reLaunch({ url: '/pages/games/index' })
   },
 
   goHome() {}

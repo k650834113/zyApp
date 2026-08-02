@@ -31,5 +31,11 @@ test('customer release output contains only approved member page directories', (
     .map((entry) => entry.name)
     .sort()
 
-  assert.deepEqual(pageDirectories, ['history', 'home', 'member'])
+  assert.deepEqual(pageDirectories, [
+    'favorites',
+    'games',
+    'history',
+    'home',
+    'member'
+  ])
 })

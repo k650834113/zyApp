@@ -1,8 +1,10 @@
 {
   "pages": [
     "pages/home/index",
+    "pages/games/index",
     "pages/history/index",
-    "pages/member/index"
+    "pages/member/index",
+    "pages/favorites/index"
   ],
   "window": {
     "navigationBarTitleText": "会员中心",

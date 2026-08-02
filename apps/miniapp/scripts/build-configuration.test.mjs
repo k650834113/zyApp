@@ -192,8 +192,10 @@ test('keeps only the approved member pages in the customer app manifest', () => 
     filterCustomerAppManifest({
       pages: [
         'pages/home/index',
+        'pages/games/index',
         'pages/history/index',
         'pages/member/index',
+        'pages/favorites/index',
         'pages/staff/index',
         'pages/manager/index',
         'pages/content/index'
@@ -203,15 +205,17 @@ test('keeps only the approved member pages in the customer app manifest', () => 
     {
       pages: [
         'pages/home/index',
+        'pages/games/index',
         'pages/history/index',
-        'pages/member/index'
+        'pages/member/index',
+        'pages/favorites/index'
       ],
       window: { navigationBarTitleText: '桌游吧' }
     }
   )
 })
 
-test('source app manifest exposes only home, history, and member pages', async () => {
+test('source app manifest exposes only approved customer pages', async () => {
   const { readFile } = await import('node:fs/promises')
   const app = JSON.parse(
     await readFile(new URL('../src/app.json', import.meta.url), 'utf8')
@@ -219,8 +223,10 @@ test('source app manifest exposes only home, history, and member pages', async (
 
   assert.deepEqual(app.pages, [
     'pages/home/index',
+    'pages/games/index',
     'pages/history/index',
-    'pages/member/index'
+    'pages/member/index',
+    'pages/favorites/index'
   ])
   assert.equal(JSON.stringify(app).includes('staff'), false)
   assert.equal(JSON.stringify(app).includes('manager'), false)
