@@ -1,0 +1,40 @@
+<view class="game-card card">
+  <view class="game-card-body" bindtap="toggle">
+    <image
+      wx:if="{{game.imageUrl && !game.imageFailed}}"
+      class="game-cover"
+      src="{{game.imageUrl}}"
+      mode="aspectFill"
+      binderror="imageError"
+    />
+    <view wx:else class="game-cover game-cover-placeholder">桌游</view>
+
+    <view class="game-content">
+      <text class="game-name">{{game.name}}</text>
+      <view class="category-row">
+        <text
+          wx:for="{{game.categories}}"
+          wx:key="*this"
+          class="category-tag"
+        >{{item}}</text>
+      </view>
+      <text class="game-meta">{{game.playersText}} · {{game.durationText}} · {{game.complexityText}}</text>
+      <text wx:if="{{!game.expanded}}" class="expand-hint">点击展开简介</text>
+      <view wx:if="{{game.expanded}}" class="game-introduction">
+        <text>{{game.introduction}}</text>
+        <text class="collapse-hint">再次点击收起</text>
+      </view>
+    </view>
+  </view>
+
+  <button
+    class="like-button {{game.likedByViewer ? 'liked' : ''}}"
+    loading="{{game.likeBusy}}"
+    disabled="{{game.likeBusy}}"
+    catchtap="like"
+    aria-label="{{game.likedByViewer ? '取消点赞' : '点赞'}}"
+  >
+    <text class="heart">{{game.likedByViewer ? '♥' : '♡'}}</text>
+    <text class="like-count">{{game.likeCount}}</text>
+  </button>
+</view>

@@ -1,0 +1,115 @@
+.game-card {
+  position: relative;
+  margin-top: 22rpx;
+  overflow: hidden;
+}
+
+.game-card-body {
+  display: flex;
+  gap: 22rpx;
+  padding: 24rpx 92rpx 24rpx 24rpx;
+}
+
+.game-cover {
+  display: flex;
+  width: 150rpx;
+  height: 188rpx;
+  flex: 0 0 150rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20rpx;
+  background: #e9e0d2;
+}
+
+.game-cover-placeholder {
+  color: #174f3b;
+  font-size: 28rpx;
+  font-weight: 800;
+}
+
+.game-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.game-name,
+.game-meta,
+.expand-hint,
+.game-introduction,
+.collapse-hint {
+  display: block;
+}
+
+.game-name {
+  padding-right: 6rpx;
+  font-size: 31rpx;
+  font-weight: 800;
+}
+
+.category-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 16rpx;
+}
+
+.category-tag {
+  border-radius: 999rpx;
+  padding: 6rpx 13rpx;
+  color: #456354;
+  background: #edf2ec;
+  font-size: 20rpx;
+}
+
+.game-meta {
+  margin-top: 16rpx;
+  color: #58625c;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+.expand-hint,
+.collapse-hint {
+  margin-top: 14rpx;
+  color: #9a7c50;
+  font-size: 20rpx;
+}
+
+.game-introduction {
+  margin-top: 16rpx;
+  color: #4f554f;
+  font-size: 23rpx;
+  line-height: 1.75;
+}
+
+.like-button {
+  position: absolute;
+  z-index: 2;
+  right: 20rpx;
+  top: 18rpx;
+  display: flex;
+  width: 66rpx;
+  min-width: 66rpx;
+  height: 72rpx;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  color: #7c817c;
+  background: transparent;
+  line-height: 1;
+}
+
+.like-button.liked {
+  color: #c76d57;
+}
+
+.heart {
+  font-size: 38rpx;
+}
+
+.like-count {
+  margin-top: 5rpx;
+  font-size: 19rpx;
+}

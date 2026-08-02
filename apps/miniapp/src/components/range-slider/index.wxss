@@ -1,0 +1,45 @@
+.range-values {
+  display: flex;
+  justify-content: space-between;
+  color: #174f3b;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.range-track {
+  position: relative;
+  height: 64rpx;
+  margin: 8rpx 22rpx 0;
+  touch-action: none;
+}
+
+.range-rail,
+.range-fill {
+  position: absolute;
+  top: 29rpx;
+  right: 0;
+  left: 0;
+  height: 6rpx;
+  border-radius: 999rpx;
+}
+
+.range-rail {
+  background: #ddd5c8;
+}
+
+.range-fill {
+  right: auto;
+  background: #174f3b;
+}
+
+.range-handle {
+  position: absolute;
+  top: 14rpx;
+  width: 34rpx;
+  height: 34rpx;
+  border: 5rpx solid #fffdf8;
+  border-radius: 50%;
+  background: #174f3b;
+  box-shadow: 0 4rpx 14rpx rgba(23, 79, 59, 0.28);
+  transform: translateX(-50%);
+}

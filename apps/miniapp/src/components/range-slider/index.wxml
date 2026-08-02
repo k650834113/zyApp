@@ -1,0 +1,33 @@
+<view class="range-values">
+  <text>{{lowerValue}}{{unit}}</text>
+  <text>{{upperValue}}{{unit}}</text>
+</view>
+<view
+  class="range-track"
+  bindtouchstart="start"
+  catchtouchmove="move"
+>
+  <view class="range-rail"></view>
+  <view
+    class="range-fill"
+    style="left: {{lowerPercent}}%; width: {{upperPercent - lowerPercent}}%;"
+  ></view>
+  <view
+    class="range-handle"
+    style="left: {{lowerPercent}}%;"
+    aria-role="slider"
+    aria-label="最小值"
+    aria-valuemin="{{min}}"
+    aria-valuemax="{{max}}"
+    aria-valuenow="{{lowerValue}}"
+  ></view>
+  <view
+    class="range-handle"
+    style="left: {{upperPercent}}%;"
+    aria-role="slider"
+    aria-label="最大值"
+    aria-valuemin="{{min}}"
+    aria-valuemax="{{max}}"
+    aria-valuenow="{{upperValue}}"
+  ></view>
+</view>
