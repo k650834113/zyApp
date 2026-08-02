@@ -31,7 +31,10 @@ import type {
   MiniappIdentity,
   PhoneVerificationChallenge,
   PublicActivitySummary,
+  PublicBoardGameFilters,
   PublicBoardGameSummary,
+  SetBoardGameLikeRequest,
+  BoardGameLikeResult,
   StoreProfileSummary
 } from '@zyapp/contracts'
 
@@ -56,7 +59,12 @@ export interface MiniappClient {
   getIdentity(): Promise<MiniappIdentity>
   getHome(): Promise<MiniappHomeSnapshot>
   listActivities(): Promise<PublicActivitySummary[]>
-  listGames(query?: string): Promise<PublicBoardGameSummary[]>
+  listGames(filters?: PublicBoardGameFilters): Promise<PublicBoardGameSummary[]>
+  listFavoriteGames(): Promise<PublicBoardGameSummary[]>
+  setGameLiked(
+    gameId: string,
+    input: SetBoardGameLikeRequest
+  ): Promise<BoardGameLikeResult>
   getMemberSummary(): Promise<MemberSelfServiceSummary | null>
   getMemberHistory(): Promise<MemberSelfServiceHistory>
   getRechargeConfiguration(): Promise<MemberRechargeConfiguration>

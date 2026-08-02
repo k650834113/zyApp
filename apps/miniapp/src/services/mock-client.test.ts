@@ -24,6 +24,62 @@ describe('miniapp mock client', () => {
     expect(activeActivities(new Date('2026-07-01T00:00:00.000Z'))).toHaveLength(1)
   })
 
+  it('applies AND categories and complete player coverage to playable games', async () => {
+    await expect(
+      client.listGames({ categories: ['德式', '策略'] })
+    ).resolves.toEqual([
+      expect.objectContaining({ name: '璀璨宝石' })
+    ])
+    await expect(
+      client.listGames({ minPlayers: 3, maxPlayers: 6 })
+    ).resolves.toEqual([
+      expect.objectContaining({ name: '妙语说书人' })
+    ])
+  })
+
+  it('uses time overlap and closed numeric complexity ranges', async () => {
+    const result = await client.listGames({
+      minMinutes: 40,
+      maxMinutes: 60,
+      minComplexity: 2,
+      maxComplexity: 2.5
+    })
+    expect(result.map((game) => game.name)).toEqual(['璀璨宝石'])
+  })
+
+  it('keeps repeated likes idempotent and removes unliked favorites', async () => {
+    const splendor = (await client.listGames({ query: '璀璨宝石' }))[0]
+    if (!splendor) throw new Error('Missing mock Splendor')
+
+    await expect(
+      client.setGameLiked(splendor.id, {
+        liked: true,
+        requestId: 'like-request-001'
+      })
+    ).resolves.toMatchObject({
+      likedByViewer: true,
+      likeCount: splendor.likeCount + 1
+    })
+    await expect(
+      client.setGameLiked(splendor.id, {
+        liked: true,
+        requestId: 'like-request-001'
+      })
+    ).resolves.toMatchObject({
+      likedByViewer: true,
+      likeCount: splendor.likeCount + 1
+    })
+    await expect(client.listFavoriteGames()).resolves.toEqual([
+      expect.objectContaining({ id: splendor.id, likedByViewer: true })
+    ])
+
+    await client.setGameLiked(splendor.id, {
+      liked: false,
+      requestId: 'unlike-request-001'
+    })
+    await expect(client.listFavoriteGames()).resolves.toEqual([])
+  })
+
   it('logs in with a mock WeChat phone code and stores profile fields', async () => {
     const member = await client.loginWithWechatProfile({
       requestId: 'wechat-login-request-1',
@@ -377,6 +433,6 @@ describe('miniapp mock client', () => {
     })
     expect(
       (await client.listGames()).find((game) => game.id === boardGame.id)
-    ).toMatchObject({ soldOut: true })
+    ).toBeUndefined()
   })
 })

@@ -14,16 +14,13 @@
   <view class="card game" wx:for="{{games}}" wx:key="id">
     <view class="game-head">
       <text class="card-title">{{item.name}}</text>
-      <text class="stock {{item.soldOut ? 'sold-out' : 'available'}}">
-        {{item.soldOut ? '暂无' : '有库存'}}
-      </text>
     </view>
     <text class="muted block">{{item.introduction}}</text>
     <view class="tag-row">
       <text class="tag" wx:for="{{item.categories}}" wx:key="*this">{{item}}</text>
       <text class="tag good">{{item.minPlayers}}-{{item.maxPlayers}} 人</text>
       <text class="tag">{{item.durationText}}</text>
-      <text class="tag">{{item.difficultyText}}</text>
+      <text class="tag">{{item.complexityText}}</text>
     </view>
     <text class="customer-note" wx:if="{{item.customerNote}}">{{item.customerNote}}</text>
   </view>

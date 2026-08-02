@@ -31,9 +31,13 @@ import type {
   MiniappIdentity,
   PhoneVerificationChallenge,
   PublicActivitySummary,
+  PublicBoardGameFilters,
   PublicBoardGameSummary,
+  SetBoardGameLikeRequest,
+  BoardGameLikeResult,
   StoreProfileSummary
 } from '@zyapp/contracts'
+import { matchesBoardGameFilters } from './board-game-library'
 import type {
   MemberRegistrationInput,
   WechatOneTapLoginInput,
@@ -78,7 +82,17 @@ let activeRechargeGiftTiers =
     .find((activity) => activity.activityType === 'recharge')
     ?.rechargeTiers.map((tier) => ({ ...tier, active: true })) ?? []
 
-const games: PublicBoardGameSummary[] = [
+type MockBoardGameSeed = PublicBoardGameSummary & {
+  difficulty: BoardGameSummary['difficulty']
+  quantity: number
+  recordStatus: BoardGameSummary['recordStatus']
+  available: boolean
+  missingPieces: boolean
+  private: boolean
+  recommended: boolean
+}
+
+const games: MockBoardGameSeed[] = [
   {
     id: 'game-cascadia',
     name: '卡斯卡迪亚',
@@ -88,10 +102,62 @@ const games: PublicBoardGameSummary[] = [
     maxPlayers: 4,
     minMinutes: 30,
     maxMinutes: 45,
-    difficulty: 'light',
-    soldOut: false,
+    complexityRating: 1.9,
     imageUrl: null,
-    customerNote: '适合第一次接触现代桌游的顾客。'
+    customerNote: '适合第一次接触现代桌游的顾客。',
+    likeCount: 12,
+    likedByViewer: false,
+    difficulty: 'light',
+    quantity: 1,
+    recordStatus: 'active',
+    available: true,
+    missingPieces: false,
+    private: false,
+    recommended: true
+  },
+  {
+    id: 'game-splendor',
+    name: '璀璨宝石',
+    introduction: '收集宝石并发展矿场，在竞争中争取贵族青睐。',
+    categories: ['德式', '策略', '竞争'],
+    minPlayers: 2,
+    maxPlayers: 4,
+    minMinutes: 30,
+    maxMinutes: 45,
+    complexityRating: 2.3,
+    imageUrl: null,
+    customerNote: '经典入门策略游戏。',
+    likeCount: 18,
+    likedByViewer: false,
+    difficulty: 'medium',
+    quantity: 2,
+    recordStatus: 'active',
+    available: true,
+    missingPieces: false,
+    private: false,
+    recommended: true
+  },
+  {
+    id: 'game-dixit',
+    name: '妙语说书人',
+    introduction: '用画面、联想和语言线索讲述属于大家的故事。',
+    categories: ['聚会', '想象', '竞争'],
+    minPlayers: 3,
+    maxPlayers: 6,
+    minMinutes: 30,
+    maxMinutes: 45,
+    complexityRating: 1.2,
+    imageUrl: null,
+    customerNote: null,
+    likeCount: 9,
+    likedByViewer: false,
+    difficulty: 'light',
+    quantity: 1,
+    recordStatus: 'active',
+    available: true,
+    missingPieces: false,
+    private: false,
+    recommended: false
   },
   {
     id: 'game-brass',
@@ -102,10 +168,62 @@ const games: PublicBoardGameSummary[] = [
     maxPlayers: 4,
     minMinutes: 90,
     maxMinutes: 150,
-    difficulty: 'heavy',
-    soldOut: true,
+    complexityRating: 3.9,
     imageUrl: null,
-    customerNote: null
+    customerNote: null,
+    likeCount: 25,
+    likedByViewer: false,
+    difficulty: 'heavy',
+    quantity: 1,
+    recordStatus: 'active',
+    available: false,
+    missingPieces: false,
+    private: false,
+    recommended: false
+  },
+  {
+    id: 'game-hidden-private',
+    name: '私有寄存桌游',
+    introduction: '不应出现在顾客桌游库。',
+    categories: ['策略'],
+    minPlayers: 2,
+    maxPlayers: 4,
+    minMinutes: 60,
+    maxMinutes: 90,
+    complexityRating: null,
+    imageUrl: null,
+    customerNote: null,
+    likeCount: 0,
+    likedByViewer: false,
+    difficulty: 'medium',
+    quantity: 1,
+    recordStatus: 'active',
+    available: true,
+    missingPieces: false,
+    private: true,
+    recommended: false
+  },
+  {
+    id: 'game-hidden-missing',
+    name: '缺件桌游',
+    introduction: '不应出现在顾客桌游库。',
+    categories: ['家庭'],
+    minPlayers: 2,
+    maxPlayers: 5,
+    minMinutes: 30,
+    maxMinutes: 60,
+    complexityRating: 2.0,
+    imageUrl: null,
+    customerNote: null,
+    likeCount: 0,
+    likedByViewer: false,
+    difficulty: 'medium',
+    quantity: 1,
+    recordStatus: 'active',
+    available: true,
+    missingPieces: true,
+    private: false,
+    recommended: false
   }
 ]
 
@@ -125,7 +243,7 @@ let managerAnnouncements: AnnouncementSummary[] = [
   }
 ]
 
-let employeeBoardGames: BoardGameSummary[] = games.map((game, index) => ({
+let employeeBoardGames: BoardGameSummary[] = games.map((game) => ({
   id: game.id,
   name: game.name,
   introduction: game.introduction,
@@ -135,13 +253,13 @@ let employeeBoardGames: BoardGameSummary[] = games.map((game, index) => ({
   minMinutes: game.minMinutes,
   maxMinutes: game.maxMinutes,
   difficulty: game.difficulty,
-  quantity: game.soldOut ? 0 : 1,
-  recordStatus: 'active',
-  available: !game.soldOut,
+  quantity: game.quantity,
+  recordStatus: game.recordStatus,
+  available: game.available,
   customerConsigned: false,
-  missingPieces: false,
-  private: false,
-  recommended: index === 0,
+  missingPieces: game.missingPieces,
+  private: game.private,
+  recommended: game.recommended,
   imageUrl: game.imageUrl,
   localImagePath: null,
   bggId: null,
@@ -293,9 +411,19 @@ function activeAnnouncements(now = new Date()) {
     }))
 }
 
-function publicGames(): PublicBoardGameSummary[] {
+function publicGames(
+  likedGameIds: ReadonlySet<string>,
+  likeCounts: ReadonlyMap<string, number>
+): PublicBoardGameSummary[] {
   return employeeBoardGames
-    .filter((game) => game.recordStatus === 'active' && !game.private)
+    .filter(
+      (game) =>
+        game.recordStatus === 'active' &&
+        !game.private &&
+        game.available &&
+        game.quantity > 0 &&
+        !game.missingPieces
+    )
     .map((game) => ({
       id: game.id,
       name: game.name,
@@ -305,10 +433,13 @@ function publicGames(): PublicBoardGameSummary[] {
       maxPlayers: game.maxPlayers,
       minMinutes: game.minMinutes,
       maxMinutes: game.maxMinutes,
-      difficulty: game.difficulty,
-      soldOut: !game.available || game.quantity <= 0,
+      complexityRating:
+        games.find((candidate) => candidate.id === game.id)
+          ?.complexityRating ?? null,
       imageUrl: game.imageUrl,
-      customerNote: game.customerNote
+      customerNote: game.customerNote,
+      likeCount: likeCounts.get(game.id) ?? 0,
+      likedByViewer: likedGameIds.has(game.id)
     }))
 }
 
@@ -405,6 +536,15 @@ function demoMemberHistory(): MemberSelfServiceHistory {
 }
 
 export class MockMiniappClient implements MiniappClient {
+  private readonly likedGameIds = new Set<string>()
+  private readonly likeCounts = new Map(
+    games.map((game) => [game.id, game.likeCount])
+  )
+
+  private publicGames(): PublicBoardGameSummary[] {
+    return publicGames(this.likedGameIds, this.likeCounts)
+  }
+
   async getIdentity(): Promise<MiniappIdentity> {
     return identity
   }
@@ -427,7 +567,7 @@ export class MockMiniappClient implements MiniappClient {
       },
       announcements: activeAnnouncements(),
       activities: activeActivities(),
-      recommendedGames: publicGames().filter((game) =>
+      recommendedGames: this.publicGames().filter((game) =>
         employeeBoardGames.find(
           (candidate) => candidate.id === game.id
         )?.recommended
@@ -439,17 +579,37 @@ export class MockMiniappClient implements MiniappClient {
     return activeActivities()
   }
 
-  async listGames(query = ''): Promise<PublicBoardGameSummary[]> {
-    const normalized = query.trim().toLowerCase()
-    const currentGames = publicGames()
-    if (!normalized) return currentGames
-    return currentGames.filter(
-      (game) =>
-        game.name.toLowerCase().includes(normalized) ||
-        game.categories.some((category) =>
-          category.toLowerCase().includes(normalized)
-        )
+  async listGames(
+    filters: PublicBoardGameFilters = {}
+  ): Promise<PublicBoardGameSummary[]> {
+    return this.publicGames().filter((game) =>
+      matchesBoardGameFilters(game, filters)
     )
+  }
+
+  async listFavoriteGames(): Promise<PublicBoardGameSummary[]> {
+    return this.publicGames().filter((game) => game.likedByViewer)
+  }
+
+  async setGameLiked(
+    gameId: string,
+    input: SetBoardGameLikeRequest
+  ): Promise<BoardGameLikeResult> {
+    const game = this.publicGames().find((candidate) => candidate.id === gameId)
+    if (!game) throw new Error('桌游当前不可玩')
+    const liked = this.likedGameIds.has(gameId)
+    if (input.liked && !liked) {
+      this.likedGameIds.add(gameId)
+      this.likeCounts.set(gameId, game.likeCount + 1)
+    } else if (!input.liked && liked) {
+      this.likedGameIds.delete(gameId)
+      this.likeCounts.set(gameId, Math.max(0, game.likeCount - 1))
+    }
+    return {
+      boardGameId: gameId,
+      likedByViewer: this.likedGameIds.has(gameId),
+      likeCount: this.likeCounts.get(gameId) ?? 0
+    }
   }
 
   async getMemberSummary(): Promise<MemberSelfServiceSummary | null> {

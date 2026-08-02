@@ -32,7 +32,10 @@ import type {
   MiniappSessionResult,
   PhoneVerificationChallenge,
   PublicActivitySummary,
+  PublicBoardGameFilters,
   PublicBoardGameSummary,
+  SetBoardGameLikeRequest,
+  BoardGameLikeResult,
   StoreProfileSummary
 } from '@zyapp/contracts'
 import type {
@@ -77,6 +80,29 @@ function wxLogin(): Promise<string> {
 
 function profileRequestId(): string {
   return `profile-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function boardGameQuery(
+  storeId: string,
+  filters: PublicBoardGameFilters
+): string {
+  const pairs: Array<[string, string]> = [['storeId', storeId]]
+  const append = (key: string, value: string | number | undefined) => {
+    if (value !== undefined) pairs.push([key, String(value)])
+  }
+  append('query', filters.query?.trim() || undefined)
+  for (const category of filters.categories ?? []) {
+    append('categories', category)
+  }
+  append('minPlayers', filters.minPlayers)
+  append('maxPlayers', filters.maxPlayers)
+  append('minMinutes', filters.minMinutes)
+  append('maxMinutes', filters.maxMinutes)
+  append('minComplexity', filters.minComplexity)
+  append('maxComplexity', filters.maxComplexity)
+  return pairs
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&')
 }
 
 function responseMessage(data: unknown, fallback: string): string {
@@ -234,11 +260,26 @@ export class HttpMiniappClient implements MiniappClient {
     )
   }
 
-  listGames(query = ''): Promise<PublicBoardGameSummary[]> {
+  listGames(
+    filters: PublicBoardGameFilters = {}
+  ): Promise<PublicBoardGameSummary[]> {
     return this.request(
-      `/v1/public/games?storeId=${encodeURIComponent(
-        this.options.storeId
-      )}&query=${encodeURIComponent(query)}`
+      `/v1/public/games?${boardGameQuery(this.options.storeId, filters)}`
+    )
+  }
+
+  listFavoriteGames(): Promise<PublicBoardGameSummary[]> {
+    return this.request('/v1/miniapp/favorite-games')
+  }
+
+  setGameLiked(
+    gameId: string,
+    input: SetBoardGameLikeRequest
+  ): Promise<BoardGameLikeResult> {
+    return this.request(
+      `/v1/miniapp/board-games/${encodeURIComponent(gameId)}/like`,
+      'PUT',
+      input
     )
   }
 

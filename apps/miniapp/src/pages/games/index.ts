@@ -1,21 +1,18 @@
 import type { PublicBoardGameSummary } from '@zyapp/contracts'
 import { getMiniappClient } from '../../services/client'
 
-const difficultyLabels = {
-  light: '轻度',
-  medium: '中度',
-  heavy: '重度'
-} as const
-
 type GameView = PublicBoardGameSummary & {
-  difficultyText: string
+  complexityText: string
   durationText: string
 }
 
 function toView(game: PublicBoardGameSummary): GameView {
   return {
     ...game,
-    difficultyText: difficultyLabels[game.difficulty],
+    complexityText:
+      game.complexityRating === null
+        ? '复杂度待补充'
+        : `复杂度 ${game.complexityRating.toFixed(1)}/5`,
     durationText:
       game.minMinutes === null
         ? '时长待补充'
@@ -37,7 +34,7 @@ Page({
   async loadGames(query: string) {
     this.setData({ loading: true })
     try {
-      const games = await getMiniappClient().listGames(query)
+      const games = await getMiniappClient().listGames({ query })
       this.setData({ games: games.map(toView) })
     } catch (error) {
       wx.showToast({

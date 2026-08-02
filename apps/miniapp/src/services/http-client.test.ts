@@ -151,6 +151,63 @@ describe('HTTP miniapp client authentication', () => {
     expect(requests[2]?.authorization).toBe('Bearer fresh-token')
   })
 
+  it('serializes board-game filters and sends explicit like targets', async () => {
+    const requests: RequestRecord[] = []
+    installWxMock((request) => {
+      requests.push({
+        url: request.url,
+        method: request.method,
+        data: request.data,
+        authorization: request.header?.Authorization as string | undefined
+      })
+      respond(
+        request,
+        200,
+        request.url.endsWith('/like')
+          ? { boardGameId: 'game-1', likedByViewer: true, likeCount: 8 }
+          : []
+      )
+    })
+    const client = new HttpMiniappClient({
+      baseUrl,
+      storeId,
+      authMode: 'wechat',
+      token: () => 'viewer-token',
+      saveToken: () => undefined,
+      clearToken: () => undefined
+    })
+
+    await client.listGames({
+      query: '宝石',
+      categories: ['德式', '策略'],
+      minPlayers: 3,
+      maxPlayers: 6,
+      minMinutes: 30,
+      maxMinutes: 120,
+      minComplexity: 1.5,
+      maxComplexity: 3.5
+    })
+    await client.listFavoriteGames()
+    await client.setGameLiked('game-1', {
+      liked: true,
+      requestId: 'like-request-001'
+    })
+
+    expect(requests[0]?.url).toContain(`storeId=${storeId}`)
+    expect(requests[0]?.url).toContain('query=%E5%AE%9D%E7%9F%B3')
+    expect(requests[0]?.url).toContain('categories=%E5%BE%B7%E5%BC%8F')
+    expect(requests[0]?.url).toContain('categories=%E7%AD%96%E7%95%A5')
+    expect(requests[0]?.url).toContain('minPlayers=3')
+    expect(requests[0]?.url).toContain('maxComplexity=3.5')
+    expect(requests[1]?.url).toBe(`${baseUrl}/v1/miniapp/favorite-games`)
+    expect(requests[2]).toMatchObject({
+      url: `${baseUrl}/v1/miniapp/board-games/game-1/like`,
+      method: 'PUT',
+      data: { liked: true, requestId: 'like-request-001' },
+      authorization: 'Bearer viewer-token'
+    })
+  })
+
   it('uploads a member avatar with the current session and profile fields', async () => {
     let token: string | null = 'member-token'
     let upload:
