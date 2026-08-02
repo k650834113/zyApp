@@ -1,59 +1,255 @@
+.library-page {
+  padding-top: 24rpx;
+}
+
+.library-title,
+.library-subtitle {
+  display: block;
+}
+
+.library-title {
+  font-size: 44rpx;
+  font-weight: 850;
+  letter-spacing: 2rpx;
+}
+
+.library-subtitle {
+  margin-top: 8rpx;
+  color: #7f817b;
+  font-size: 23rpx;
+}
+
 .search-row {
   display: grid;
-  grid-template-columns: 1fr 150rpx;
+  grid-template-columns: 1fr 132rpx;
   gap: 14rpx;
+  margin-top: 28rpx;
 }
 
 .search-input {
-  margin-top: 0;
+  margin: 0;
+  background: #fffdf8;
 }
 
 .search-button {
   margin: 0;
-  border-radius: 14rpx;
+  border-radius: 20rpx;
   color: #fff;
-  background: #3f5a4b;
-  font-size: 26rpx;
-  font-weight: 800;
+  background: #174f3b;
+  font-size: 25rpx;
+  font-weight: 750;
+  line-height: 88rpx;
 }
 
-.game {
+.quick-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12rpx;
   margin-top: 20rpx;
 }
 
-.game-head {
+.filter-pill {
+  margin: 0;
+  border: 1rpx solid #d9d0c2;
+  border-radius: 999rpx;
+  padding: 0 8rpx;
+  color: #385246;
+  background: #fffdf8;
+  font-size: 22rpx;
+  line-height: 64rpx;
+}
+
+.selected-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10rpx;
+  margin-top: 18rpx;
+}
+
+.selected-chip {
+  border-radius: 999rpx;
+  padding: 8rpx 15rpx;
+  color: #fff;
+  background: #52725f;
+  font-size: 20rpx;
+}
+
+.clear-all {
+  color: #9a6b45;
+  font-size: 21rpx;
+}
+
+.result-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin: 28rpx 4rpx 4rpx;
+  color: #314038;
+  font-size: 24rpx;
+  font-weight: 700;
 }
 
-.stock {
-  border-radius: 999rpx;
-  padding: 7rpx 14rpx;
+.result-order {
+  color: #8b8c85;
   font-size: 21rpx;
+  font-weight: 400;
+}
+
+.load-error,
+.loading-line {
+  margin-top: 18rpx;
+  border-radius: 18rpx;
+  padding: 18rpx 22rpx;
+  text-align: center;
+  font-size: 22rpx;
+}
+
+.load-error {
+  color: #8d4f43;
+  background: #f7e8e3;
+}
+
+.loading-line {
+  color: #54705f;
+  background: #eaf1ea;
+}
+
+.no-result {
+  margin-top: 24rpx;
+  padding: 46rpx 28rpx;
+  color: #7e817b;
+  text-align: center;
+}
+
+.no-result text {
+  display: block;
+}
+
+.no-result .secondary-button {
+  margin-top: 24rpx;
+}
+
+.filter-overlay,
+.filter-scrim,
+.filter-sheet {
+  position: fixed;
+  z-index: 40;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.filter-overlay {
+  top: 0;
+}
+
+.filter-scrim {
+  top: 0;
+  background: rgba(22, 29, 25, 0.48);
+}
+
+.filter-sheet {
+  z-index: 41;
+  box-sizing: border-box;
+  max-height: 86vh;
+  border-radius: 34rpx 34rpx 0 0;
+  padding: 14rpx 28rpx calc(24rpx + env(safe-area-inset-bottom));
+  background: #fffdf8;
+  box-shadow: 0 -18rpx 50rpx rgba(28, 34, 29, 0.16);
+}
+
+.sheet-handle {
+  width: 72rpx;
+  height: 8rpx;
+  margin: 0 auto;
+  border-radius: 999rpx;
+  background: #d8d0c4;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22rpx 2rpx 16rpx;
+}
+
+.sheet-title {
+  font-size: 32rpx;
   font-weight: 800;
 }
 
-.stock.available {
-  color: #2d6940;
-  background: #e5f3e8;
-}
-
-.stock.sold-out {
-  color: #82534a;
-  background: #f4e7e3;
-}
-
-.block,
-.customer-note {
-  display: block;
-  margin-top: 14rpx;
-}
-
-.customer-note {
-  border-left: 6rpx solid #c7b48e;
-  padding-left: 16rpx;
-  color: #6e6253;
+.sheet-close {
+  color: #777d78;
   font-size: 23rpx;
-  line-height: 1.6;
+}
+
+.filter-scroll {
+  max-height: 62vh;
+}
+
+.filter-section {
+  border-top: 1rpx solid #eee5d9;
+  padding: 24rpx 0;
+}
+
+.filter-title {
+  display: block;
+  margin-bottom: 16rpx;
+  color: #2e3f36;
+  font-size: 25rpx;
+  font-weight: 750;
+}
+
+.category-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.category-option {
+  display: flex;
+  align-items: center;
+  border: 1rpx solid #e1d8ca;
+  border-radius: 16rpx;
+  padding: 12rpx 16rpx;
+  color: #46544c;
+  background: #faf7f0;
+  font-size: 22rpx;
+}
+
+.category-option checkbox {
+  transform: scale(0.75);
+  transform-origin: left center;
+}
+
+.sheet-actions {
+  display: grid;
+  grid-template-columns: 180rpx 1fr;
+  gap: 16rpx;
+  padding-top: 20rpx;
+}
+
+.clear-button,
+.apply-button {
+  margin: 0;
+  border-radius: 22rpx;
+  font-size: 25rpx;
+  font-weight: 750;
+  line-height: 84rpx;
+}
+
+.clear-button {
+  color: #174f3b;
+  background: #ece7dd;
+}
+
+.apply-button {
+  color: #fff;
+  background: #174f3b;
+}
+
+.apply-button[disabled] {
+  color: #e7eee9;
+  background: #6f8b7b;
 }

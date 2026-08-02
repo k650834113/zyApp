@@ -1,3 +1,7 @@
 {
-  "navigationBarTitleText": "桌游筛选"
+  "navigationBarTitleText": "桌游库",
+  "usingComponents": {
+    "board-game-card": "/components/board-game-card/index",
+    "range-slider": "/components/range-slider/index"
+  }
 }

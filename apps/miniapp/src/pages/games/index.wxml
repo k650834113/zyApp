@@ -1,8 +1,13 @@
-<view class="page">
+<view class="page-shell library-page">
+  <view class="library-heading">
+    <text class="library-title">桌游库</text>
+    <text class="library-subtitle">看看本店现在有哪些桌游可以玩</text>
+  </view>
+
   <view class="search-row">
     <input
       class="form-input search-input"
-      placeholder="输入桌游名称或类型"
+      placeholder="搜索桌游名称或分类"
       value="{{query}}"
       bindinput="onQueryInput"
       confirm-type="search"
@@ -11,20 +16,123 @@
     <button class="search-button" bindtap="search">搜索</button>
   </view>
 
-  <view class="card game" wx:for="{{games}}" wx:key="id">
-    <view class="game-head">
-      <text class="card-title">{{item.name}}</text>
-    </view>
-    <text class="muted block">{{item.introduction}}</text>
-    <view class="tag-row">
-      <text class="tag" wx:for="{{item.categories}}" wx:key="*this">{{item}}</text>
-      <text class="tag good">{{item.minPlayers}}-{{item.maxPlayers}} 人</text>
-      <text class="tag">{{item.durationText}}</text>
-      <text class="tag">{{item.complexityText}}</text>
-    </view>
-    <text class="customer-note" wx:if="{{item.customerNote}}">{{item.customerNote}}</text>
+  <view class="quick-filters">
+    <button class="filter-pill" bindtap="openFilter">分类</button>
+    <button class="filter-pill" bindtap="openFilter">人数</button>
+    <button class="filter-pill" bindtap="openFilter">时长</button>
+    <button class="filter-pill" bindtap="openFilter">复杂度</button>
   </view>
 
-  <view class="empty" wx:if="{{!loading && games.length === 0}}">没有找到匹配的桌游</view>
-  <view class="empty" wx:if="{{loading}}">正在筛选桌游...</view>
+  <view wx:if="{{selectedChips.length}}" class="selected-row">
+    <view
+      wx:for="{{selectedChips}}"
+      wx:key="key"
+      class="selected-chip"
+      data-kind="{{item.kind}}"
+      data-category="{{item.category}}"
+      bindtap="removeChip"
+    >{{item.label}} ×</view>
+    <text class="clear-all" bindtap="clearAll">清空全部</text>
+  </view>
+
+  <view class="result-head">
+    <text>{{games.length}} 款桌游</text>
+    <text class="result-order">店长推荐优先</text>
+  </view>
+
+  <view wx:if="{{loadFailed}}" class="load-error" bindtap="retry">
+    加载失败，点击重试
+  </view>
+  <view wx:if="{{loading && games.length}}" class="loading-line">正在更新结果…</view>
+
+  <board-game-card
+    wx:for="{{games}}"
+    wx:key="id"
+    game="{{item}}"
+    bindtoggle="toggleGame"
+    bindlike="likeGame"
+    bindimageerror="imageError"
+  />
+
+  <view wx:if="{{loading && !games.length}}" class="empty-state">正在加载桌游…</view>
+  <view wx:elif="{{!loading && !games.length && !loadFailed}}" class="card no-result">
+    <text>没有找到符合条件的桌游</text>
+    <button class="secondary-button" bindtap="clearAll">清空筛选</button>
+  </view>
+
+  <view class="bottom-nav">
+    <view class="nav-item" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
+    <view class="nav-item active" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>
+    <view class="nav-item" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
+    <view class="nav-item" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
+  </view>
+
+  <view wx:if="{{filterOpen}}" class="filter-overlay">
+    <view class="filter-scrim" bindtap="closeFilter"></view>
+    <view class="filter-sheet" catchtap="noop">
+      <view class="sheet-handle"></view>
+      <view class="sheet-head">
+        <text class="sheet-title">筛选桌游</text>
+        <text class="sheet-close" bindtap="closeFilter">关闭</text>
+      </view>
+      <scroll-view class="filter-scroll" scroll-y>
+        <view class="filter-section">
+          <text class="filter-title">分类（可多选）</text>
+          <checkbox-group class="category-options" bindchange="changeCategories">
+            <label wx:for="{{categoryViews}}" wx:key="name" class="category-option">
+              <checkbox value="{{item.name}}" checked="{{item.selected}}" color="#174f3b" />
+              <text>{{item.name}}</text>
+            </label>
+          </checkbox-group>
+        </view>
+
+        <view class="filter-section">
+          <text class="filter-title">适合人数</text>
+          <range-slider
+            min="{{playerBounds.min}}"
+            max="{{playerBounds.max}}"
+            step="{{playerBounds.step}}"
+            lower="{{draftPlayers.lower}}"
+            upper="{{draftPlayers.upper}}"
+            unit=" 人"
+            bindchange="changePlayers"
+          />
+        </view>
+
+        <view class="filter-section">
+          <text class="filter-title">游戏时长</text>
+          <range-slider
+            min="{{minuteBounds.min}}"
+            max="{{minuteBounds.max}}"
+            step="{{minuteBounds.step}}"
+            lower="{{draftMinutes.lower}}"
+            upper="{{draftMinutes.upper}}"
+            unit=" 分钟"
+            bindchange="changeMinutes"
+          />
+        </view>
+
+        <view class="filter-section">
+          <text class="filter-title">复杂度</text>
+          <range-slider
+            min="{{complexityBounds.min}}"
+            max="{{complexityBounds.max}}"
+            step="{{complexityBounds.step}}"
+            lower="{{draftComplexity.lower}}"
+            upper="{{draftComplexity.upper}}"
+            unit=" / 5"
+            bindchange="changeComplexity"
+          />
+        </view>
+      </scroll-view>
+
+      <view class="sheet-actions">
+        <button class="clear-button" bindtap="clearDraft">清空</button>
+        <button class="apply-button" bindtap="applyFilters" disabled="{{previewLoading}}">
+          <text wx:if="{{previewLoading}}">正在计算…</text>
+          <text wx:else>查看 {{previewCount}} 款桌游</text>
+        </button>
+      </view>
+    </view>
+  </view>
 </view>
