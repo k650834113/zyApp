@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common'
 import { CashierCommandService } from './cashier-command.service'
+import { BoardGameLikeController } from './board-game-like.controller'
+import { BoardGameLikeService } from './board-game-like.service'
 import { EmployeeFinancialCommandService } from './employee-financial-command.service'
 import { DeviceAuthGuard } from './device-auth.guard'
 import { DeviceController } from './device.controller'
@@ -42,6 +44,7 @@ import { WechatPaymentController } from './wechat-payment.controller'
     DesktopMirrorController,
     SyncController,
     PublicContentController,
+    BoardGameLikeController,
     DesktopUpdateController,
     DesktopAuthController,
     MiniappController,
@@ -57,6 +60,7 @@ import { WechatPaymentController } from './wechat-payment.controller'
     DeviceAuthGuard,
     SyncService,
     PublicContentService,
+    BoardGameLikeService,
     DesktopUpdateService,
     DesktopAuthService,
     MiniappSessionService,

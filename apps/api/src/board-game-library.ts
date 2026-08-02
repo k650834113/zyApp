@@ -1,5 +1,11 @@
 import { BadRequestException } from '@nestjs/common'
-import type { PublicBoardGameFilters } from '@zyapp/contracts'
+import type {
+  PublicBoardGameFilters,
+  SetBoardGameLikeRequest
+} from '@zyapp/contracts'
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function optionalInteger(
   value: unknown,
@@ -91,4 +97,31 @@ export function normalizePublicBoardGameFilters(
     ...(minComplexity === undefined ? {} : { minComplexity }),
     ...(maxComplexity === undefined ? {} : { maxComplexity })
   }
+}
+
+export function normalizeBoardGameId(value: unknown): string {
+  if (typeof value !== 'string' || !UUID_PATTERN.test(value.trim())) {
+    throw new BadRequestException('boardGameId must be a UUID')
+  }
+  return value.trim().toLowerCase()
+}
+
+export function normalizeSetBoardGameLikeRequest(
+  value: unknown
+): SetBoardGameLikeRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new BadRequestException('Like request must be an object')
+  }
+  const input = value as Record<string, unknown>
+  if (typeof input.liked !== 'boolean') {
+    throw new BadRequestException('liked must be boolean')
+  }
+  if (typeof input.requestId !== 'string') {
+    throw new BadRequestException('requestId must be text')
+  }
+  const requestId = input.requestId.trim()
+  if (requestId.length < 8 || requestId.length > 100) {
+    throw new BadRequestException('requestId must contain 8 to 100 characters')
+  }
+  return { liked: input.liked, requestId }
 }

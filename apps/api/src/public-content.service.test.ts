@@ -123,6 +123,38 @@ describe('public content service', () => {
     ])
   })
 
+  it('requires a viewer before running a favorites query', async () => {
+    const pool = {
+      query: async () => {
+        throw new Error('query should not run')
+      }
+    } as unknown as Pool
+
+    await expect(
+      new PublicContentService(pool).listGames(storeId, {}, null, {
+        favoriteOnly: true
+      })
+    ).rejects.toThrow('Favorite games require a viewer')
+  })
+
+  it('limits favorites to likes from the current viewer and store', async () => {
+    const pool = {
+      query: async (sql: string, parameters?: unknown[]) => {
+        expect(sql).toContain('FROM miniapp_board_game_like favorite')
+        expect(sql).toContain('favorite.store_id = current_store.id')
+        expect(sql).toContain('favorite.viewer_id = $2')
+        expect(parameters?.[1]).toBe(viewerId)
+        return { rows: [] }
+      }
+    } as unknown as Pool
+
+    await expect(
+      new PublicContentService(pool).listGames(storeId, {}, viewerId, {
+        favoriteOnly: true
+      })
+    ).resolves.toEqual([])
+  })
+
   it('rejects malformed store ids before querying PostgreSQL', async () => {
     const pool = {
       query: async () => {

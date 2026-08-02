@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { normalizePublicBoardGameFilters } from './board-game-library'
+import {
+  normalizePublicBoardGameFilters,
+  normalizeSetBoardGameLikeRequest
+} from './board-game-library'
 
 describe('board-game library query validation', () => {
   it('normalizes repeated categories and numeric ranges', () => {
@@ -34,5 +37,26 @@ describe('board-game library query validation', () => {
     [{ categories: Array.from({ length: 11 }, (_, index) => `分类${index}`) }, '分类']
   ])('rejects invalid filter input %#', (input, message) => {
     expect(() => normalizePublicBoardGameFilters(input)).toThrow(String(message))
+  })
+})
+
+describe('board-game like validation', () => {
+  it('accepts an explicit target state and idempotency request id', () => {
+    expect(
+      normalizeSetBoardGameLikeRequest({
+        liked: true,
+        requestId: 'like-1700000000'
+      })
+    ).toEqual({ liked: true, requestId: 'like-1700000000' })
+  })
+
+  it.each([
+    [{ liked: 'yes', requestId: 'like-1700000000' }, 'liked'],
+    [{ liked: true, requestId: 'short' }, 'requestId'],
+    [{ liked: false, requestId: 'x'.repeat(101) }, 'requestId']
+  ])('rejects malformed like input %#', (input, message) => {
+    expect(() => normalizeSetBoardGameLikeRequest(input)).toThrow(
+      String(message)
+    )
   })
 })
