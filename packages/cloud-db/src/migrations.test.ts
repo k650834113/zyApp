@@ -28,19 +28,22 @@ describe('cloud migrations', () => {
     expect(migrations[0]?.checksum).toHaveLength(64)
   })
 
-  it('includes member profile completion after the avatar migration', () => {
+  it('includes the miniapp board-game library migration after member monthly cards', () => {
     const migrations = discoverCloudMigrations(
       join(import.meta.dirname, '..', 'migrations')
     )
 
     expect(migrations.slice(-3).map((migration) => migration.version)).toEqual([
-      16,
       17,
-      18
+      18,
+      19
     ])
-    expect(migrations.at(-1)?.name).toBe('member_wechat_monthly_card')
+    expect(migrations.at(-1)?.name).toBe('miniapp_board_game_library')
     expect(migrations.at(-1)?.sql).toContain(
-      'CREATE TABLE wechat_monthly_card_order'
+      'complexity_rating NUMERIC(2,1)'
+    )
+    expect(migrations.at(-1)?.sql).toContain(
+      'UNIQUE (tenant_id, store_id, board_game_id, viewer_id)'
     )
   })
 })

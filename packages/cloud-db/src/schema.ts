@@ -6,6 +6,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -504,6 +505,11 @@ export const cloudBoardGames = pgTable(
     minMinutes: integer('min_minutes'),
     maxMinutes: integer('max_minutes'),
     difficulty: text('difficulty').notNull(),
+    complexityRating: numeric('complexity_rating', {
+      precision: 2,
+      scale: 1,
+      mode: 'number'
+    }),
     quantity: integer('quantity').notNull(),
     recordStatus: text('record_status').notNull(),
     available: boolean('available').notNull().default(true),
@@ -529,6 +535,43 @@ export const cloudBoardGames = pgTable(
       table.private,
       table.recommended,
       table.available
+    )
+  ]
+)
+
+export const miniappBoardGameLikes = pgTable(
+  'miniapp_board_game_like',
+  {
+    id: uuid('id').primaryKey(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+    storeId: uuid('store_id').notNull().references(() => stores.id),
+    boardGameId: uuid('board_game_id')
+      .notNull()
+      .references(() => cloudBoardGames.id),
+    viewerId: uuid('viewer_id')
+      .notNull()
+      .references(() => miniappIdentities.id),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => [
+    uniqueIndex('uq_miniapp_board_game_like_viewer_game').on(
+      table.tenantId,
+      table.storeId,
+      table.boardGameId,
+      table.viewerId
+    ),
+    index('idx_miniapp_board_game_like_game').on(
+      table.tenantId,
+      table.storeId,
+      table.boardGameId
+    ),
+    index('idx_miniapp_board_game_like_viewer').on(
+      table.tenantId,
+      table.storeId,
+      table.viewerId,
+      table.createdAt
     )
   ]
 )

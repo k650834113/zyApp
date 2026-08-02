@@ -1197,10 +1197,33 @@ export type PublicBoardGameSummary = {
   maxPlayers: number
   minMinutes: number | null
   maxMinutes: number | null
-  difficulty: 'light' | 'medium' | 'heavy'
-  soldOut: boolean
+  complexityRating: number | null
   imageUrl: string | null
   customerNote: string | null
+  likeCount: number
+  likedByViewer: boolean
+}
+
+export type PublicBoardGameFilters = {
+  query?: string
+  categories?: string[]
+  minPlayers?: number
+  maxPlayers?: number
+  minMinutes?: number
+  maxMinutes?: number
+  minComplexity?: number
+  maxComplexity?: number
+}
+
+export type SetBoardGameLikeRequest = {
+  liked: boolean
+  requestId: string
+}
+
+export type BoardGameLikeResult = {
+  boardGameId: Identifier
+  likedByViewer: boolean
+  likeCount: number
 }
 
 export type MiniappHomeSnapshot = {
