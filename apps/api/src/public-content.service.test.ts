@@ -3,13 +3,35 @@ import type { Pool } from '@zyapp/cloud-db'
 import { PublicContentService } from './public-content.service'
 
 const storeId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const viewerId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 describe('public content service', () => {
-  it('returns only public board-game fields and derives sold-out state', async () => {
+  it('returns only playable games using current-store filters and viewer likes', async () => {
     const pool = {
-      query: async (sql: string) => {
-        expect(sql).toContain("record_status = 'active'")
-        expect(sql).toContain('private = FALSE')
+      query: async (sql: string, parameters?: unknown[]) => {
+        expect(sql).toContain(
+          "COALESCE(config.record_status, game.record_status) = 'active'"
+        )
+        expect(sql).toContain(
+          'COALESCE(config.private, game.private) = FALSE'
+        )
+        expect(sql).toContain(
+          'COALESCE(config.available, game.available) = TRUE'
+        )
+        expect(sql).toContain(
+          'COALESCE(config.quantity, game.quantity) > 0'
+        )
+        expect(sql).toContain(
+          'COALESCE(config.missing_pieces, game.missing_pieces) = FALSE'
+        )
+        expect(sql).toContain('game.categories_json @>')
+        expect(sql).toContain('game.min_players <=')
+        expect(sql).toContain('game.max_players >=')
+        expect(sql).toContain(
+          'COALESCE(game.max_minutes, game.min_minutes) >='
+        )
+        expect(sql).toContain('game.complexity_rating BETWEEN')
+        expect(parameters).toContain(viewerId)
         return {
           rows: [
             {
@@ -21,10 +43,11 @@ describe('public content service', () => {
               max_players: 4,
               min_minutes: 30,
               max_minutes: 45,
-              difficulty: 'light',
-              available: false,
+              complexity_rating: '2.3',
               image_url: null,
               customer_note: 'Ask staff for help.',
+              like_count: '7',
+              liked_by_viewer: true,
               internal_note: 'must not leak',
               consignor_nickname: 'must not leak'
             }
@@ -32,7 +55,20 @@ describe('public content service', () => {
         }
       }
     } as unknown as Pool
-    const result = await new PublicContentService(pool).listGames(storeId)
+    const result = await new PublicContentService(pool).listGames(
+      storeId,
+      {
+        query: 'strategy',
+        categories: ['Family', 'Strategy'],
+        minPlayers: 2,
+        maxPlayers: 4,
+        minMinutes: 20,
+        maxMinutes: 60,
+        minComplexity: 1.5,
+        maxComplexity: 3.5
+      },
+      viewerId
+    )
     expect(result).toEqual([
       {
         id: 'game-1',
@@ -43,13 +79,48 @@ describe('public content service', () => {
         maxPlayers: 4,
         minMinutes: 30,
         maxMinutes: 45,
-        difficulty: 'light',
-        soldOut: true,
+        complexityRating: 2.3,
         imageUrl: null,
-        customerNote: 'Ask staff for help.'
+        customerNote: 'Ask staff for help.',
+        likeCount: 7,
+        likedByViewer: true
       }
     ])
     expect(JSON.stringify(result)).not.toContain('must not leak')
+  })
+
+  it('shows aggregate likes but never marks an anonymous viewer as liked', async () => {
+    const pool = {
+      query: async () => ({
+        rows: [
+          {
+            id: 'game-1',
+            name: 'Cascadia',
+            introduction: 'Family strategy',
+            categories_json: ['Family'],
+            min_players: 1,
+            max_players: 4,
+            min_minutes: 30,
+            max_minutes: 45,
+            complexity_rating: null,
+            image_url: null,
+            customer_note: null,
+            like_count: '3',
+            liked_by_viewer: true
+          }
+        ]
+      })
+    } as unknown as Pool
+
+    await expect(
+      new PublicContentService(pool).listGames(storeId, {}, null)
+    ).resolves.toEqual([
+      expect.objectContaining({
+        complexityRating: null,
+        likeCount: 3,
+        likedByViewer: false
+      })
+    ])
   })
 
   it('rejects malformed store ids before querying PostgreSQL', async () => {

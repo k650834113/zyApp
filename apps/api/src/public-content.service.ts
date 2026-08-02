@@ -6,12 +6,14 @@ import {
 } from '@nestjs/common'
 import type {
   MiniappHomeSnapshot,
+  PublicBoardGameFilters,
   PublicActivitySummary,
   PublicAnnouncementSummary,
   PublicBoardGameSummary,
   PublicStoreSummary
 } from '@zyapp/contracts'
 import type { Pool } from '@zyapp/cloud-db'
+import type { MiniappPrincipal } from './miniapp-auth'
 import { POSTGRES_POOL } from './infrastructure.module'
 
 const UUID_PATTERN =
@@ -218,11 +220,89 @@ export class PublicContentService {
 
   async listGames(
     storeIdInput: string,
-    queryInput = '',
-    recommendedOnly = false
+    filters: PublicBoardGameFilters = {},
+    viewerId: string | null = null,
+    options: { recommendedOnly?: boolean; favoriteOnly?: boolean } = {}
   ): Promise<PublicBoardGameSummary[]> {
     const storeId = requireStoreId(storeIdInput)
-    const query = queryInput.trim().slice(0, 100)
+    if (options.favoriteOnly && !viewerId) {
+      throw new BadRequestException('Favorite games require a viewer')
+    }
+    const values: unknown[] = [storeId, viewerId]
+    const parameter = (value: unknown): string => {
+      values.push(value)
+      return `$${values.length}`
+    }
+    const conditions = [
+      "current_store.status = 'active'",
+      "COALESCE(config.record_status, game.record_status) = 'active'",
+      'COALESCE(config.private, game.private) = FALSE',
+      'COALESCE(config.available, game.available) = TRUE',
+      'COALESCE(config.quantity, game.quantity) > 0',
+      'COALESCE(config.missing_pieces, game.missing_pieces) = FALSE'
+    ]
+    const query = filters.query?.trim().slice(0, 100)
+    if (query) {
+      const marker = parameter(query)
+      conditions.push(
+        `(game.name ILIKE '%' || ${marker} || '%' OR ` +
+          `game.categories_json::text ILIKE '%' || ${marker} || '%')`
+      )
+    }
+    if (filters.categories?.length) {
+      conditions.push(
+        `game.categories_json @> ${parameter(JSON.stringify(filters.categories))}::jsonb`
+      )
+    }
+    if (filters.minPlayers !== undefined) {
+      conditions.push(`game.min_players <= ${parameter(filters.minPlayers)}`)
+    }
+    if (filters.maxPlayers !== undefined) {
+      conditions.push(`game.max_players >= ${parameter(filters.maxPlayers)}`)
+    }
+    if (filters.minMinutes !== undefined) {
+      conditions.push(
+        `(game.min_minutes IS NOT NULL AND ` +
+          `COALESCE(game.max_minutes, game.min_minutes) >= ${parameter(filters.minMinutes)})`
+      )
+    }
+    if (filters.maxMinutes !== undefined) {
+      conditions.push(
+        `(game.min_minutes IS NOT NULL AND ` +
+          `game.min_minutes <= ${parameter(filters.maxMinutes)})`
+      )
+    }
+    if (
+      filters.minComplexity !== undefined &&
+      filters.maxComplexity !== undefined
+    ) {
+      const minimum = parameter(filters.minComplexity)
+      const maximum = parameter(filters.maxComplexity)
+      conditions.push(`game.complexity_rating BETWEEN ${minimum} AND ${maximum}`)
+    } else if (filters.minComplexity !== undefined) {
+      conditions.push(
+        `game.complexity_rating >= ${parameter(filters.minComplexity)}`
+      )
+    } else if (filters.maxComplexity !== undefined) {
+      conditions.push(
+        `game.complexity_rating <= ${parameter(filters.maxComplexity)}`
+      )
+    }
+    if (options.recommendedOnly) {
+      conditions.push('COALESCE(config.recommended, game.recommended) = TRUE')
+    }
+    if (options.favoriteOnly) {
+      conditions.push(
+        `EXISTS (
+          SELECT 1
+          FROM miniapp_board_game_like favorite
+          WHERE favorite.tenant_id = current_store.tenant_id
+            AND favorite.store_id = current_store.id
+            AND favorite.board_game_id = game.id
+            AND favorite.viewer_id = $2
+        )`
+      )
+    }
     const result = await this.pool.query<{
       id: string
       name: string
@@ -232,24 +312,38 @@ export class PublicContentService {
       max_players: number
       min_minutes: number | null
       max_minutes: number | null
-      difficulty: PublicBoardGameSummary['difficulty']
-      available: boolean
+      complexity_rating: string | number | null
       image_url: string | null
       customer_note: string | null
+      like_count: string | number
+      liked_by_viewer: boolean | null
     }>(
-      `SELECT id, name, introduction, categories_json, min_players,
-              max_players, min_minutes, max_minutes, difficulty, available,
-              image_url, customer_note
-       FROM cloud_board_game
-       WHERE store_id = $1
-         AND record_status = 'active'
-         AND private = FALSE
-         AND ($2 = '' OR name ILIKE '%' || $2 || '%'
-              OR categories_json::text ILIKE '%' || $2 || '%')
-         AND ($3 = FALSE OR recommended = TRUE)
-       ORDER BY recommended DESC, available DESC, name
+      `SELECT game.id, game.name, game.introduction, game.categories_json,
+              game.min_players, game.max_players, game.min_minutes,
+              game.max_minutes, game.complexity_rating, game.image_url,
+              COALESCE(config.customer_note, game.customer_note) customer_note,
+              COALESCE(likes.like_count, 0) like_count,
+              COALESCE(likes.liked_by_viewer, FALSE) liked_by_viewer
+       FROM store current_store
+       JOIN cloud_board_game game
+         ON game.tenant_id = current_store.tenant_id
+       LEFT JOIN cloud_board_game_store_config config
+         ON config.tenant_id = current_store.tenant_id
+        AND config.store_id = current_store.id
+        AND config.board_game_id = game.id
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::integer like_count,
+                BOOL_OR(board_like.viewer_id = $2::uuid) liked_by_viewer
+         FROM miniapp_board_game_like board_like
+         WHERE board_like.tenant_id = current_store.tenant_id
+           AND board_like.store_id = current_store.id
+           AND board_like.board_game_id = game.id
+       ) likes ON TRUE
+       WHERE current_store.id = $1
+         AND ${conditions.join('\n         AND ')}
+       ORDER BY COALESCE(config.recommended, game.recommended) DESC, game.name
        LIMIT 100`,
-      [storeId, query, recommendedOnly]
+      values
     )
     return result.rows.map((row) => ({
       id: row.id,
@@ -260,11 +354,23 @@ export class PublicContentService {
       maxPlayers: row.max_players,
       minMinutes: row.min_minutes,
       maxMinutes: row.max_minutes,
-      difficulty: row.difficulty,
-      soldOut: !row.available,
+      complexityRating:
+        row.complexity_rating === null
+          ? null
+          : Number(row.complexity_rating),
       imageUrl: row.image_url,
-      customerNote: row.customer_note
+      customerNote: row.customer_note,
+      likeCount: Number(row.like_count),
+      likedByViewer: viewerId === null ? false : Boolean(row.liked_by_viewer)
     }))
+  }
+
+  listFavoriteGames(
+    principal: Pick<MiniappPrincipal, 'storeId' | 'identityId'>
+  ): Promise<PublicBoardGameSummary[]> {
+    return this.listGames(principal.storeId, {}, principal.identityId, {
+      favoriteOnly: true
+    })
   }
 
   async getHome(storeId: string): Promise<MiniappHomeSnapshot> {
@@ -273,7 +379,7 @@ export class PublicContentService {
         this.getStore(storeId),
         this.listAnnouncements(storeId),
         this.listActivities(storeId),
-        this.listGames(storeId, '', true)
+        this.listGames(storeId, {}, null, { recommendedOnly: true })
       ])
     return {
       store,

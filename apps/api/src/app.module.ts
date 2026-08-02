@@ -23,6 +23,7 @@ import { MemberAvatarService } from './member-avatar.service'
 import { MemberRechargeService } from './member-recharge.service'
 import { MemberMonthlyCardService } from './member-monthly-card.service'
 import { MiniappAuthGuard } from './miniapp-auth.guard'
+import { MiniappOptionalAuthGuard } from './miniapp-optional-auth.guard'
 import { MiniappController } from './miniapp.controller'
 import { MiniappSessionService } from './miniapp-session.service'
 import { PublicContentController } from './public-content.controller'
@@ -60,6 +61,7 @@ import { WechatPaymentController } from './wechat-payment.controller'
     DesktopAuthService,
     MiniappSessionService,
     MiniappAuthGuard,
+    MiniappOptionalAuthGuard,
     MemberSelfService,
     MemberAvatarService,
     MemberRechargeService,
