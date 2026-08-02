@@ -1,5 +1,7 @@
 # 小程序桌游库 Implementation Plan
 
+> 执行记录（2026-08-02）：Task 1–8 已完成代码、文档和自动化验证；本机未发现微信开发者工具可执行程序，Mock 模拟器点击验收保留为人工闸门。计划中原标注为“Modify”的 `docs/正式需求基线-v2-PC优先.md` 在执行基线中不存在，因此本轮按已确认范围新建该增补基线文件。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 在不改动 PC 端录入、PC SQLite 与桌游同步协议的前提下，交付正式小程序桌游库、服务端筛选、数字复杂度展示、云端点赞和“我喜欢的”页面。
