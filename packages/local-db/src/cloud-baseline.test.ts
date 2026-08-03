@@ -76,10 +76,12 @@ describe('cloud baseline outbox', () => {
            (id, tenant_id, store_id, name, introduction, categories_json,
             min_players, max_players, difficulty, quantity, record_status,
             available, customer_consigned, missing_pieces, private,
-            recommended, created_by, created_at, updated_at)
+            recommended, complexity_tenths, bgg_id, metadata_source,
+            metadata_imported_at, created_by, created_at, updated_at)
            VALUES ('game-existing', ?, ?, 'Existing game',
                    'Existing introduction', '["Family"]', 1, 4, 'light', 1,
-                   'active', 1, 0, 0, 0, 1, ?,
+                   'active', 1, 0, 0, 0, 1, 23, 13, 'bgg',
+                   '2026-08-03T00:00:00.000Z', ?,
                    '2026-06-01T00:00:00.000Z',
                    '2026-06-01T00:00:00.000Z')`
         )
@@ -122,6 +124,18 @@ describe('cloud baseline outbox', () => {
         )
         .get() as { payload_json: string }
       expect(employeePayload.payload_json).not.toContain('password')
+      const boardGamePayload = local.connection
+        .prepare(
+          `SELECT payload_json FROM outbox_operation
+           WHERE operation_type = 'board_game.snapshot'`
+        )
+        .get() as { payload_json: string }
+      expect(JSON.parse(boardGamePayload.payload_json).after).toMatchObject({
+        complexityRating: 2.3,
+        bggId: 13,
+        metadataSource: 'bgg',
+        metadataImportedAt: '2026-08-03T00:00:00.000Z'
+      })
 
       const second = ensureCloudBaselineOutbox(
         local.connection,

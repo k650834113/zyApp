@@ -441,6 +441,7 @@ describe('safe inbound event application', () => {
             minMinutes: 30,
             maxMinutes: 60,
             difficulty: 'medium',
+            complexityRating: 2.3,
             quantity: 2,
             recordStatus: 'active',
             available: true,
@@ -451,6 +452,8 @@ describe('safe inbound event application', () => {
             imageUrl: 'https://example.com/game.jpg',
             localImagePath: 'must-not-be-used',
             bggId: 123,
+            metadataSource: 'bgg',
+            metadataImportedAt: '2026-08-03T00:00:00.000Z',
             customerNote: 'Public note',
             internalNote: 'Internal note',
             consignorNickname: null,
@@ -529,8 +532,23 @@ describe('safe inbound event application', () => {
     expect(listActivities(local.connection, context)).toHaveLength(1)
     expect(listBoardGames(local.connection, context)[0]).toMatchObject({
       name: 'Cloud Game',
+      complexityRating: 2.3,
+      metadataSource: 'bgg',
+      metadataImportedAt: '2026-08-03T00:00:00.000Z',
       localImagePath: null,
       missingParts: [{ name: 'Token', quantity: 1 }]
+    })
+    expect(
+      local.connection
+        .prepare(
+          `SELECT complexity_tenths, metadata_source, metadata_imported_at
+           FROM board_game WHERE id = 'board-game-cloud'`
+        )
+        .get()
+    ).toEqual({
+      complexity_tenths: 23,
+      metadata_source: 'bgg',
+      metadata_imported_at: '2026-08-03T00:00:00.000Z'
     })
     expect(
       local.connection

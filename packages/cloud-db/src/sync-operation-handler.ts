@@ -104,6 +104,7 @@ type BoardGameProjection = {
   minMinutes: number | null
   maxMinutes: number | null
   difficulty: 'light' | 'medium' | 'heavy'
+  complexityRating: number | null
   quantity: number
   recordStatus: 'active' | 'disabled'
   available: boolean
@@ -113,6 +114,8 @@ type BoardGameProjection = {
   recommended: boolean
   imageUrl: string | null
   bggId: number | null
+  metadataSource: 'bgg' | null
+  metadataImportedAt: string | null
   customerNote: string | null
   internalNote: string | null
   consignorNickname: string | null
@@ -185,6 +188,31 @@ function nullableInteger(
   const result = integer(value, name, minimum)
   if (result > maximum) throw new Error(`${name} exceeds ${maximum}`)
   return result
+}
+
+function nullableDecimal(
+  value: unknown,
+  name: string,
+  minimum: number,
+  maximum: number,
+  decimalPlaces: number
+): number | null {
+  if (value === null || value === undefined) return null
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number or null`)
+  }
+  const factor = 10 ** decimalPlaces
+  const rounded = Math.round(value * factor) / factor
+  if (
+    value < minimum ||
+    value > maximum ||
+    Math.abs(value - rounded) > Number.EPSILON * factor
+  ) {
+    throw new Error(
+      `${name} must be between ${minimum} and ${maximum} with at most ${decimalPlaces} decimal place`
+    )
+  }
+  return rounded
 }
 
 function timestamp(value: unknown, fallback: Date): string {
@@ -530,6 +558,13 @@ export function parseBoardGameProjection(
     1,
     Number.MAX_SAFE_INTEGER
   )
+  const complexityRating = nullableDecimal(
+    after.complexityRating,
+    'boardGame.complexityRating',
+    0,
+    5,
+    1
+  )
   if (
     minMinutes !== null &&
     maxMinutes !== null &&
@@ -550,6 +585,7 @@ export function parseBoardGameProjection(
       ['light', 'medium', 'heavy'] as const,
       'boardGame.difficulty'
     ),
+    complexityRating,
     quantity: integer(after.quantity, 'boardGame.quantity'),
     recordStatus: enumValue(
       after.recordStatus,
@@ -574,6 +610,19 @@ export function parseBoardGameProjection(
       1,
       Number.MAX_SAFE_INTEGER
     ),
+    metadataSource:
+      after.metadataSource === null || after.metadataSource === undefined
+        ? null
+        : enumValue(
+            after.metadataSource,
+            ['bgg'] as const,
+            'boardGame.metadataSource'
+          ),
+    metadataImportedAt:
+      after.metadataImportedAt === null ||
+      after.metadataImportedAt === undefined
+        ? null
+        : timestamp(after.metadataImportedAt, operation.occurred_at),
     customerNote: nullableText(after.customerNote, 'boardGame.customerNote'),
     internalNote: nullableText(after.internalNote, 'boardGame.internalNote'),
     consignorNickname: nullableText(
@@ -1623,13 +1672,14 @@ async function confirmBoardGame(
     `INSERT INTO cloud_board_game
      (id, tenant_id, store_id, name, introduction, categories_json,
       min_players, max_players, min_minutes, max_minutes, difficulty,
-      quantity, record_status, available, customer_consigned, missing_pieces,
-      private, recommended, image_url, bgg_id, customer_note, internal_note,
-      consignor_nickname, missing_parts_json, server_version, created_at,
-      updated_at)
+      complexity_rating, quantity, record_status, available,
+      customer_consigned, missing_pieces, private, recommended, image_url,
+      bgg_id, metadata_source, metadata_imported_at, customer_note,
+      internal_note, consignor_nickname, missing_parts_json, server_version,
+      created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12,
              $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23,
-             $24::jsonb, $25, $26, $27)
+             $24, $25, $26, $27::jsonb, $28, $29, $30)
      ON CONFLICT (id) DO UPDATE SET
        name = EXCLUDED.name,
        introduction = EXCLUDED.introduction,
@@ -1639,8 +1689,11 @@ async function confirmBoardGame(
        min_minutes = EXCLUDED.min_minutes,
        max_minutes = EXCLUDED.max_minutes,
        difficulty = EXCLUDED.difficulty,
+       complexity_rating = EXCLUDED.complexity_rating,
        image_url = EXCLUDED.image_url,
        bgg_id = EXCLUDED.bgg_id,
+       metadata_source = EXCLUDED.metadata_source,
+       metadata_imported_at = EXCLUDED.metadata_imported_at,
        server_version = EXCLUDED.server_version,
        updated_at = EXCLUDED.updated_at
      WHERE cloud_board_game.tenant_id = EXCLUDED.tenant_id`,
@@ -1656,6 +1709,7 @@ async function confirmBoardGame(
       projection.minMinutes,
       projection.maxMinutes,
       projection.difficulty,
+      projection.complexityRating,
       projection.quantity,
       projection.recordStatus,
       projection.available,
@@ -1665,6 +1719,8 @@ async function confirmBoardGame(
       projection.recommended,
       projection.imageUrl,
       projection.bggId,
+      projection.metadataSource,
+      projection.metadataImportedAt,
       projection.customerNote,
       projection.internalNote,
       projection.consignorNickname,

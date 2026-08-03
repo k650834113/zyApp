@@ -22,7 +22,10 @@ describe('device enrollment', () => {
     wechatPayApiV3KeyPath: null,
     wechatPayNotifyUrl: null,
     wechatPayOutTradeNoPrefix: 'ZY-',
-    miniappDevelopmentAuthEnabled: false
+    miniappDevelopmentAuthEnabled: false,
+    bggMetadataMode: 'disabled' as const,
+    bggXmlApiTokenFile: null,
+    bggPublicImagesEnabled: false
   }
 
   it('creates a short-lived first-device registration code without storing plaintext', async () => {

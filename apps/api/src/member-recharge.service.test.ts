@@ -61,6 +61,9 @@ function apiConfig(
     wechatMiniappAppId: 'wx-test-appid',
     wechatMiniappAppSecret: 'test-secret',
     miniappTestVirtualPhone: null,
+    bggMetadataMode: 'disabled',
+    bggXmlApiTokenFile: null,
+    bggPublicImagesEnabled: false,
     ...overrides
   }
 }

@@ -18,6 +18,7 @@
     "@zyapp/contracts": "workspace:*",
     "@zyapp/domain": "workspace:*",
     "@zyapp/sync-protocol": "workspace:*",
+    "fast-xml-parser": "^5.10.1",
     "ioredis": "5.11.1",
     "pg": "8.21.0",
     "reflect-metadata": "0.2.2",

@@ -105,6 +105,7 @@ const games: MockBoardGameSeed[] = [
     complexityRating: 1.9,
     imageUrl: null,
     customerNote: '适合第一次接触现代桌游的顾客。',
+    sourceAttribution: null,
     likeCount: 12,
     likedByViewer: false,
     difficulty: 'light',
@@ -127,6 +128,10 @@ const games: MockBoardGameSeed[] = [
     complexityRating: 2.3,
     imageUrl: null,
     customerNote: '经典入门策略游戏。',
+    sourceAttribution: {
+      label: 'Powered by BGG',
+      url: 'https://boardgamegeek.com/boardgame/148228'
+    },
     likeCount: 18,
     likedByViewer: false,
     difficulty: 'medium',
@@ -149,6 +154,7 @@ const games: MockBoardGameSeed[] = [
     complexityRating: 1.2,
     imageUrl: null,
     customerNote: null,
+    sourceAttribution: null,
     likeCount: 9,
     likedByViewer: false,
     difficulty: 'light',
@@ -171,6 +177,7 @@ const games: MockBoardGameSeed[] = [
     complexityRating: 3.9,
     imageUrl: null,
     customerNote: null,
+    sourceAttribution: null,
     likeCount: 25,
     likedByViewer: false,
     difficulty: 'heavy',
@@ -193,6 +200,7 @@ const games: MockBoardGameSeed[] = [
     complexityRating: null,
     imageUrl: null,
     customerNote: null,
+    sourceAttribution: null,
     likeCount: 0,
     likedByViewer: false,
     difficulty: 'medium',
@@ -215,6 +223,7 @@ const games: MockBoardGameSeed[] = [
     complexityRating: 2.0,
     imageUrl: null,
     customerNote: null,
+    sourceAttribution: null,
     likeCount: 0,
     likedByViewer: false,
     difficulty: 'medium',
@@ -252,6 +261,7 @@ let employeeBoardGames: BoardGameSummary[] = games.map((game) => ({
   maxPlayers: game.maxPlayers,
   minMinutes: game.minMinutes,
   maxMinutes: game.maxMinutes,
+  complexityRating: game.complexityRating,
   difficulty: game.difficulty,
   quantity: game.quantity,
   recordStatus: game.recordStatus,
@@ -262,7 +272,13 @@ let employeeBoardGames: BoardGameSummary[] = games.map((game) => ({
   recommended: game.recommended,
   imageUrl: game.imageUrl,
   localImagePath: null,
-  bggId: null,
+  bggId: game.sourceAttribution
+    ? Number(game.sourceAttribution.url.split('/').pop())
+    : null,
+  metadataSource: game.sourceAttribution ? 'bgg' : null,
+  metadataImportedAt: game.sourceAttribution
+    ? '2026-06-14T00:00:00.000Z'
+    : null,
   customerNote: game.customerNote,
   internalNote: null,
   consignorNickname: null,
@@ -438,6 +454,9 @@ function publicGames(
           ?.complexityRating ?? null,
       imageUrl: game.imageUrl,
       customerNote: game.customerNote,
+      sourceAttribution:
+        games.find((candidate) => candidate.id === game.id)
+          ?.sourceAttribution ?? null,
       likeCount: likeCounts.get(game.id) ?? 0,
       likedByViewer: likedGameIds.has(game.id)
     }))

@@ -93,6 +93,7 @@ describe('cloud sync operation projections', () => {
           minMinutes: 30,
           maxMinutes: 45,
           difficulty: 'light',
+          complexityRating: 2.3,
           quantity: 2,
           recordStatus: 'active',
           available: true,
@@ -102,6 +103,8 @@ describe('cloud sync operation projections', () => {
           recommended: true,
           imageUrl: null,
           bggId: 295947,
+          metadataSource: 'bgg',
+          metadataImportedAt: '2026-08-03T00:00:00.000Z',
           customerNote: 'Ask staff for help.',
           internalNote: 'Private note',
           consignorNickname: 'Alice',
@@ -111,8 +114,42 @@ describe('cloud sync operation projections', () => {
     ).toMatchObject({
       name: 'Cascadia',
       categories: ['Family', 'Strategy'],
+      complexityRating: 2.3,
+      metadataSource: 'bgg',
+      metadataImportedAt: '2026-08-03T00:00:00.000Z',
       missingParts: [{ name: 'Token', quantity: 2 }]
     })
+
+    expect(() =>
+      parseBoardGameProjection(
+        operation('board_game.updated', {
+          name: 'Invalid complexity',
+          introduction: 'Must be rejected.',
+          categories: ['Strategy'],
+          minPlayers: 1,
+          maxPlayers: 4,
+          minMinutes: 30,
+          maxMinutes: 45,
+          difficulty: 'light',
+          complexityRating: 5.01,
+          quantity: 1,
+          recordStatus: 'active',
+          available: true,
+          customerConsigned: false,
+          missingPieces: false,
+          private: false,
+          recommended: false,
+          imageUrl: null,
+          bggId: null,
+          metadataSource: null,
+          metadataImportedAt: null,
+          customerNote: null,
+          internalNote: null,
+          consignorNickname: null,
+          missingParts: []
+        })
+      )
+    ).toThrow(/complexity/i)
   })
 
   it('parses activity schedules and integer-fen recharge tiers', () => {

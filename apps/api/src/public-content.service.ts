@@ -313,6 +313,8 @@ export class PublicContentService {
       min_minutes: number | null
       max_minutes: number | null
       complexity_rating: string | number | null
+      metadata_source: string | null
+      bgg_id: string | number | null
       image_url: string | null
       customer_note: string | null
       like_count: string | number
@@ -320,7 +322,8 @@ export class PublicContentService {
     }>(
       `SELECT game.id, game.name, game.introduction, game.categories_json,
               game.min_players, game.max_players, game.min_minutes,
-              game.max_minutes, game.complexity_rating, game.image_url,
+              game.max_minutes, game.complexity_rating, game.metadata_source,
+              game.bgg_id, game.image_url,
               COALESCE(config.customer_note, game.customer_note) customer_note,
               COALESCE(likes.like_count, 0) like_count,
               COALESCE(likes.liked_by_viewer, FALSE) liked_by_viewer
@@ -360,6 +363,13 @@ export class PublicContentService {
           : Number(row.complexity_rating),
       imageUrl: row.image_url,
       customerNote: row.customer_note,
+      sourceAttribution:
+        row.metadata_source === 'bgg' && row.bgg_id !== null
+          ? {
+              label: 'Powered by BGG',
+              url: `https://boardgamegeek.com/boardgame/${Number(row.bgg_id)}`
+            }
+          : null,
       likeCount: Number(row.like_count),
       likedByViewer: viewerId === null ? false : Boolean(row.liked_by_viewer)
     }))

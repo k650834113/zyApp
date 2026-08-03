@@ -44,6 +44,8 @@ describe('public content service', () => {
               min_minutes: 30,
               max_minutes: 45,
               complexity_rating: '2.3',
+              metadata_source: 'bgg',
+              bgg_id: 13,
               image_url: null,
               customer_note: 'Ask staff for help.',
               like_count: '7',
@@ -82,11 +84,17 @@ describe('public content service', () => {
         complexityRating: 2.3,
         imageUrl: null,
         customerNote: 'Ask staff for help.',
+        sourceAttribution: {
+          label: 'Powered by BGG',
+          url: 'https://boardgamegeek.com/boardgame/13'
+        },
         likeCount: 7,
         likedByViewer: true
       }
     ])
     expect(JSON.stringify(result)).not.toContain('must not leak')
+    expect(JSON.stringify(result)).not.toContain('metadataSource')
+    expect(JSON.stringify(result)).not.toContain('bggId')
   })
 
   it('shows aggregate likes but never marks an anonymous viewer as liked', async () => {
@@ -103,6 +111,8 @@ describe('public content service', () => {
             min_minutes: 30,
             max_minutes: 45,
             complexity_rating: null,
+            metadata_source: null,
+            bgg_id: null,
             image_url: null,
             customer_note: null,
             like_count: '3',
@@ -117,6 +127,7 @@ describe('public content service', () => {
     ).resolves.toEqual([
       expect.objectContaining({
         complexityRating: null,
+        sourceAttribution: null,
         likeCount: 3,
         likedByViewer: false
       })

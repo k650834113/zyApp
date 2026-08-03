@@ -43,6 +43,36 @@ function completeWechatEnvironment(
 }
 
 describe('API configuration', () => {
+  it('keeps BGG metadata disabled by default', () => {
+    expect(readApiConfig(baseEnvironment())).toMatchObject({
+      bggMetadataMode: 'disabled',
+      bggXmlApiTokenFile: null,
+      bggPublicImagesEnabled: false
+    })
+  })
+
+  it('requires a token file for BGG XML API mode', () => {
+    expect(() => readApiConfig(baseEnvironment({
+      BGG_METADATA_MODE: 'xmlapi'
+    }))).toThrow('BGG_XML_API_TOKEN_FILE')
+
+    expect(readApiConfig(baseEnvironment({
+      BGG_METADATA_MODE: 'xmlapi',
+      BGG_XML_API_TOKEN_FILE: '/run/secrets/bgg/token',
+      BGG_PUBLIC_IMAGES_ENABLED: 'true'
+    }))).toMatchObject({
+      bggMetadataMode: 'xmlapi',
+      bggXmlApiTokenFile: '/run/secrets/bgg/token',
+      bggPublicImagesEnabled: true
+    })
+  })
+
+  it('forbids BGG public images while metadata integration is disabled', () => {
+    expect(() => readApiConfig(baseEnvironment({
+      BGG_PUBLIC_IMAGES_ENABLED: 'true'
+    }))).toThrow(/BGG_PUBLIC_IMAGES_ENABLED/)
+  })
+
   it('parses explicit local cloud configuration', () => {
     expect(
       readApiConfig({
@@ -91,7 +121,10 @@ describe('API configuration', () => {
       miniappWechatAuthMode: 'wechat',
       wechatMiniappAppId: 'wx-test-appid',
       wechatMiniappAppSecret: 'wx-test-secret',
-      miniappTestVirtualPhone: '18888888888'
+      miniappTestVirtualPhone: '18888888888',
+      bggMetadataMode: 'disabled',
+      bggXmlApiTokenFile: null,
+      bggPublicImagesEnabled: false
     })
   })
 

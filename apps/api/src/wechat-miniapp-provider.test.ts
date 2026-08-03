@@ -28,7 +28,10 @@ const testConfig: ApiConfig = {
   miniappWechatAuthMode: 'wechat',
   wechatMiniappAppId: 'wx-test-appid',
   wechatMiniappAppSecret: 'wx-test-secret',
-  miniappTestVirtualPhone: '18888888888'
+  miniappTestVirtualPhone: '18888888888',
+  bggMetadataMode: 'disabled',
+  bggXmlApiTokenFile: null,
+  bggPublicImagesEnabled: false
 }
 
 const unusedRedis = {} as Parameters<typeof resolveWechatPhoneNumber>[1]

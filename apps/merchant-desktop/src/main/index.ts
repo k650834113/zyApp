@@ -22,7 +22,7 @@ import {
   type AdjustMemberTierRequest,
   type ActivityType,
   type AnnouncementStatus,
-  type BoardGameDifficulty,
+  type BoardGameMetadataDetailsRequest,
   type BoardGameRecordStatus,
   type ApproveFinancialRefundRequest,
   type ApproveRefundRequest,
@@ -308,11 +308,14 @@ import {
   getCurrentCloudMirrorEpoch,
   getOfflineFinancialLease,
   getCloudSyncResults,
+  getCloudBoardGameMetadataDetails,
+  getCloudBoardGameMetadataStatus,
   loginDesktopEmployee,
   listEmployeeStoreAccess as listCloudEmployeeStoreAccess,
   listTenantStores as listCloudTenantStores,
   listBusinessTemplates as listCloudBusinessTemplates,
   pushCloudSyncBatch,
+  searchCloudBoardGameMetadata,
   streamCloudEventHints,
   submitCloudSyncCommand,
   renewOfflineFinancialLease,
@@ -1774,8 +1777,15 @@ function requireActivityType(value: unknown): ActivityType {
   return value
 }
 
-function requireBoardGameDifficulty(value: unknown): BoardGameDifficulty {
-  if (value !== 'light' && value !== 'medium' && value !== 'heavy') {
+function requireBoardGameComplexity(value: unknown): number {
+  const tenths = typeof value === 'number' ? Math.round(value * 10) : NaN
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    tenths < 0 ||
+    tenths > 50 ||
+    Math.abs(value - tenths / 10) > 1e-9
+  ) {
     throw new TypeError('桌游难度不正确')
   }
   return value
@@ -2000,6 +2010,26 @@ function requireBoardGameFields(
           min: 1,
           max: Number.MAX_SAFE_INTEGER
         })
+  const complexityRating =
+    request.complexityRating === undefined
+      ? undefined
+      : requireBoardGameComplexity(request.complexityRating)
+  const metadataSource =
+    request.metadataSource === undefined
+      ? undefined
+      : request.metadataSource === 'bgg'
+        ? 'bgg' as const
+        : (() => { throw new TypeError('桌游资料来源不正确') })()
+  const metadataImportedAtInput = optionalText(
+    request.metadataImportedAt,
+    '桌游资料导入时间',
+    50
+  )
+  const metadataImportedAt = metadataImportedAtInput === undefined
+    ? undefined
+    : Number.isFinite(Date.parse(metadataImportedAtInput))
+      ? new Date(metadataImportedAtInput).toISOString()
+      : (() => { throw new TypeError('桌游资料导入时间不正确') })()
   const customerNote = optionalText(
     request?.customerNote,
     '顾客可见备注',
@@ -2028,7 +2058,7 @@ function requireBoardGameFields(
     }),
     ...(minMinutes === undefined ? {} : { minMinutes }),
     ...(maxMinutes === undefined ? {} : { maxMinutes }),
-    difficulty: requireBoardGameDifficulty(request?.difficulty),
+    ...(complexityRating === undefined ? {} : { complexityRating }),
     quantity: requireInteger(request?.quantity, '库存数量', {
       min: 0,
       max: 100_000
@@ -2044,6 +2074,8 @@ function requireBoardGameFields(
     ...(imageUrl ? { imageUrl } : {}),
     ...(localImagePath ? { localImagePath } : {}),
     ...(bggId === undefined ? {} : { bggId }),
+    ...(metadataSource === undefined ? {} : { metadataSource }),
+    ...(metadataImportedAt === undefined ? {} : { metadataImportedAt }),
     ...(customerNote === undefined ? {} : { customerNote }),
     ...(internalNote === undefined ? {} : { internalNote }),
     ...(consignorNickname === undefined ? {} : { consignorNickname }),
@@ -4343,6 +4375,53 @@ function registerIpcHandlers(): void {
     if (!context) throw new Error('门店配置缺失')
     return listBoardGames(database.connection, context)
   })
+  ipcMain.handle(IPC_CHANNELS.boardGameMetadataStatus, async (event) => {
+    const session = requireSession(event, PERMISSIONS.contentManage)
+    if (!cloudConnection) {
+      throw new Error('BGG 搜索需要连接 ZyApp 云端')
+    }
+    return getCloudBoardGameMetadataStatus(cloudConnection, session.id)
+  })
+  ipcMain.handle(
+    IPC_CHANNELS.boardGameMetadataSearch,
+    async (event, request: { query?: unknown }) => {
+      const session = requireSession(event, PERMISSIONS.contentManage)
+      if (!cloudConnection) {
+        throw new Error('BGG 搜索需要连接 ZyApp 云端')
+      }
+      return searchCloudBoardGameMetadata(cloudConnection, session.id, {
+        query: requireText(request?.query, '桌游搜索词', {
+          min: 1,
+          max: 120
+        })
+      })
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.boardGameMetadataDetails,
+    async (event, request: BoardGameMetadataDetailsRequest) => {
+      const session = requireSession(event, PERMISSIONS.contentManage)
+      if (!cloudConnection) {
+        throw new Error('BGG 搜索需要连接 ZyApp 云端')
+      }
+      if (request?.source !== 'bgg') {
+        throw new TypeError('桌游资料来源不正确')
+      }
+      const externalId = requireText(
+        request.externalId,
+        'BGG 编号',
+        { min: 1, max: 20 }
+      )
+      if (!/^[1-9]\d*$/.test(externalId)) {
+        throw new TypeError('BGG 编号必须是正整数')
+      }
+      return getCloudBoardGameMetadataDetails(
+        cloudConnection,
+        session.id,
+        { source: 'bgg', externalId }
+      )
+    }
+  )
   ipcMain.handle(
     IPC_CHANNELS.boardGameCreate,
     (event, request: CreateBoardGameRequest) => {

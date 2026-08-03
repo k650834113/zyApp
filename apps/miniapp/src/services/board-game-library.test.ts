@@ -19,11 +19,27 @@ const game: PublicBoardGameSummary = {
   complexityRating: 2.3,
   imageUrl: null,
   customerNote: null,
+  sourceAttribution: null,
   likeCount: 18,
   likedByViewer: false
 }
 
 describe('board-game card view model', () => {
+  it('preserves safe public source attribution without exposing provenance fields', () => {
+    const view = toBoardGameCardView({
+      ...game,
+      sourceAttribution: {
+        label: 'Powered by BGG',
+        url: 'https://boardgamegeek.com/boardgame/13'
+      }
+    })
+    expect(view.sourceAttribution).toEqual({
+      label: 'Powered by BGG',
+      url: 'https://boardgamegeek.com/boardgame/13'
+    })
+    expect(JSON.stringify(view)).not.toContain('metadataSource')
+  })
+
   it('formats players, duration, and numeric complexity for one metadata row', () => {
     expect(toBoardGameCardView(game)).toMatchObject({
       playersText: '2–4 人',

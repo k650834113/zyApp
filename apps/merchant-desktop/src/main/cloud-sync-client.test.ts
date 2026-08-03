@@ -1,5 +1,5 @@
 import type { SyncPushBatch } from '@zyapp/sync-protocol'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   claimCloudCashierCommand,
   claimCloudEmployeeFinancialCommand,
@@ -7,10 +7,13 @@ import {
   completeCloudEmployeeFinancialCommand,
   enrollCloudDevice,
   getCurrentCloudMirrorEpoch,
+  getCloudBoardGameMetadataDetails,
+  getCloudBoardGameMetadataStatus,
   getCloudOperationOutcome,
   getCloudSyncEvents,
   getCloudSyncResults,
   pushCloudSyncBatch,
+  searchCloudBoardGameMetadata,
   streamCloudEventHints,
   submitCloudSyncCommand
 } from './cloud-sync-client'
@@ -22,7 +25,80 @@ const connection = {
   token: 'secret-token'
 }
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('desktop cloud sync client', () => {
+  it('requests board-game metadata through device-authenticated cloud routes', async () => {
+    const actorId = '44444444-4444-4444-8444-444444444444'
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        source: 'bgg', enabled: true, imagesEnabled: false
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        source: 'bgg', externalId: '13', primaryName: 'Catan',
+        alternateNames: ['卡坦岛'], yearPublished: 1995,
+        minPlayers: 3, maxPlayers: 4, minMinutes: 60, maxMinutes: 120,
+        complexityRating: 2.3, categories: ['经营'], mechanics: ['交易'],
+        thumbnailUrl: null, imageUrl: null,
+        sourceUrl: 'https://boardgamegeek.com/boardgame/13',
+        fetchedAt: '2026-08-03T00:00:00.000Z'
+      }), { status: 200 }))
+
+    await getCloudBoardGameMetadataStatus(connection, actorId, fetchMock)
+    await searchCloudBoardGameMetadata(
+      connection,
+      actorId,
+      { query: '卡坦岛' },
+      fetchMock
+    )
+    await getCloudBoardGameMetadataDetails(
+      connection,
+      actorId,
+      { source: 'bgg', externalId: '13' },
+      fetchMock
+    )
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `${connection.baseUrl}/v1/board-game-metadata/status?actorId=${actorId}`
+    )
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `${connection.baseUrl}/v1/board-game-metadata/search?actorId=${actorId}&query=%E5%8D%A1%E5%9D%A6%E5%B2%9B`
+    )
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      `${connection.baseUrl}/v1/board-game-metadata/bgg/13?actorId=${actorId}`
+    )
+    for (const call of fetchMock.mock.calls) {
+      expect(call[1]).not.toHaveProperty('body')
+      expect(call[1]?.headers).toMatchObject({
+        authorization: 'Bearer secret-token',
+        'x-zyapp-device-id': 'device-1'
+      })
+      expect(JSON.stringify(call[1]?.headers)).not.toContain('server-only')
+    }
+    expect(timeoutSpy.mock.calls.map(([milliseconds]) => milliseconds))
+      .toEqual([10_000, 25_000, 25_000])
+  })
+
+  it('propagates metadata cloud errors without retrying in the renderer', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ message: 'BGG metadata is unavailable' }), {
+        status: 503
+      })
+    )
+    await expect(
+      searchCloudBoardGameMetadata(
+        connection,
+        '44444444-4444-4444-8444-444444444444',
+        { query: 'Catan' },
+        fetchMock
+      )
+    ).rejects.toMatchObject({ status: 503 })
+  })
+
   it('submits and resolves protocol v2 operations by id', async () => {
     const operation = {
       operationId: '44444444-4444-4444-8444-444444444444',

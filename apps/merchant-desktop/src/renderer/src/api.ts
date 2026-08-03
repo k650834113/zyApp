@@ -1491,6 +1491,17 @@ const previewApi: DesktopApi = {
     return updated
   },
   listBoardGames: async () => previewBoardGames,
+  getBoardGameMetadataStatus: async () => ({
+    source: 'bgg',
+    enabled: false,
+    imagesEnabled: false
+  }),
+  searchBoardGameMetadata: async () => {
+    throw new Error('预览模式未连接 BGG 资料服务')
+  },
+  getBoardGameMetadataDetails: async () => {
+    throw new Error('预览模式未连接 BGG 资料服务')
+  },
   createBoardGame: async (request) => {
     const timestamp = new Date().toISOString()
     const game: BoardGameSummary = {
@@ -1498,10 +1509,19 @@ const previewApi: DesktopApi = {
       ...request,
       minMinutes: request.minMinutes ?? null,
       maxMinutes: request.maxMinutes ?? null,
+      difficulty:
+        request.complexityRating === undefined || request.complexityRating <= 2
+          ? 'light'
+          : request.complexityRating <= 3.5
+            ? 'medium'
+            : 'heavy',
+      complexityRating: request.complexityRating ?? null,
       recordStatus: 'active',
       imageUrl: request.imageUrl ?? null,
       localImagePath: request.localImagePath ?? null,
       bggId: request.bggId ?? null,
+      metadataSource: request.metadataSource ?? null,
+      metadataImportedAt: request.metadataImportedAt ?? null,
       customerNote: request.customerNote ?? null,
       internalNote: request.internalNote ?? null,
       consignorNickname: request.consignorNickname ?? null,
@@ -1527,9 +1547,18 @@ const previewApi: DesktopApi = {
       recordStatus: current.recordStatus,
       minMinutes: request.minMinutes ?? null,
       maxMinutes: request.maxMinutes ?? null,
+      difficulty:
+        request.complexityRating === undefined || request.complexityRating <= 2
+          ? 'light'
+          : request.complexityRating <= 3.5
+            ? 'medium'
+            : 'heavy',
+      complexityRating: request.complexityRating ?? null,
       imageUrl: request.imageUrl ?? null,
       localImagePath: request.localImagePath ?? null,
       bggId: request.bggId ?? null,
+      metadataSource: request.metadataSource ?? null,
+      metadataImportedAt: request.metadataImportedAt ?? null,
       customerNote: request.customerNote ?? null,
       internalNote: request.internalNote ?? null,
       consignorNickname: request.consignorNickname ?? null,

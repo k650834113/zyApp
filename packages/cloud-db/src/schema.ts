@@ -519,6 +519,10 @@ export const cloudBoardGames = pgTable(
     recommended: boolean('recommended').notNull().default(false),
     imageUrl: text('image_url'),
     bggId: bigint('bgg_id', { mode: 'number' }),
+    metadataSource: text('metadata_source'),
+    metadataImportedAt: timestamp('metadata_imported_at', {
+      withTimezone: true
+    }),
     customerNote: text('customer_note'),
     internalNote: text('internal_note'),
     consignorNickname: text('consignor_nickname'),
@@ -528,6 +532,9 @@ export const cloudBoardGames = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
   },
   (table) => [
+    uniqueIndex('uq_cloud_board_game_tenant_bgg_id')
+      .on(table.tenantId, table.bggId)
+      .where(sql`${table.bggId} is not null`),
     index('idx_cloud_board_game_public').on(
       table.tenantId,
       table.storeId,

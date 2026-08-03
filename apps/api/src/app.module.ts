@@ -35,6 +35,9 @@ import { SyncService } from './sync.service'
 import { TenantAdminController } from './tenant-admin.controller'
 import { TenantAdminService } from './tenant-admin.service'
 import { WechatPaymentController } from './wechat-payment.controller'
+import { BoardGameMetadataController } from './board-game-metadata/board-game-metadata.controller'
+import { BoardGameMetadataService } from './board-game-metadata/board-game-metadata.service'
+import { BggRequestGate } from './board-game-metadata/request-gate'
 
 @Module({
   imports: [InfrastructureModule],
@@ -52,7 +55,8 @@ import { WechatPaymentController } from './wechat-payment.controller'
     MemberAvatarController,
     WechatPaymentController,
     EmployeeMobileController,
-    TenantAdminController
+    TenantAdminController,
+    BoardGameMetadataController
   ],
   providers: [
     DeviceService,
@@ -75,7 +79,9 @@ import { WechatPaymentController } from './wechat-payment.controller'
     EmployeeContentService,
     CashierCommandService,
     EmployeeFinancialCommandService,
-    TenantAdminService
+    TenantAdminService,
+    BggRequestGate,
+    BoardGameMetadataService
   ]
 })
 export class AppModule {}

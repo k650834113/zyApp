@@ -60,6 +60,11 @@
     <button class="secondary-button" bindtap="clearAll">清空筛选</button>
   </view>
 
+  <view wx:if="{{sourceAttribution}}" class="source-attribution" bindtap="copyBggSource">
+    <text>Powered by BGG</text>
+    <text class="source-attribution-action">复制来源链接</text>
+  </view>
+
   <view class="bottom-nav">
     <view class="nav-item" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
     <view class="nav-item active" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>

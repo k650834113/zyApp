@@ -31,7 +31,10 @@ function config(directory: string): ApiConfig {
     wechatPayApiV3KeyPath: null,
     wechatPayNotifyUrl: null,
     wechatPayOutTradeNoPrefix: 'ZY-',
-    miniappDevelopmentAuthEnabled: true
+    miniappDevelopmentAuthEnabled: true,
+    bggMetadataMode: 'disabled',
+    bggXmlApiTokenFile: null,
+    bggPublicImagesEnabled: false
   }
 }
 

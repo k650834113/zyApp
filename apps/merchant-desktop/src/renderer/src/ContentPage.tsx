@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type {
   AnnouncementSummary,
-  BoardGameDifficulty,
   BoardGameSummary,
   CreateAnnouncementRequest,
-  CreateBoardGameRequest,
   SessionUser
 } from '@zyapp/contracts'
 import { getDesktopApi, readableError } from './api'
+import { BoardGameEditorModal } from './BoardGameEditorModal'
+import {
+  boardGameEditorFor,
+  boardGameRequest,
+  defaultBoardGameEditor,
+  findBoardGameByBggId,
+  parseMissingParts,
+  partsToText,
+  type BoardGameEditor
+} from './board-game-editor'
 
 type AnnouncementEditor = {
   current: AnnouncementSummary | null
@@ -19,6 +27,7 @@ type AnnouncementEditor = {
   reason: string
 }
 
+/* Legacy inline editor type moved to board-game-editor.ts.
 type BoardGameEditor = {
   current: BoardGameSummary | null
   name: string
@@ -45,6 +54,7 @@ type BoardGameEditor = {
   missingParts: string
   reason: string
 }
+*/
 
 type OperationEditor = {
   game: BoardGameSummary
@@ -71,6 +81,7 @@ const visibilityLabels: Record<AnnouncementSummary['visibility'], string> = {
   disabled: '已停用'
 }
 
+/* Legacy difficulty labels and inline number fields are no longer rendered.
 const difficultyLabels: Record<BoardGameDifficulty, string> = {
   light: '轻度',
   medium: '中度',
@@ -86,6 +97,7 @@ const boardGameNumberFields: Array<{
   { label: '最短分钟', key: 'minMinutes' },
   { label: '最长分钟', key: 'maxMinutes' }
 ]
+*/
 
 const boardGameFlags: Array<{
   key:
@@ -159,6 +171,7 @@ function announcementEditorFor(
   }
 }
 
+/* Legacy editor conversion helpers moved to board-game-editor.ts.
 function partsToText(game: BoardGameSummary): string {
   return game.missingParts
     .map((part) => `${part.name}:${part.quantity}`)
@@ -249,6 +262,7 @@ function parseMissingParts(
       return { name: match[1]?.trim() ?? '', quantity: Number(match[2]) }
     })
 }
+*/
 
 function announcementRequest(
   editor: AnnouncementEditor
@@ -264,6 +278,7 @@ function announcementRequest(
   }
 }
 
+/* Legacy request conversion moved to board-game-editor.ts.
 function boardGameRequest(editor: BoardGameEditor): CreateBoardGameRequest {
   const minMinutes = parseInteger(editor.minMinutes, '最短时长', true)
   const maxMinutes = parseInteger(editor.maxMinutes, '最长时长', true)
@@ -307,6 +322,7 @@ function boardGameRequest(editor: BoardGameEditor): CreateBoardGameRequest {
     missingParts
   }
 }
+*/
 
 export function ContentPage({
   session
@@ -409,8 +425,20 @@ export function ContentPage({
     if (!gameEditor || busy) return
     setBusy(true)
     setError(null)
+    let attemptedBggId: number | undefined
     try {
       const request = boardGameRequest(gameEditor)
+      attemptedBggId = request.bggId
+      if (!gameEditor.current) {
+        const existing = findBoardGameByBggId(games, request.bggId)
+        if (existing) {
+          setGameEditor(
+            boardGameEditorFor(existing, imagePreviews[existing.id] ?? '')
+          )
+          setNotice(`BGG #${request.bggId} 已存在，已打开 ${existing.name}`)
+          return
+        }
+      }
       const saved = gameEditor.current
         ? await getDesktopApi().updateBoardGame({
             boardGameId: gameEditor.current.id,
@@ -422,6 +450,25 @@ export function ContentPage({
       setGameEditor(null)
       await load()
     } catch (value) {
+      if (!gameEditor.current && attemptedBggId !== undefined) {
+        try {
+          const refreshedGames = await getDesktopApi().listBoardGames()
+          const existing = findBoardGameByBggId(
+            refreshedGames,
+            attemptedBggId
+          )
+          if (existing) {
+            setGames(refreshedGames)
+            setGameEditor(
+              boardGameEditorFor(existing, imagePreviews[existing.id] ?? '')
+            )
+            setNotice(`BGG #${attemptedBggId} 已存在，已打开 ${existing.name}`)
+            return
+          }
+        } catch {
+          // Keep the original create error when duplicate recovery cannot load.
+        }
+      }
       setError(readableError(value))
     } finally {
       setBusy(false)
@@ -646,7 +693,9 @@ export function ContentPage({
                       <span>
                         {game.minPlayers}-{game.maxPlayers} 人
                       </span>
-                      <span>{difficultyLabels[game.difficulty]}</span>
+                      <span>
+                        复杂度 {game.complexityRating === null ? '待补充' : game.complexityRating.toFixed(1)}
+                      </span>
                       <span>内部数量 {game.quantity}</span>
                     </div>
                     <div className="activity-tags">
@@ -839,6 +888,18 @@ export function ContentPage({
         </div>
       ) : null}
 
+      {gameEditor ? (
+        <BoardGameEditorModal
+          busy={busy}
+          editor={gameEditor}
+          onCancel={() => setGameEditor(null)}
+          onChange={setGameEditor}
+          onImportImage={() => void importImage()}
+          onSubmit={(event) => void saveBoardGame(event)}
+        />
+      ) : null}
+
+      {/* Legacy inline editor moved to BoardGameEditorModal.
       {gameEditor ? (
         <div className="modal-backdrop">
           <form
@@ -1085,6 +1146,7 @@ export function ContentPage({
           </form>
         </div>
       ) : null}
+      */}
 
       {operationEditor ? (
         <div className="modal-backdrop">

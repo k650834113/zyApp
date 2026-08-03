@@ -47,6 +47,12 @@ Production disables mock phone verification, mock WeChat payment and miniapp dev
 
 During an ICP filing review, the isolated test API may temporarily set `TEST_MINIAPP_VIRTUAL_PHONE` together with real `TEST_MINIAPP_WECHAT_AUTH_MODE=wechat` credentials. The production API does not receive this variable. Remove it as soon as WeChat phone-number capability is approved.
 
+## BGG metadata import
+
+BGG integration is wired but disabled by default. While the Commercial Application is under review, keep `BGG_METADATA_MODE=disabled` and `BGG_PUBLIC_IMAGES_ENABLED=false`; manual PC entry remains available.
+
+After written approval, place the XML API token in `${BGG_SECRETS_DIRECTORY}/xml-api-token` on the server with owner-only permissions. The file is mounted read-only at `/run/secrets/bgg/xml-api-token`; never put the token value in `production.env`, Git, desktop configuration or the Mini Program. Enable `BGG_METADATA_MODE=xmlapi` only for the isolated test API first. The production API is hard-disabled in Compose until a separate owner-approved production change, and images must remain disabled unless the written license explicitly permits them.
+
 ## Start
 
 ```bash

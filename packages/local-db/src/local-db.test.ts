@@ -47,7 +47,19 @@ describe('local database', () => {
       )
       .get()
 
-    expect(localDatabase.schemaVersion).toBe(29)
+    const boardGameColumns = localDatabase.connection
+      .prepare('PRAGMA table_info(board_game)')
+      .all()
+      .map((row) => (row as { name: string }).name)
+
+    expect(localDatabase.schemaVersion).toBe(30)
+    expect(boardGameColumns).toEqual(
+      expect.arrayContaining([
+        'complexity_tenths',
+        'metadata_source',
+        'metadata_imported_at'
+      ])
+    )
     expect(localDatabase.journalMode.toLowerCase()).toBe('wal')
     expect(effectiveWalletLedgerView).toEqual({ type: 'view' })
     expect(tableNames).toContain('audit_log')
@@ -98,7 +110,7 @@ describe('local database', () => {
       .prepare('SELECT COUNT(*) AS count FROM schema_migrations')
       .get() as { count: number }
 
-    expect(migrationCount.count).toBe(29)
+    expect(migrationCount.count).toBe(30)
     reopened.close()
   })
 
@@ -228,7 +240,7 @@ describe('local database', () => {
       'pending'
     )
 
-    expect(migrateDatabase(connection)).toBe(29)
+    expect(migrateDatabase(connection)).toBe(30)
 
     const repaired = connection
       .prepare(
@@ -336,7 +348,7 @@ describe('local database', () => {
         randomUUID()
       )
 
-    expect(migrateDatabase(connection)).toBe(29)
+    expect(migrateDatabase(connection)).toBe(30)
     expect(
       connection
         .prepare(
@@ -387,7 +399,7 @@ describe('local database', () => {
       }
     )
 
-    expect(migrateDatabase(connection)).toBe(29)
+    expect(migrateDatabase(connection)).toBe(30)
     expect(
       getMonthlyCardDetails(connection, context, member.id).current
     ).toMatchObject({ id: card.id, paymentMethod: 'cash' })
@@ -708,7 +720,7 @@ describe('local database', () => {
     connection.close()
 
     const upgraded = openLocalDatabase(filePath)
-    expect(upgraded.schemaVersion).toBe(29)
+    expect(upgraded.schemaVersion).toBe(30)
     expect(
       upgraded.connection
         .prepare(
@@ -751,7 +763,7 @@ describe('local database', () => {
     const restored = openLocalDatabase(backupPath)
 
     expect(result.sha256).toMatch(/^[a-f0-9]{64}$/)
-    expect(restored.schemaVersion).toBe(29)
+    expect(restored.schemaVersion).toBe(30)
     restored.close()
     localDatabase.close()
   })

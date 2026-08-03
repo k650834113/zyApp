@@ -22,6 +22,74 @@ afterEach(() => {
 })
 
 describe('cloud mirror materialization', () => {
+  it('stores board-game complexity as validated integer tenths with provenance', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-board-game-mirror-'))
+    directories.push(directory)
+    const local = openLocalDatabase(join(directory, 'mirror.db'))
+    try {
+      bootstrapStore(local.connection, {
+        storeName: 'Mirror Store',
+        managerUsername: 'manager',
+        managerPasswordHash: 'scrypt$test',
+        managerDisplayName: 'Manager',
+        deviceName: 'Second Device'
+      })
+      const context = getStoreContext(local.connection)
+      if (!context) throw new Error('Missing context')
+      const now = '2026-08-03T00:00:00.000Z'
+
+      applyCloudMirrorPage(local.connection, context, {
+        resource: 'board_games',
+        rows: [{
+          id: 'board-game-mirror',
+          payload: {
+            id: 'board-game-mirror',
+            name: 'Cascadia',
+            introduction: 'A family strategy game.',
+            categories_json: ['Family', 'Strategy'],
+            min_players: 1,
+            max_players: 4,
+            min_minutes: 30,
+            max_minutes: 45,
+            difficulty: 'medium',
+            complexity_rating: '2.3',
+            quantity: 2,
+            record_status: 'active',
+            available: true,
+            customer_consigned: false,
+            missing_pieces: false,
+            private: false,
+            recommended: true,
+            image_url: null,
+            bgg_id: 295947,
+            metadata_source: 'bgg',
+            metadata_imported_at: now,
+            customer_note: null,
+            internal_note: null,
+            consignor_nickname: null,
+            missing_parts_json: [],
+            created_at: now,
+            updated_at: now
+          }
+        }],
+        nextCursor: null,
+        eventCursor: '1',
+        serverTime: now
+      })
+
+      expect(local.connection.prepare(
+        `SELECT complexity_tenths, metadata_source, metadata_imported_at
+         FROM board_game WHERE id = 'board-game-mirror'`
+      ).get()).toEqual({
+        complexity_tenths: 23,
+        metadata_source: 'bgg',
+        metadata_imported_at: now
+      })
+    } finally {
+      local.close()
+    }
+  })
+
   it('suppresses a confirmed local wallet echo while keeping a new cloud recharge', () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-wallet-ledger-mirror-'))
     directories.push(directory)

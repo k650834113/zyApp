@@ -72,6 +72,22 @@ function integer(
   return Number(value)
 }
 
+function complexityTenths(value: unknown, name: string): number | null {
+  if (value === null || value === undefined) return null
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number or null`)
+  }
+  const tenths = Math.round(value * 10)
+  if (
+    tenths < 0 ||
+    tenths > 50 ||
+    Math.abs(value - tenths / 10) > 1e-9
+  ) {
+    throw new Error(`${name} must be 0.0-5.0 with at most one decimal place`)
+  }
+  return tenths
+}
+
 function booleanValue(value: unknown, name: string): boolean {
   if (typeof value !== 'boolean') throw new Error(`${name} must be boolean`)
   return value
@@ -727,17 +743,33 @@ function applyBoardGame(
   }
   const createdAt = timestamp(after.createdAt, 'boardGame.createdAt')
   const updatedAt = timestamp(after.updatedAt, 'boardGame.updatedAt')
+  const metadataSource =
+    after.metadataSource === null || after.metadataSource === undefined
+      ? null
+      : enumValue(
+          after.metadataSource,
+          ['bgg'] as const,
+          'boardGame.metadataSource'
+        )
+  const metadataImportedAt =
+    after.metadataImportedAt === null ||
+    after.metadataImportedAt === undefined
+      ? null
+      : timestamp(
+          after.metadataImportedAt,
+          'boardGame.metadataImportedAt'
+        )
   database
     .prepare(
       `INSERT INTO board_game
        (id, tenant_id, store_id, name, introduction, categories_json,
         min_players, max_players, min_minutes, max_minutes, difficulty,
-        quantity, record_status, available, customer_consigned,
+        complexity_tenths, quantity, record_status, available, customer_consigned,
         missing_pieces, private, recommended, image_url, local_image_path,
-        bgg_id, customer_note, internal_note, consignor_nickname, created_by,
-        created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-               NULL, ?, ?, ?, ?, 'cloud-sync', ?, ?)
+        bgg_id, metadata_source, metadata_imported_at, customer_note,
+        internal_note, consignor_nickname, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+               NULL, ?, ?, ?, ?, ?, ?, 'cloud-sync', ?, ?)
        ON CONFLICT (id) DO UPDATE SET
          name = excluded.name,
          introduction = excluded.introduction,
@@ -747,6 +779,7 @@ function applyBoardGame(
          min_minutes = excluded.min_minutes,
          max_minutes = excluded.max_minutes,
          difficulty = excluded.difficulty,
+         complexity_tenths = excluded.complexity_tenths,
          quantity = excluded.quantity,
          record_status = excluded.record_status,
          available = excluded.available,
@@ -756,6 +789,8 @@ function applyBoardGame(
          recommended = excluded.recommended,
          image_url = excluded.image_url,
          bgg_id = excluded.bgg_id,
+         metadata_source = excluded.metadata_source,
+         metadata_imported_at = excluded.metadata_imported_at,
          customer_note = excluded.customer_note,
          internal_note = excluded.internal_note,
          consignor_nickname = excluded.consignor_nickname,
@@ -783,6 +818,10 @@ function applyBoardGame(
         ['light', 'medium', 'heavy'] as const,
         'boardGame.difficulty'
       ),
+      complexityTenths(
+        after.complexityRating,
+        'boardGame.complexityRating'
+      ),
       integer(after.quantity, 'boardGame.quantity'),
       enumValue(
         after.recordStatus,
@@ -800,6 +839,8 @@ function applyBoardGame(
       after.bggId === null
         ? null
         : integer(after.bggId, 'boardGame.bggId', 1),
+      metadataSource,
+      metadataImportedAt,
       nullableText(after.customerNote, 'boardGame.customerNote'),
       nullableText(after.internalNote, 'boardGame.internalNote'),
       nullableText(after.consignorNickname, 'boardGame.consignorNickname'),

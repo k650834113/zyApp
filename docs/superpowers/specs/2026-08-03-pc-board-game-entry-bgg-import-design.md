@@ -2,7 +2,7 @@
 
 > 决策日期：2026-08-03
 >
-> 状态：产品方向与接入架构已确认；BGG Commercial Application 审核中，待书面规格复核后实施
+> 状态：禁用态自动化实现已完成；BGG Commercial Application 审核中，真实联调与生产启用仍待批准
 >
 > 适用范围：Windows PC 桌游资料录入、SQLite 主档、桌游同步协议、云端 BGG 适配器、小程序公开桌游契约
 >

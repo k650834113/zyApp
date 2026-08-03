@@ -53,6 +53,7 @@ function boardGameRow() {
     min_minutes: 60,
     max_minutes: 120,
     difficulty: 'medium',
+    complexity_rating: '2.3',
     quantity: 2,
     record_status: 'active',
     available: true,
@@ -62,6 +63,8 @@ function boardGameRow() {
     recommended: true,
     image_url: null,
     bgg_id: 13,
+    metadata_source: 'bgg',
+    metadata_imported_at: '2026-08-03T00:00:00.000Z',
     customer_note: null,
     internal_note: null,
     consignor_nickname: null,
@@ -163,6 +166,9 @@ describe('employee content service', () => {
       id: boardGameId,
       name: 'Catan',
       quantity: 2,
+      complexityRating: 2.3,
+      metadataSource: 'bgg',
+      metadataImportedAt: '2026-08-03T00:00:00.000Z',
       customerConsigned: true,
       missingPieces: true,
       consignorNickname: 'Lin',
@@ -174,6 +180,47 @@ describe('employee content service', () => {
     expect(update?.sql).not.toMatch(/(?:SET|,)\s*name\s*=/)
     expect(update?.sql).not.toMatch(/(?:SET|,)\s*quantity\s*=/)
     expect(update?.parameters[11]).toBe(62)
+    const select = calls.find((call) =>
+      call.sql.includes('FROM cloud_board_game') && call.sql.includes('FOR UPDATE')
+    )
+    expect(select?.sql).toContain('complexity_rating')
+    expect(select?.sql).toContain('metadata_source')
+  })
+
+  it('does not let mobile operations publish a legacy game without complexity', async () => {
+    const calls: QueryCall[] = []
+    const query = async (sql: string, parameters: unknown[] = []) => {
+      calls.push({ sql, parameters })
+      if (sql.includes('INSERT INTO api_idempotency')) {
+        return { rows: [{ key: parameters[1] }], rowCount: 1 }
+      }
+      if (sql.includes('FROM cloud_board_game') && sql.includes('FOR UPDATE')) {
+        return {
+          rows: [{ ...boardGameRow(), complexity_rating: null, private: true }],
+          rowCount: 1
+        }
+      }
+      return { rows: [], rowCount: 1 }
+    }
+    const client = { query, release() {} }
+    const service = new EmployeeContentService({
+      connect: async () => client,
+      query
+    } as unknown as Pool)
+
+    await expect(service.updateBoardGameOperations(principal('staff'), {
+      requestId: 'board-operations-no-complexity',
+      boardGameId,
+      available: true,
+      customerConsigned: false,
+      missingPieces: false,
+      private: false,
+      missingParts: [],
+      reason: 'Attempt to publish legacy game'
+    })).rejects.toThrow(/复杂度/)
+    expect(calls.some((call) =>
+      call.sql.includes('INSERT INTO cloud_event')
+    )).toBe(false)
   })
 
   it('updates only the mobile store status fields and denies manager content to staff', async () => {

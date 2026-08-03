@@ -17,6 +17,11 @@ import {
   type WechatPaymentProvider
 } from './wechat-payment-provider'
 import { WechatPayProvider } from './wechatpay-provider'
+import {
+  BOARD_GAME_METADATA_ADAPTER,
+  BggBoardGameMetadataAdapter,
+  DisabledBoardGameMetadataAdapter
+} from './board-game-metadata/bgg-adapter'
 
 export const API_CONFIG = Symbol('API_CONFIG')
 export const POSTGRES_POOL = Symbol('POSTGRES_POOL')
@@ -152,6 +157,25 @@ export class InfrastructureHealthService {
       inject: [API_CONFIG],
       useFactory: createWechatPaymentProvider
     },
+    {
+      provide: BOARD_GAME_METADATA_ADAPTER,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig) => {
+        if (config.bggMetadataMode === 'disabled') {
+          return new DisabledBoardGameMetadataAdapter()
+        }
+        if (!config.bggXmlApiTokenFile) {
+          throw new Error('BGG_XML_API_TOKEN_FILE is required')
+        }
+        return new BggBoardGameMetadataAdapter({
+          token: readSingleLineSecret(
+            config.bggXmlApiTokenFile,
+            'BGG_XML_API_TOKEN_FILE'
+          ),
+          imagesEnabled: config.bggPublicImagesEnabled
+        })
+      }
+    },
     InfrastructureLifecycle,
     InfrastructureHealthService
   ],
@@ -160,6 +184,7 @@ export class InfrastructureHealthService {
     POSTGRES_POOL,
     REDIS_CLIENT,
     WECHAT_PAYMENT_PROVIDER,
+    BOARD_GAME_METADATA_ADAPTER,
     InfrastructureHealthService
   ]
 })

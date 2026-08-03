@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
+  BoardGameDifficulty,
+  BoardGameMetadataSource,
   BoardGameRecordStatus,
   BoardGameSummary,
   SaveBoardGameFields,
@@ -23,6 +25,30 @@ function optionalText(value: string | undefined): string | null {
 
 function normalizeCategories(categories: string[]): string[] {
   return [...new Set(categories.map((value) => value.trim()).filter(Boolean))]
+}
+
+export function deriveLegacyBoardGameDifficulty(
+  complexityRating: number | undefined
+): BoardGameDifficulty {
+  if (complexityRating === undefined || complexityRating <= 2) return 'light'
+  if (complexityRating <= 3.5) return 'medium'
+  return 'heavy'
+}
+
+function complexityTenths(value: number | undefined): number | null {
+  if (value === undefined) return null
+  const tenths = Math.round(value * 10)
+  if (
+    !Number.isFinite(value) ||
+    tenths < 0 ||
+    tenths > 50 ||
+    Math.abs(value - tenths / 10) > 1e-9
+  ) {
+    throw new Error(
+      'Board-game complexity must be 0.0-5.0 with one decimal place'
+    )
+  }
+  return tenths
 }
 
 function validateOperationalFields(
@@ -90,6 +116,15 @@ function validateFields(fields: SaveBoardGameFields): void {
   if (!Number.isSafeInteger(fields.quantity) || fields.quantity < 0) {
     throw new Error('Board-game quantity must be a non-negative integer')
   }
+  complexityTenths(fields.complexityRating)
+  if (
+    !fields.private &&
+    fields.available &&
+    fields.quantity > 0 &&
+    fields.complexityRating === undefined
+  ) {
+    throw new Error('Public playable board games require a complexity rating')
+  }
   if (fields.imageUrl) {
     let url: URL
     try {
@@ -107,7 +142,40 @@ function validateFields(fields: SaveBoardGameFields): void {
   ) {
     throw new Error('BGG id must be a positive integer')
   }
+  if (fields.metadataSource !== undefined) {
+    if (fields.metadataSource !== 'bgg') {
+      throw new Error('Board-game metadata source is invalid')
+    }
+    if (fields.bggId === undefined) {
+      throw new Error('BGG metadata requires a BGG id')
+    }
+    if (
+      !fields.metadataImportedAt ||
+      !Number.isFinite(Date.parse(fields.metadataImportedAt))
+    ) {
+      throw new Error('BGG metadata requires a valid import timestamp')
+    }
+  } else if (fields.metadataImportedAt !== undefined) {
+    throw new Error('Board-game metadata timestamp requires a source')
+  }
   validateOperationalFields(fields)
+}
+
+function requireComplexityForPublicPlayableGame(
+  game: Pick<
+    BoardGameSummary,
+    'recordStatus' | 'private' | 'available' | 'quantity' | 'complexityRating'
+  >
+): void {
+  if (
+    game.recordStatus === 'active' &&
+    !game.private &&
+    game.available &&
+    game.quantity > 0 &&
+    game.complexityRating === null
+  ) {
+    throw new Error('Public playable board games require a complexity rating')
+  }
 }
 
 function findBoardGame(
@@ -121,7 +189,7 @@ function findBoardGame(
       configured
         ? `SELECT game.id, game.name, game.introduction, game.categories_json,
                   game.min_players, game.max_players, game.min_minutes,
-                  game.max_minutes, game.difficulty,
+                  game.max_minutes, game.difficulty, game.complexity_tenths,
                   COALESCE(config.quantity, game.quantity) quantity,
                   COALESCE(config.record_status, game.record_status) record_status,
                   COALESCE(config.available, game.available) available,
@@ -130,6 +198,7 @@ function findBoardGame(
                   COALESCE(config.private, game.private) private,
                   COALESCE(config.recommended, game.recommended) recommended,
                   game.image_url, game.local_image_path, game.bgg_id,
+                  game.metadata_source, game.metadata_imported_at,
                   COALESCE(config.customer_note, game.customer_note) customer_note,
                   COALESCE(config.internal_note, game.internal_note) internal_note,
                   COALESCE(config.consignor_nickname, game.consignor_nickname) consignor_nickname,
@@ -140,9 +209,11 @@ function findBoardGame(
             AND config.board_game_id = game.id
            WHERE game.tenant_id = ? AND game.id = ?`
         : `SELECT id, name, introduction, categories_json, min_players,
-                  max_players, min_minutes, max_minutes, difficulty, quantity,
+                  max_players, min_minutes, max_minutes, difficulty,
+                  complexity_tenths, quantity,
                   record_status, available, customer_consigned, missing_pieces,
                   private, recommended, image_url, local_image_path, bgg_id,
+                  metadata_source, metadata_imported_at,
                   customer_note, internal_note, consignor_nickname,
                   created_at, updated_at
            FROM board_game WHERE tenant_id = ? AND id = ?`
@@ -178,6 +249,10 @@ function findBoardGame(
     minMinutes: row.min_minutes === null ? null : Number(row.min_minutes),
     maxMinutes: row.max_minutes === null ? null : Number(row.max_minutes),
     difficulty: row.difficulty as BoardGameSummary['difficulty'],
+    complexityRating:
+      row.complexity_tenths === null
+        ? null
+        : Number(row.complexity_tenths) / 10,
     quantity: Number(row.quantity),
     recordStatus: row.record_status as BoardGameRecordStatus,
     available: Number(row.available) === 1,
@@ -189,6 +264,14 @@ function findBoardGame(
     localImagePath:
       row.local_image_path === null ? null : String(row.local_image_path),
     bggId: row.bgg_id === null ? null : Number(row.bgg_id),
+    metadataSource:
+      row.metadata_source === null
+        ? null
+        : (String(row.metadata_source) as BoardGameMetadataSource),
+    metadataImportedAt:
+      row.metadata_imported_at === null
+        ? null
+        : String(row.metadata_imported_at),
     customerNote:
       row.customer_note === null ? null : String(row.customer_note),
     internalNote:
@@ -351,11 +434,12 @@ export function createBoardGame(
         `INSERT INTO board_game
          (id, tenant_id, store_id, name, introduction, categories_json,
           min_players, max_players, min_minutes, max_minutes, difficulty,
+          complexity_tenths, metadata_source, metadata_imported_at,
           quantity, record_status, available, customer_consigned,
           missing_pieces, private, recommended, image_url, local_image_path,
           bgg_id, customer_note, internal_note, consignor_nickname,
           created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?,
                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
@@ -369,7 +453,10 @@ export function createBoardGame(
         fields.maxPlayers,
         fields.minMinutes ?? null,
         fields.maxMinutes ?? null,
-        fields.difficulty,
+        deriveLegacyBoardGameDifficulty(fields.complexityRating),
+        complexityTenths(fields.complexityRating),
+        fields.metadataSource ?? null,
+        fields.metadataImportedAt ?? null,
         fields.quantity,
         fields.available ? 1 : 0,
         fields.customerConsigned ? 1 : 0,
@@ -440,12 +527,16 @@ export function updateBoardGame(
         configured
           ? `UPDATE board_game SET name = ?, introduction = ?,
              categories_json = ?, min_players = ?, max_players = ?,
-             min_minutes = ?, max_minutes = ?, difficulty = ?, image_url = ?,
-             local_image_path = ?, bgg_id = ?, updated_at = ?
+             min_minutes = ?, max_minutes = ?, difficulty = ?,
+             complexity_tenths = ?, metadata_source = ?,
+             metadata_imported_at = ?, image_url = ?, local_image_path = ?,
+             bgg_id = ?, updated_at = ?
            WHERE tenant_id = ? AND id = ?`
           : `UPDATE board_game SET name = ?, introduction = ?,
            categories_json = ?, min_players = ?, max_players = ?,
-           min_minutes = ?, max_minutes = ?, difficulty = ?, quantity = ?,
+           min_minutes = ?, max_minutes = ?, difficulty = ?,
+           complexity_tenths = ?, metadata_source = ?, metadata_imported_at = ?,
+           quantity = ?,
            available = ?, customer_consigned = ?, missing_pieces = ?,
            private = ?, recommended = ?, image_url = ?, local_image_path = ?,
            bgg_id = ?, customer_note = ?, internal_note = ?,
@@ -460,7 +551,10 @@ export function updateBoardGame(
         fields.maxPlayers,
         fields.minMinutes ?? null,
         fields.maxMinutes ?? null,
-        fields.difficulty,
+        deriveLegacyBoardGameDifficulty(fields.complexityRating),
+        complexityTenths(fields.complexityRating),
+        fields.metadataSource ?? null,
+        fields.metadataImportedAt ?? null,
         ...(configured ? [] : [fields.quantity, fields.available ? 1 : 0,
           fields.customerConsigned ? 1 : 0, fields.missingPieces ? 1 : 0,
           fields.private ? 1 : 0, fields.recommended ? 1 : 0]),
@@ -524,6 +618,11 @@ export function updateBoardGameOperations(
 ): BoardGameSummary {
   validateOperationalFields(request)
   const before = findBoardGame(database, context, request.boardGameId)
+  requireComplexityForPublicPlayableGame({
+    ...before,
+    available: request.available,
+    private: request.private
+  })
   const timestamp = new Date().toISOString()
   database.exec('BEGIN IMMEDIATE')
   try {
@@ -598,6 +697,10 @@ export function setBoardGameRecordStatus(
   reason: string
 ): BoardGameSummary {
   const before = findBoardGame(database, context, boardGameId)
+  requireComplexityForPublicPlayableGame({
+    ...before,
+    recordStatus: status
+  })
   const timestamp = new Date().toISOString()
   database.exec('BEGIN IMMEDIATE')
   try {

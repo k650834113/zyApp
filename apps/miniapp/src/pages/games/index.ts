@@ -1,4 +1,5 @@
 import type {
+  BoardGameSourceAttribution,
   PublicBoardGameFilters,
   PublicBoardGameSummary
 } from '@zyapp/contracts'
@@ -126,6 +127,7 @@ Page({
   data: {
     query: '',
     games: [] as BoardGameCardView[],
+    sourceAttribution: null as BoardGameSourceAttribution | null,
     loading: true,
     loadFailed: false,
     filterOpen: false,
@@ -217,6 +219,9 @@ Page({
       })
       const patch: Record<string, unknown> = {
         games,
+        sourceAttribution:
+          result.find((game) => game.sourceAttribution !== null)
+            ?.sourceAttribution ?? null,
         loadFailed: false,
         previewCount: result.length
       }
@@ -411,6 +416,17 @@ Page({
   clearAll() {
     this.setData({ query: '', appliedFilters: {}, selectedChips: [] })
     void this.loadGames({})
+  },
+
+  copyBggSource() {
+    const attribution = this.data.sourceAttribution
+    if (!attribution) return
+    wx.setClipboardData({
+      data: attribution.url,
+      success: () => {
+        wx.showToast({ title: 'BGG 来源链接已复制', icon: 'none' })
+      }
+    })
   },
 
   toggleGame(event: GameEvent) {

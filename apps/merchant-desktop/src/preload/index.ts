@@ -134,6 +134,12 @@ const desktopApi: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.announcementSetStatus, request),
   listBoardGames: () =>
     ipcRenderer.invoke(IPC_CHANNELS.boardGameList),
+  getBoardGameMetadataStatus: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.boardGameMetadataStatus),
+  searchBoardGameMetadata: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.boardGameMetadataSearch, request),
+  getBoardGameMetadataDetails: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.boardGameMetadataDetails, request),
   createBoardGame: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.boardGameCreate, request),
   updateBoardGame: (request) =>

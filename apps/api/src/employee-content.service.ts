@@ -48,6 +48,7 @@ type BoardGameRow = {
   min_minutes: number | null
   max_minutes: number | null
   difficulty: BoardGameSummary['difficulty']
+  complexity_rating: number | string | null
   quantity: number
   record_status: BoardGameSummary['recordStatus']
   available: boolean
@@ -57,6 +58,8 @@ type BoardGameRow = {
   recommended: boolean
   image_url: string | null
   bgg_id: number | string | null
+  metadata_source: 'bgg' | null
+  metadata_imported_at: Date | string | null
   customer_note: string | null
   internal_note: string | null
   consignor_nickname: string | null
@@ -354,6 +357,8 @@ function boardGameSummary(row: BoardGameRow): BoardGameSummary {
     minMinutes: row.min_minutes === null ? null : Number(row.min_minutes),
     maxMinutes: row.max_minutes === null ? null : Number(row.max_minutes),
     difficulty: row.difficulty,
+    complexityRating:
+      row.complexity_rating === null ? null : Number(row.complexity_rating),
     quantity: Number(row.quantity),
     recordStatus: row.record_status,
     available: row.available,
@@ -364,6 +369,11 @@ function boardGameSummary(row: BoardGameRow): BoardGameSummary {
     imageUrl: row.image_url,
     localImagePath: null,
     bggId: row.bgg_id === null ? null : Number(row.bgg_id),
+    metadataSource: row.metadata_source,
+    metadataImportedAt:
+      row.metadata_imported_at === null
+        ? null
+        : new Date(row.metadata_imported_at).toISOString(),
     customerNote: row.customer_note,
     internalNote: row.internal_note,
     consignorNickname: row.consignor_nickname,
@@ -713,6 +723,15 @@ export class EmployeeContentService {
             : [],
           updatedAt: occurredAt
         }
+        if (
+          after.recordStatus === 'active' &&
+          !after.private &&
+          after.available &&
+          after.quantity > 0 &&
+          after.complexityRating === null
+        ) {
+          throw new BadRequestException('公开且可用的桌游必须先填写复杂度')
+        }
         const action = 'board_game.operations.updated'
         const version = await this.appendEvent(
           client,
@@ -932,8 +951,10 @@ export class EmployeeContentService {
   private boardGameSelect(): string {
     return `SELECT id, name, introduction, categories_json, min_players,
                    max_players, min_minutes, max_minutes, difficulty,
+                   complexity_rating,
                    quantity, record_status, available, customer_consigned,
                    missing_pieces, private, recommended, image_url, bgg_id,
+                   metadata_source, metadata_imported_at,
                    customer_note, internal_note, consignor_nickname,
                    missing_parts_json, created_at, updated_at
             FROM cloud_board_game`

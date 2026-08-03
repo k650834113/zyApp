@@ -24,6 +24,9 @@ export type ApiConfig = {
   wechatMiniappAppId?: string | null
   wechatMiniappAppSecret?: string | null
   miniappTestVirtualPhone?: string | null
+  bggMetadataMode: 'disabled' | 'xmlapi'
+  bggXmlApiTokenFile: string | null
+  bggPublicImagesEnabled: boolean
 }
 
 function required(value: string | undefined, name: string): string {
@@ -293,6 +296,28 @@ export function readApiConfig(
       'Real WeChat payment forbids MINIAPP_TEST_VIRTUAL_PHONE'
     )
   }
+  const bggMetadataMode = environment.BGG_METADATA_MODE ?? 'disabled'
+  if (bggMetadataMode !== 'disabled' && bggMetadataMode !== 'xmlapi') {
+    throw new Error('BGG_METADATA_MODE must be disabled or xmlapi')
+  }
+  const bggXmlApiTokenFile = optionalText(
+    environment.BGG_XML_API_TOKEN_FILE
+  )
+  if (bggMetadataMode === 'xmlapi' && !bggXmlApiTokenFile) {
+    throw new Error(
+      'BGG_XML_API_TOKEN_FILE is required when BGG_METADATA_MODE=xmlapi'
+    )
+  }
+  const bggPublicImagesEnabled = booleanValue(
+    environment.BGG_PUBLIC_IMAGES_ENABLED,
+    false,
+    'BGG_PUBLIC_IMAGES_ENABLED'
+  )
+  if (bggPublicImagesEnabled && bggMetadataMode !== 'xmlapi') {
+    throw new Error(
+      'BGG_PUBLIC_IMAGES_ENABLED requires BGG_METADATA_MODE=xmlapi'
+    )
+  }
   return {
     nodeEnv,
     deploymentEnvironment,
@@ -326,6 +351,9 @@ export function readApiConfig(
     miniappWechatAuthMode,
     wechatMiniappAppId,
     wechatMiniappAppSecret,
-    miniappTestVirtualPhone
+    miniappTestVirtualPhone,
+    bggMetadataMode,
+    bggXmlApiTokenFile,
+    bggPublicImagesEnabled
   }
 }

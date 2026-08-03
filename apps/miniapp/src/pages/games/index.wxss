@@ -130,6 +130,20 @@
   margin-top: 24rpx;
 }
 
+.source-attribution {
+  display: flex;
+  justify-content: center;
+  gap: 12rpx;
+  margin: 24rpx 0 8rpx;
+  color: #7e817b;
+  font-size: 20rpx;
+}
+
+.source-attribution-action {
+  color: #174f3b;
+  text-decoration: underline;
+}
+
 .filter-overlay,
 .filter-scrim,
 .filter-sheet {

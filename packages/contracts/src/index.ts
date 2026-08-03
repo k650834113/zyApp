@@ -764,6 +764,40 @@ export type SetAnnouncementStatusRequest = {
 
 export type BoardGameDifficulty = 'light' | 'medium' | 'heavy'
 export type BoardGameRecordStatus = 'active' | 'disabled'
+export type BoardGameMetadataSource = 'bgg'
+
+export type BoardGameMetadataAvailability = {
+  source: BoardGameMetadataSource
+  enabled: boolean
+  imagesEnabled: boolean
+}
+
+export type BoardGameMetadataCandidate = {
+  source: BoardGameMetadataSource
+  externalId: string
+  primaryName: string
+  alternateNames: string[]
+  yearPublished: number | null
+}
+
+export type BoardGameMetadataDetails = BoardGameMetadataCandidate & {
+  minPlayers: number
+  maxPlayers: number
+  minMinutes: number | null
+  maxMinutes: number | null
+  complexityRating: number | null
+  categories: string[]
+  mechanics: string[]
+  thumbnailUrl: string | null
+  imageUrl: string | null
+  sourceUrl: string
+  fetchedAt: string
+}
+
+export type BoardGameMetadataDetailsRequest = {
+  source: BoardGameMetadataSource
+  externalId: string
+}
 
 export type BoardGameMissingPart = {
   id: Identifier
@@ -781,6 +815,7 @@ export type BoardGameSummary = {
   minMinutes: number | null
   maxMinutes: number | null
   difficulty: BoardGameDifficulty
+  complexityRating: number | null
   quantity: number
   recordStatus: BoardGameRecordStatus
   available: boolean
@@ -791,6 +826,8 @@ export type BoardGameSummary = {
   imageUrl: string | null
   localImagePath: string | null
   bggId: number | null
+  metadataSource: BoardGameMetadataSource | null
+  metadataImportedAt: string | null
   customerNote: string | null
   internalNote: string | null
   consignorNickname: string | null
@@ -807,7 +844,7 @@ export type SaveBoardGameFields = {
   maxPlayers: number
   minMinutes?: number
   maxMinutes?: number
-  difficulty: BoardGameDifficulty
+  complexityRating?: number
   quantity: number
   available: boolean
   customerConsigned: boolean
@@ -817,6 +854,8 @@ export type SaveBoardGameFields = {
   imageUrl?: string
   localImagePath?: string
   bggId?: number
+  metadataSource?: BoardGameMetadataSource
+  metadataImportedAt?: string
   customerNote?: string
   internalNote?: string
   consignorNickname?: string
@@ -1188,6 +1227,11 @@ export type PublicActivitySummary = {
   }>
 }
 
+export type BoardGameSourceAttribution = {
+  label: 'Powered by BGG'
+  url: string
+}
+
 export type PublicBoardGameSummary = {
   id: Identifier
   name: string
@@ -1200,6 +1244,7 @@ export type PublicBoardGameSummary = {
   complexityRating: number | null
   imageUrl: string | null
   customerNote: string | null
+  sourceAttribution: BoardGameSourceAttribution | null
   likeCount: number
   likedByViewer: boolean
 }
@@ -2025,6 +2070,9 @@ export const IPC_CHANNELS = {
   boardGameSetRecordStatus: 'board-game:set-record-status',
   boardGameImportImage: 'board-game:import-image',
   boardGameReadImage: 'board-game:read-image',
+  boardGameMetadataStatus: 'board-game-metadata:status',
+  boardGameMetadataSearch: 'board-game-metadata:search',
+  boardGameMetadataDetails: 'board-game-metadata:details',
   orderCreate: 'order:create',
   orderRecent: 'order:recent',
   cashierRefresh: 'cashier:refresh',
@@ -2168,6 +2216,13 @@ export type DesktopApi = {
   readBoardGameImage(
     request: ReadBoardGameImageRequest
   ): Promise<string | null>
+  getBoardGameMetadataStatus(): Promise<BoardGameMetadataAvailability>
+  searchBoardGameMetadata(
+    request: { query: string }
+  ): Promise<BoardGameMetadataCandidate[]>
+  getBoardGameMetadataDetails(
+    request: BoardGameMetadataDetailsRequest
+  ): Promise<BoardGameMetadataDetails>
   createSalesOrder(request: CreateSalesOrderRequest): Promise<SalesOrderSummary>
   listRecentOrders(request?: ListRecentOrdersRequest): Promise<SalesOrderSummary[]>
   refreshCashierData(): Promise<void>

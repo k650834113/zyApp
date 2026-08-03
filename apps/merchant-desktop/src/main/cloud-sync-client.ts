@@ -1,23 +1,27 @@
 import type {
+  BoardGameMetadataAvailability,
+  BoardGameMetadataCandidate,
+  BoardGameMetadataDetails,
+  BoardGameMetadataDetailsRequest,
+  BusinessTemplateSummary,
   CashierCommandExecution,
   CashierCommandSummary,
+  CloudMirrorPage,
+  CloudMirrorResource,
+  CreateTenantStoreRequest,
+  CreateTenantStoreResult,
+  DataEnvironment,
+  DesktopCloudLoginResult,
+  EmployeeStoreAccessSummary,
   EmployeeFinancialCommandExecution,
   EmployeeFinancialCommandResult,
   EmployeeFinancialCommandSummary,
-  SalesOrderSummary,
-  CloudMirrorPage,
-  CloudMirrorResource,
-  DataEnvironment,
-  DesktopCloudLoginResult,
   OfflineFinancialLeaseStatus,
-  TenantStoreAdminSummary,
-  EmployeeStoreAccessSummary,
-  CreateTenantStoreRequest,
-  CreateTenantStoreResult,
-  SetEmployeeStoreAccessRequest
-  ,BusinessTemplateSummary
-  ,SaveBusinessTemplateRequest
-  ,SaveBusinessTemplateOverrideRequest
+  SalesOrderSummary,
+  SaveBusinessTemplateOverrideRequest,
+  SaveBusinessTemplateRequest,
+  SetEmployeeStoreAccessRequest,
+  TenantStoreAdminSummary
 } from '@zyapp/contracts'
 import type {
   SyncCommandResult,
@@ -33,6 +37,9 @@ import {
 } from './cloud-connection'
 
 type Fetch = typeof fetch
+
+const DEFAULT_CLOUD_REQUEST_TIMEOUT_MILLISECONDS = 10_000
+const BOARD_GAME_METADATA_REQUEST_TIMEOUT_MILLISECONDS = 25_000
 
 export class CloudRequestError extends Error {
   constructor(
@@ -215,7 +222,63 @@ export async function listTenantStores(
   const baseUrl = normalizeCloudBaseUrl(connection.baseUrl)
   const response = await fetchImpl(
     `${baseUrl}/v1/tenant-admin/stores?actorId=${encodeURIComponent(actorId)}`,
-    { headers: headers(connection), signal: AbortSignal.timeout(10_000) }
+    {
+      headers: headers(connection),
+      signal: AbortSignal.timeout(DEFAULT_CLOUD_REQUEST_TIMEOUT_MILLISECONDS)
+    }
+  )
+  return responseJson(response)
+}
+
+export async function getCloudBoardGameMetadataStatus(
+  connection: CloudConnection,
+  actorId: string,
+  fetchImpl: Fetch = fetch
+): Promise<BoardGameMetadataAvailability> {
+  const baseUrl = normalizeCloudBaseUrl(connection.baseUrl)
+  const response = await fetchImpl(
+    `${baseUrl}/v1/board-game-metadata/status?actorId=${encodeURIComponent(actorId)}`,
+    {
+      headers: headers(connection),
+      signal: AbortSignal.timeout(DEFAULT_CLOUD_REQUEST_TIMEOUT_MILLISECONDS)
+    }
+  )
+  return responseJson(response)
+}
+
+export async function searchCloudBoardGameMetadata(
+  connection: CloudConnection,
+  actorId: string,
+  request: { query: string },
+  fetchImpl: Fetch = fetch
+): Promise<BoardGameMetadataCandidate[]> {
+  const baseUrl = normalizeCloudBaseUrl(connection.baseUrl)
+  const response = await fetchImpl(
+    `${baseUrl}/v1/board-game-metadata/search?actorId=${encodeURIComponent(actorId)}&query=${encodeURIComponent(request.query)}`,
+    {
+      headers: headers(connection),
+      signal: AbortSignal.timeout(BOARD_GAME_METADATA_REQUEST_TIMEOUT_MILLISECONDS)
+    }
+  )
+  return responseJson(response)
+}
+
+export async function getCloudBoardGameMetadataDetails(
+  connection: CloudConnection,
+  actorId: string,
+  request: BoardGameMetadataDetailsRequest,
+  fetchImpl: Fetch = fetch
+): Promise<BoardGameMetadataDetails> {
+  if (request.source !== 'bgg' || !/^[1-9]\d*$/.test(request.externalId)) {
+    throw new TypeError('BGG metadata request is invalid')
+  }
+  const baseUrl = normalizeCloudBaseUrl(connection.baseUrl)
+  const response = await fetchImpl(
+    `${baseUrl}/v1/board-game-metadata/bgg/${encodeURIComponent(request.externalId)}?actorId=${encodeURIComponent(actorId)}`,
+    {
+      headers: headers(connection),
+      signal: AbortSignal.timeout(BOARD_GAME_METADATA_REQUEST_TIMEOUT_MILLISECONDS)
+    }
   )
   return responseJson(response)
 }

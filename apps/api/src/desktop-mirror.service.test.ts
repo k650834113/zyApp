@@ -104,6 +104,21 @@ describe('desktop cloud mirror read model', () => {
     )
   })
 
+  it('includes board-game complexity and metadata provenance in mirror rows', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ sequence: 44 }] })
+    const service = new DesktopMirrorService({ query } as unknown as Pool)
+
+    await service.page(principal, 'board_games', undefined, '20')
+
+    const sql = query.mock.calls[0]?.[0] as string
+    expect(sql).toContain('game.complexity_rating')
+    expect(sql).toContain('game.metadata_source')
+    expect(sql).toContain('game.metadata_imported_at')
+  })
+
   it('refuses an empty-epoch cutover when cloud business rows exist', async () => {
     const client = {
       query: vi.fn(async (sql: string) => {

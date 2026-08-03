@@ -21,7 +21,10 @@ const config = {
   wechatPayApiV3KeyPath: null,
   wechatPayNotifyUrl: null,
   wechatPayOutTradeNoPrefix: 'ZY-',
-  miniappDevelopmentAuthEnabled: false
+  miniappDevelopmentAuthEnabled: false,
+  bggMetadataMode: 'disabled' as const,
+  bggXmlApiTokenFile: null,
+  bggPublicImagesEnabled: false
 }
 
 const principal = {

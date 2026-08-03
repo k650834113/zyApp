@@ -25,6 +25,37 @@ function integer(value: unknown, field: string): number {
   return parsed
 }
 
+function complexityTenths(value: unknown, field: string): number | null {
+  if (value === null || value === undefined) return null
+  const parsed = typeof value === 'number' ? value : Number(value)
+  const tenths = Math.round(parsed * 10)
+  if (
+    !Number.isFinite(parsed) ||
+    tenths < 0 ||
+    tenths > 50 ||
+    Math.abs(parsed - tenths / 10) > 1e-9
+  ) {
+    throw new Error(`Cloud mirror ${field} is invalid`)
+  }
+  return tenths
+}
+
+function metadataSource(value: unknown): 'bgg' | null {
+  if (value === null || value === undefined || value === '') return null
+  if (value !== 'bgg') {
+    throw new Error('Cloud mirror board_game.metadata_source is invalid')
+  }
+  return value
+}
+
+function nullableTimestamp(value: unknown, field: string): string | null {
+  if (value === null || value === undefined || value === '') return null
+  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
+    throw new Error(`Cloud mirror ${field} is invalid`)
+  }
+  return new Date(value).toISOString()
+}
+
 function bool(value: unknown): number {
   return value === true || value === 1 ? 1 : 0
 }
@@ -311,22 +342,27 @@ function applyBoardGame(database: DatabaseSync, context: StoreContext, row: Json
   database.prepare(
     `INSERT INTO board_game
      (id, tenant_id, store_id, name, introduction, categories_json, min_players,
-      max_players, min_minutes, max_minutes, difficulty, quantity, record_status,
+      max_players, min_minutes, max_minutes, difficulty, complexity_tenths,
+      quantity, record_status,
       available, customer_consigned, missing_pieces, private, recommended,
-      image_url, local_image_path, bgg_id, customer_note, internal_note,
-      consignor_nickname, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL,
-             ?, ?, ?, ?, ?, ?, ?)
+      image_url, local_image_path, bgg_id, metadata_source,
+      metadata_imported_at, customer_note, internal_note, consignor_nickname,
+      created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL,
+             ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET
        name = excluded.name, introduction = excluded.introduction,
        categories_json = excluded.categories_json, min_players = excluded.min_players,
        max_players = excluded.max_players, min_minutes = excluded.min_minutes,
        max_minutes = excluded.max_minutes, difficulty = excluded.difficulty,
+       complexity_tenths = excluded.complexity_tenths,
        quantity = excluded.quantity, record_status = excluded.record_status,
        available = excluded.available, customer_consigned = excluded.customer_consigned,
        missing_pieces = excluded.missing_pieces, private = excluded.private,
        recommended = excluded.recommended, image_url = excluded.image_url,
-       bgg_id = excluded.bgg_id, customer_note = excluded.customer_note,
+       bgg_id = excluded.bgg_id, metadata_source = excluded.metadata_source,
+       metadata_imported_at = excluded.metadata_imported_at,
+       customer_note = excluded.customer_note,
        internal_note = excluded.internal_note,
        consignor_nickname = excluded.consignor_nickname,
        updated_at = excluded.updated_at
@@ -338,11 +374,15 @@ function applyBoardGame(database: DatabaseSync, context: StoreContext, row: Json
     integer(row.max_players, 'board_game.max_players'),
     row.min_minutes === null ? null : integer(row.min_minutes, 'board_game.min_minutes'),
     row.max_minutes === null ? null : integer(row.max_minutes, 'board_game.max_minutes'),
-    text(row.difficulty, 'board_game.difficulty'), integer(row.quantity, 'board_game.quantity'),
+    text(row.difficulty, 'board_game.difficulty'),
+    complexityTenths(row.complexity_rating, 'board_game.complexity_rating'),
+    integer(row.quantity, 'board_game.quantity'),
     text(row.record_status, 'board_game.record_status'), bool(row.available),
     bool(row.customer_consigned), bool(row.missing_pieces), bool(row.private),
     bool(row.recommended), nullableText(row.image_url),
     row.bgg_id === null ? null : integer(row.bgg_id, 'board_game.bgg_id'),
+    metadataSource(row.metadata_source),
+    nullableTimestamp(row.metadata_imported_at, 'board_game.metadata_imported_at'),
     nullableText(row.customer_note), nullableText(row.internal_note),
     nullableText(row.consignor_nickname), managerId(database, context),
     text(row.created_at, 'board_game.created_at'), text(row.updated_at, 'board_game.updated_at')

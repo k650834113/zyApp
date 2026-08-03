@@ -1,0 +1,130 @@
+import type { Pool } from '@zyapp/cloud-db'
+import { describe, expect, it, vi } from 'vitest'
+import type { DevicePrincipal } from '../device-auth'
+import type { BoardGameMetadataAdapter } from './bgg-adapter'
+import { BggMetadataError } from './bgg-adapter'
+import { BoardGameMetadataService } from './board-game-metadata.service'
+import type { BggRequestGate } from './request-gate'
+
+const principal: DevicePrincipal = {
+  tenantId: '11111111-1111-4111-8111-111111111111',
+  storeId: '22222222-2222-4222-8222-222222222222',
+  deviceId: '33333333-3333-4333-8333-333333333333',
+  deviceName: 'Cashier'
+}
+const actorId = '44444444-4444-4444-8444-444444444444'
+
+function adapter(overrides: Partial<BoardGameMetadataAdapter> = {}): BoardGameMetadataAdapter {
+  return {
+    source: 'bgg',
+    enabled: true,
+    imagesEnabled: false,
+    search: vi.fn(async () => [{
+      source: 'bgg' as const, externalId: '13', primaryName: 'Catan',
+      alternateNames: ['卡坦岛'], yearPublished: 1995
+    }]),
+    details: vi.fn(async () => ({
+      source: 'bgg' as const, externalId: '13', primaryName: 'Catan',
+      alternateNames: ['卡坦岛'], yearPublished: 1995,
+      minPlayers: 3, maxPlayers: 4, minMinutes: 60, maxMinutes: 120,
+      complexityRating: 2.3, categories: ['经营'], mechanics: ['交易'],
+      thumbnailUrl: null, imageUrl: null,
+      sourceUrl: 'https://boardgamegeek.com/boardgame/13',
+      fetchedAt: '2026-08-03T00:00:00.000Z'
+    })),
+    ...overrides
+  }
+}
+
+function service(options: {
+  authorized?: boolean
+  adapter?: BoardGameMetadataAdapter
+} = {}) {
+  const query = vi.fn(async () => ({
+    rows: options.authorized === false ? [] : [{ id: actorId }]
+  }))
+  const gate = {
+    cached: vi.fn(async (_key: string, _ttl: number, load: () => Promise<unknown>) => load())
+  } as unknown as BggRequestGate
+  return {
+    query,
+    gate,
+    instance: new BoardGameMetadataService(
+      { query } as unknown as Pool,
+      gate,
+      options.adapter ?? adapter()
+    )
+  }
+}
+
+describe('board-game metadata service', () => {
+  it('authorizes an active manager in the authenticated tenant and store', async () => {
+    const fixture = service()
+    await expect(fixture.instance.status(principal, actorId)).resolves.toEqual({
+      source: 'bgg', enabled: true, imagesEnabled: false
+    })
+    expect(fixture.query).toHaveBeenCalledWith(
+      expect.stringContaining('cloud_employee_store_access'),
+      [actorId, principal.tenantId, principal.storeId]
+    )
+  })
+
+  it('rejects an actor without active manager access', async () => {
+    const fixture = service({ authorized: false })
+    await expect(fixture.instance.status(principal, actorId)).rejects.toMatchObject({
+      status: 403
+    })
+  })
+
+  it('normalizes searches, caps results and caches for 24 hours', async () => {
+    const candidates = Array.from({ length: 25 }, (_, index) => ({
+      source: 'bgg' as const,
+      externalId: String(index + 1),
+      primaryName: `Game ${index + 1}`,
+      alternateNames: [],
+      yearPublished: null
+    }))
+    const metadata = adapter({ search: vi.fn(async () => candidates) })
+    const fixture = service({ adapter: metadata })
+
+    const result = await fixture.instance.search(principal, actorId, '  Catan  ')
+
+    expect(result).toHaveLength(20)
+    expect(metadata.search).toHaveBeenCalledWith('Catan')
+    expect(fixture.gate.cached).toHaveBeenCalledWith(
+      expect.stringMatching(/^zyapp:bgg:search:[a-f0-9]{64}$/),
+      86_400,
+      expect.any(Function)
+    )
+    await expect(
+      fixture.instance.search(principal, actorId, 'x'.repeat(121))
+    ).rejects.toMatchObject({ status: 400 })
+  })
+
+  it('validates IDs, caches details for seven days and maps stable errors', async () => {
+    const fixture = service()
+    await expect(fixture.instance.details(principal, actorId, '13'))
+      .resolves.toMatchObject({ externalId: '13' })
+    expect(fixture.gate.cached).toHaveBeenCalledWith(
+      'zyapp:bgg:details:13', 604_800, expect.any(Function)
+    )
+    await expect(fixture.instance.details(principal, actorId, '1x'))
+      .rejects.toMatchObject({ status: 400 })
+
+    const throttled = service({ adapter: adapter({
+      search: vi.fn(async () => {
+        throw new BggMetadataError('throttled', 'throttled')
+      })
+    }) })
+    await expect(throttled.instance.search(principal, actorId, 'Catan'))
+      .rejects.toMatchObject({ status: 503 })
+  })
+
+  it('reports disabled status while keeping metadata calls unavailable', async () => {
+    const fixture = service({ adapter: adapter({ enabled: false }) })
+    await expect(fixture.instance.status(principal, actorId)).resolves
+      .toMatchObject({ enabled: false })
+    await expect(fixture.instance.search(principal, actorId, 'Catan'))
+      .rejects.toMatchObject({ status: 503 })
+  })
+})

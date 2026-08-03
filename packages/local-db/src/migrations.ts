@@ -1754,6 +1754,36 @@ const migrations: Migration[] = [
         )
       );
     `
+  },
+  {
+    version: 30,
+    name: 'board-game-metadata-import',
+    sql: `
+      CREATE TABLE board_game_bgg_migration_guard (
+        duplicate_count INTEGER NOT NULL
+          CONSTRAINT no_duplicate_board_game_bgg_ids
+          CHECK (duplicate_count = 0)
+      ) STRICT;
+      INSERT INTO board_game_bgg_migration_guard
+      SELECT COUNT(*) FROM (
+        SELECT tenant_id, bgg_id
+        FROM board_game
+        WHERE bgg_id IS NOT NULL
+        GROUP BY tenant_id, bgg_id
+        HAVING COUNT(*) > 1
+      );
+      DROP TABLE board_game_bgg_migration_guard;
+
+      ALTER TABLE board_game ADD COLUMN complexity_tenths INTEGER
+        CHECK (complexity_tenths BETWEEN 0 AND 50);
+      ALTER TABLE board_game ADD COLUMN metadata_source TEXT
+        CHECK (metadata_source IN ('bgg'));
+      ALTER TABLE board_game ADD COLUMN metadata_imported_at TEXT;
+
+      CREATE UNIQUE INDEX uq_board_game_tenant_bgg_id
+        ON board_game (tenant_id, bgg_id)
+        WHERE bgg_id IS NOT NULL;
+    `
   }
 ]
 
