@@ -26,3 +26,18 @@
 4. 负责人明确批准生产发布。
 
 详细交互、筛选语义、接口和人工验收清单见 [小程序桌游库、筛选与点赞设计](./superpowers/specs/2026-08-01-miniapp-board-game-library-design.md)。
+
+## 2026-08-03：PC 桌游快速录入与 BGG 导入决策
+
+下一迭代补齐 PC 到小程序的桌游资料闭环：
+
+- PC、SQLite、同步协议和云端投影统一增加 `0.0–5.0` 数字复杂度，公开小程序继续只读取现有 `PublicBoardGameSummary`。
+- 店长可按名称、BGG ID 或 BGG 链接搜索候选，并自动带入人数、时长、复杂度和可映射分类。
+- 中文名称、中文简介和中文分类必须由店长确认；不自动翻译、改写或公开 BGG description。
+- BGG 通过云端服务端适配器访问，Token 不进入 Electron、SQLite、小程序、安装包或 Git；未获批或不可用时保留完整手工录入。
+- 集石在没有公开授权 API 前不接入，不抓取网页或调用非公开接口；未来只通过相同元数据适配器边界扩展。
+- BGG 候选只填充编辑器，店长确认保存后才在同一 SQLite 事务中写入主档、门店配置、审计和 outbox。
+
+BGG Commercial Application 正在审核。真实 BGG 请求和生产公开展示必须等商业许可、Token、署名及图片范围明确后才能启用；代码可以先完成禁用态、契约、迁移、同步、解析器、缓存、测试和界面。
+
+完整范围、字段、错误降级、许可门禁和验收清单见 [PC 桌游快速录入与 BGG 元数据导入设计](./superpowers/specs/2026-08-03-pc-board-game-entry-bgg-import-design.md)。
