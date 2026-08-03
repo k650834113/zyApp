@@ -127,6 +127,7 @@ type BoardGameMetadataDetails = BoardGameMetadataCandidate & {
 - `SaveBoardGameFields` 接受 `complexityRating?: number`。
 - `bggId` 保留，作为 BGG 来源记录和租户级去重键。
 - 兼容期保留 `difficulty`，但新 PC 编辑器与小程序不再让用户维护或读取它。
+- `PublicBoardGameSummary` 增加可空的 `sourceAttribution`，只包含公开安全的来源标签与链接，不返回内部 `metadataSource`、原始响应或 Token。
 
 ### 4.2 云端适配器
 
@@ -224,6 +225,7 @@ WHERE bgg_id IS NOT NULL;
 - `name` 和 `introduction` 来自店长确认的中文主档。
 - `categories` 来自店长确认的中文分类。
 - `minPlayers / maxPlayers`、`minMinutes / maxMinutes` 和 `complexityRating` 来自同一桌游主档投影。
+- `sourceAttribution` 对获准公开的 BGG 来源记录返回 `{ label: 'Powered by BGG', url: 'https://boardgamegeek.com/boardgame/<id>' }`，其他记录返回 `null`。
 - 当前门店数量、公开、可用、缺件和启用状态仍由公开 API 统一过滤。
 - `internalNote`、寄存人、缺件详情、精确数量、外部 Token 和原始 BGG 响应永不进入公开 DTO。
 
@@ -235,7 +237,8 @@ BGG 来源信息不和店方独立创作的中文内容混淆：
 
 - PC 候选区显示 `Data source: BoardGameGeek` 和候选链接。
 - 若最终公开数据包含 BGG 授权数据，小程序桌游库增加符合许可要求、可点击的 `Powered by BGG` 署名入口。
-- `metadataSource` 和 `bggId` 用于判断该记录是否需要来源说明。
+- 服务端使用 `metadataSource` 和 `bggId` 生成公开安全的 `sourceAttribution`；小程序不接收这两个内部字段，也不自行拼接来源。
+- 小程序在当前结果含有非空 `sourceAttribution` 时，于桌游库结果区底部显示一次获批的 `Powered by BGG` 标识和链接；不在每张卡片重复占用空间。
 - 原始 XML 不进入业务数据库或 Git 测试夹具；缓存仅保存规范化候选 DTO。
 - 图片功能由服务端许可能力开关控制，默认关闭。只有书面许可明确覆盖图片和顾客公开展示后才启用 BGG 图片候选。
 - 店长自己上传或拥有合法 URL 的封面继续使用现有图片链路，不受 BGG 开关影响。
