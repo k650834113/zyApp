@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +16,10 @@ import { fileURLToPath } from 'node:url'
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const workspaceRoot = resolve(scriptDirectory, '../..')
 const checkerPath = resolve(scriptDirectory, 'verify-release-contract.mjs')
+const archiveHelperPath = resolve(
+  scriptDirectory,
+  'create-deployment-source-archive.ps1'
+)
 const preChangeFixture = resolve(
   scriptDirectory,
   'fixtures/pre-0.23.2'
@@ -24,7 +36,59 @@ function runChecker(candidateRoot) {
   )
 }
 
-test('rejects the committed pre-0.23.2 release fixture for every original contract gap', () => {
+test('deployment source archive contains committed HEAD and excludes dirty workspace state', () => {
+  const repository = mkdtempSync(resolve(tmpdir(), 'zyapp-deploy-archive-'))
+  const archive = resolve(repository, 'output', 'source.tgz')
+  const extracted = resolve(repository, 'extracted')
+
+  try {
+    const git = (...args) =>
+      spawnSync('git', args, { cwd: repository, encoding: 'utf8' })
+    assert.equal(git('init').status, 0)
+    assert.equal(git('config', 'user.email', 'release-test@zyapp.local').status, 0)
+    assert.equal(git('config', 'user.name', 'ZyApp Release Test').status, 0)
+    assert.equal(git('config', 'core.autocrlf', 'false').status, 0)
+    writeFileSync(resolve(repository, 'tracked.txt'), 'committed\n', 'utf8')
+    assert.equal(git('add', 'tracked.txt').status, 0)
+    assert.equal(git('commit', '-m', 'fixture').status, 0)
+
+    writeFileSync(resolve(repository, 'tracked.txt'), 'dirty\n', 'utf8')
+    writeFileSync(resolve(repository, 'untracked.txt'), 'must-not-ship\n', 'utf8')
+
+    const result = spawnSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        archiveHelperPath,
+        '-WorkspaceRoot',
+        repository,
+        '-ArchivePath',
+        archive
+      ],
+      { cwd: workspaceRoot, encoding: 'utf8' }
+    )
+    assert.equal(
+      result.status,
+      0,
+      `archive helper failed: stdout=${JSON.stringify(result.stdout)} stderr=${JSON.stringify(result.stderr)}`
+    )
+
+    mkdirSync(extracted)
+    const extract = spawnSync('tar', ['-xzf', archive, '-C', extracted], {
+      encoding: 'utf8'
+    })
+    assert.equal(extract.status, 0)
+    assert.equal(readFileSync(resolve(extracted, 'tracked.txt'), 'utf8'), 'committed\n')
+    assert.equal(existsSync(resolve(extracted, 'untracked.txt')), false)
+  } finally {
+    rmSync(repository, { recursive: true, force: true })
+  }
+})
+
+test('rejects the committed pre-0.23.2 fixture against the 0.23.3 release contract', () => {
   const result = runChecker(preChangeFixture)
 
   assert.equal(
@@ -33,10 +97,9 @@ test('rejects the committed pre-0.23.2 release fixture for every original contra
     `expected fixture rejection, got stdout=${JSON.stringify(result.stdout)} stderr=${JSON.stringify(result.stderr)}`
   )
   const expectedFailures = [
-    'root package version: expected "0.23.2", got "0.23.1"',
-    'desktop package version: expected "0.23.2", got "0.23.1"',
+    'root package version: expected "0.23.3", got "0.23.1"',
+    'desktop package version: expected "0.23.3", got "0.23.1"',
     'release notes heading: expected true, got false',
-    'miniapp README candidate version: expected true, got false',
     'acceptance document is missing the structured release-isolation contract'
   ]
   for (const failure of expectedFailures) {
@@ -54,7 +117,7 @@ test('accepts the current repository release candidate', () => {
   )
   assert.match(
     result.stdout,
-    /\[release-contract\] 0\.23\.2 metadata and isolation gates verified/u
+    /\[release-contract\] 0\.23\.3 dual-channel release gates verified/u
   )
 })
 

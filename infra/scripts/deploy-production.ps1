@@ -66,27 +66,10 @@ foreach ($file in $updateFiles) {
 $tempDirectory = Join-Path $workspace '.tmp\production-deploy'
 [IO.Directory]::CreateDirectory($tempDirectory) | Out-Null
 $archive = Join-Path $tempDirectory 'zyapp-source.tgz'
-if (Test-Path -LiteralPath $archive) {
-  Remove-Item -LiteralPath $archive -Force
-}
-
-Push-Location $workspace
-try {
-  & tar -czf $archive `
-    --exclude=.git `
-    --exclude=node_modules `
-    --exclude=.tmp `
-    --exclude=.tmp-artifact-acceptance `
-    --exclude=outputs `
-    --exclude=legacy-data `
-    --exclude=apps/merchant-desktop/dist-installer `
-    --exclude=infra/docker/cloud.env `
-    --exclude=infra/deploy/production.env `
-    .
-  if ($LASTEXITCODE -ne 0) { throw 'Failed to create deployment archive.' }
-} finally {
-  Pop-Location
-}
+& (Join-Path $PSScriptRoot 'create-deployment-source-archive.ps1') `
+  -WorkspaceRoot $workspace `
+  -ArchivePath $archive
+if ($LASTEXITCODE -ne 0) { throw 'Failed to create deployment archive.' }
 
 $target = "$SshUser@$HostName"
 $sshOptions = @('-i', $key, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new')

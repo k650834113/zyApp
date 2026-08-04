@@ -1,6 +1,6 @@
 {
   "name": "zyapp",
-  "version": "0.23.2",
+  "version": "0.23.3",
   "private": true,
   "description": "Board-game shop desktop management and cashier system",
   "packageManager": "pnpm@10.12.1",

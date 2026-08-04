@@ -44,23 +44,17 @@ const desktopPackage = JSON.parse(
 const releaseNotes = readWorkspaceFile(
   'apps/merchant-desktop/release-notes.md'
 )
-const miniappReadme = readWorkspaceFile('apps/miniapp/README.md')
 const acceptance = readWorkspaceFile(
-  'docs/0.23.2月卡与账务一致性验收.md',
+  'docs/0.23.3桌游快速录入发布验收.md',
   true
 )
 
-requireEqual(rootPackage.version, '0.23.2', 'root package version')
-requireEqual(desktopPackage.version, '0.23.2', 'desktop package version')
+requireEqual(rootPackage.version, '0.23.3', 'root package version')
+requireEqual(desktopPackage.version, '0.23.3', 'desktop package version')
 requireEqual(
-  releaseNotes.startsWith('# 0.23.2\n'),
+  releaseNotes.startsWith('# 0.23.3\n'),
   true,
   'release notes heading'
-)
-requireEqual(
-  miniappReadme.includes('0.23.2'),
-  true,
-  'miniapp README candidate version'
 )
 
 const contractMatch = acceptance?.match(
@@ -74,32 +68,25 @@ if (!contractMatch) {
   try {
     const contract = JSON.parse(contractMatch[1])
     const expectedContract = {
-      candidateVersion: '0.23.2',
-      miniappTestApiBaseUrl: 'https://judian.icu/test',
-      samePcAndMiniappTestStore: true,
-      localSqliteSchemaVersion: 29,
-      testDatabaseMigrationVersion: 18,
-      preflightChecks: [
-        'miniapp-test-api-exact',
-        'same-pc-miniapp-test-store',
-        'local-schema-29-candidate',
-        'test-db-migration-baseline',
-        'production-api-baseline',
-        'production-caddy-baseline',
-        'production-pc-update-baseline',
-        'main-baseline',
-        'remote-git-baseline'
-      ],
-      postReleaseChecks: [
-        'miniapp-test-api-exact',
-        'same-pc-miniapp-test-store',
-        'pc-local-schema-29',
-        'test-db-migration-18',
-        'production-api-unchanged',
-        'production-caddy-unchanged',
-        'production-pc-update-unchanged',
-        'main-unchanged',
-        'remote-git-unchanged'
+      candidateVersion: '0.23.3',
+      desktopChannels: ['test', 'production'],
+      localSqliteSchemaVersion: 30,
+      cloudDatabaseMigrationVersion: 20,
+      deploymentSource: 'git-head',
+      requiredChecks: [
+        'release-contract',
+        'targeted-tests',
+        'typecheck',
+        'build',
+        'artifact-sha256',
+        'test-health',
+        'test-migration-20',
+        'test-update-0.23.3',
+        'production-backup',
+        'production-health',
+        'production-migration-20',
+        'production-update-0.23.3',
+        'test-still-0.23.3'
       ]
     }
     requireDeepEqual(
@@ -120,5 +107,5 @@ if (failures.length > 0) {
   }
   process.exitCode = 1
 } else {
-  console.log('[release-contract] 0.23.2 metadata and isolation gates verified')
+  console.log('[release-contract] 0.23.3 dual-channel release gates verified')
 }
