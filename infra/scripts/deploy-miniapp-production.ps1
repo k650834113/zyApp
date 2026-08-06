@@ -26,7 +26,6 @@ $sshIdentity = (& (Join-Path $PSScriptRoot 'resolve-deployment-ssh-identity.ps1'
   -KeyPath $KeyPath) | ConvertFrom-Json
 $HostName = $sshIdentity.hostName
 $SshUser = $sshIdentity.sshUser
-$key = $sshIdentity.keyPath
 
 function Resolve-RequiredFile(
   [string]$Path,
@@ -137,10 +136,7 @@ if (-not $expectedMigrationVersion) {
 }
 
 $target = "$SshUser@$HostName"
-$sshOptions = @(
-  '-i', $key,
-  '-o', 'BatchMode=yes',
-  '-o', 'StrictHostKeyChecking=accept-new',
+$sshOptions = @($sshIdentity.sshOptions) + @(
   '-o', 'ConnectTimeout=15',
   '-o', 'ServerAliveInterval=15',
   '-o', 'ServerAliveCountMax=12'

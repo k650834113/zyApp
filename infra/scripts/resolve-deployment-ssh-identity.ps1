@@ -46,6 +46,29 @@ function Get-SshFingerprint(
   return $parts[1]
 }
 
+function Assert-SshPrivateKey(
+  [string]$Path
+) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $output = @(& ssh-keygen -y -f $Path 2>&1)
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  $publicKey = ($output -join '').Trim()
+  $parts = @($publicKey -split '\s+')
+  if (
+    $exitCode -ne 0 -or
+    $parts.Count -lt 2 -or
+    $parts[0] -notmatch '^(ssh-(rsa|ed25519)|ecdsa-sha2-[^ ]+)$' -or
+    $parts[1] -notmatch '^[A-Za-z0-9+/=]+$'
+  ) {
+    throw 'Deployment SSH private key must be a readable private key.'
+  }
+}
+
 if (-not (Get-Command ssh-keygen -ErrorAction SilentlyContinue)) {
   throw 'ssh-keygen is required but was not found.'
 }
@@ -103,6 +126,7 @@ $publicKeyCandidate = if ([IO.Path]::IsPathRooted($configuredPublicKey)) {
 }
 $publicKey = Resolve-RequiredFile $publicKeyCandidate 'Deployment SSH public key'
 $privateKey = Resolve-RequiredFile $candidateKey 'Deployment SSH private key'
+Assert-SshPrivateKey $privateKey
 $expectedFingerprint = Get-SshFingerprint $publicKey 'Deployment SSH public key'
 $actualFingerprint = Get-SshFingerprint $privateKey 'Deployment SSH private key'
 
@@ -119,4 +143,14 @@ if ($actualFingerprint -cne $expectedFingerprint) {
   keyPath = $privateKey
   expectedFingerprint = $expectedFingerprint
   actualFingerprint = $actualFingerprint
+  sshOptions = @(
+    '-i',
+    $privateKey,
+    '-o',
+    'IdentitiesOnly=yes',
+    '-o',
+    'BatchMode=yes',
+    '-o',
+    'StrictHostKeyChecking=accept-new'
+  )
 } | ConvertTo-Json -Compress

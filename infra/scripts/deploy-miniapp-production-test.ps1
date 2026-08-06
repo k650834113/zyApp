@@ -31,7 +31,6 @@ $sshIdentity = (& (Join-Path $PSScriptRoot 'resolve-deployment-ssh-identity.ps1'
   -KeyPath $KeyPath) | ConvertFrom-Json
 $HostName = $sshIdentity.hostName
 $SshUser = $sshIdentity.sshUser
-$key = $sshIdentity.keyPath
 
 function Resolve-RequiredFile(
   [string]$Path,
@@ -130,11 +129,7 @@ try {
 }
 
 $target = "$SshUser@$HostName"
-$sshOptions = @(
-  '-i', $key,
-  '-o', 'BatchMode=yes',
-  '-o', 'StrictHostKeyChecking=accept-new'
-)
+$sshOptions = @($sshIdentity.sshOptions)
 $remoteTemporaryDirectory = '/tmp/zyapp-miniapp-payment'
 
 & ssh @sshOptions $target `

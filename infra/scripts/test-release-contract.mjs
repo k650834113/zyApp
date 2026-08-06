@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import {
   existsSync,
   mkdtempSync,
@@ -60,17 +61,24 @@ function createSshIdentityFixture() {
   const authorizedKeyPath = createSshKeyPair(directory, 'authorized')
   const wrongKeyPath = createSshKeyPair(directory, 'wrong')
   const identityPath = resolve(directory, 'ssh-identity.json')
+  const environmentName = `ZYAPP_TEST_SSH_KEY_${randomUUID().replaceAll('-', '')}`
   writeFileSync(
     identityPath,
     JSON.stringify({
       hostName: 'server.example.test',
       sshUser: 'deployer',
       publicKeyPath: 'authorized.pub',
-      keyPathEnvironmentVariable: 'ZYAPP_TEST_SSH_KEY_PATH'
+      keyPathEnvironmentVariable: environmentName
     }),
     'utf8'
   )
-  return { directory, authorizedKeyPath, wrongKeyPath, identityPath }
+  return {
+    directory,
+    authorizedKeyPath,
+    wrongKeyPath,
+    identityPath,
+    environmentName
+  }
 }
 
 function runSshResolver(identityPath, args = [], environment = {}) {
@@ -91,7 +99,6 @@ function runSshResolver(identityPath, args = [], environment = {}) {
       encoding: 'utf8',
       env: {
         ...process.env,
-        ZYAPP_TEST_SSH_KEY_PATH: '',
         ...environment
       }
     }
@@ -271,6 +278,16 @@ test('deployment SSH identity resolves a private key matching the authorized pub
     assert.equal(identity.keyPath, fixture.authorizedKeyPath)
     assert.equal(identity.actualFingerprint, identity.expectedFingerprint)
     assert.match(identity.actualFingerprint, /^SHA256:[A-Za-z0-9+/]+$/u)
+    assert.deepEqual(identity.sshOptions, [
+      '-i',
+      fixture.authorizedKeyPath,
+      '-o',
+      'IdentitiesOnly=yes',
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'StrictHostKeyChecking=accept-new'
+    ])
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true })
   }
@@ -294,13 +311,34 @@ test('deployment SSH identity rejects a private key with the wrong fingerprint',
   }
 })
 
+test('deployment SSH identity reads the private key from its configured environment', () => {
+  const fixture = createSshIdentityFixture()
+  try {
+    const result = runSshResolver(
+      fixture.identityPath,
+      [],
+      { [fixture.environmentName]: fixture.authorizedKeyPath }
+    )
+
+    assert.equal(
+      result.status,
+      0,
+      `resolver failed: stdout=${JSON.stringify(result.stdout)} stderr=${JSON.stringify(result.stderr)}`
+    )
+    const identity = JSON.parse(result.stdout)
+    assert.equal(identity.keyPath, fixture.authorizedKeyPath)
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true })
+  }
+})
+
 test('explicit deployment SSH key takes precedence over the environment', () => {
   const fixture = createSshIdentityFixture()
   try {
     const result = runSshResolver(
       fixture.identityPath,
       ['-KeyPath', fixture.wrongKeyPath],
-      { ZYAPP_TEST_SSH_KEY_PATH: fixture.authorizedKeyPath }
+      { [fixture.environmentName]: fixture.authorizedKeyPath }
     )
 
     assert.notEqual(result.status, 0)
@@ -321,7 +359,25 @@ test('deployment SSH identity explains how to provide a missing private key', ()
     assert.notEqual(result.status, 0)
     assert.match(
       `${result.stdout}\n${result.stderr}`,
-      /Set ZYAPP_TEST_SSH_KEY_PATH or pass -KeyPath/u
+      new RegExp(`Set ${fixture.environmentName} or pass -KeyPath`, 'u')
+    )
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true })
+  }
+})
+
+test('deployment SSH identity rejects an authorized public key used as the private key', () => {
+  const fixture = createSshIdentityFixture()
+  try {
+    const result = runSshResolver(
+      fixture.identityPath,
+      ['-KeyPath', `${fixture.authorizedKeyPath}.pub`]
+    )
+
+    assert.notEqual(result.status, 0)
+    assert.match(
+      `${result.stdout}\n${result.stderr}`,
+      /Deployment SSH private key must be a readable private key/u
     )
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true })

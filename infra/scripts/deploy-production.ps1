@@ -20,7 +20,6 @@ $sshIdentity = (& (Join-Path $PSScriptRoot 'resolve-deployment-ssh-identity.ps1'
   -KeyPath $KeyPath) | ConvertFrom-Json
 $HostName = $sshIdentity.hostName
 $SshUser = $sshIdentity.sshUser
-$key = $sshIdentity.keyPath
 if ([string]::IsNullOrWhiteSpace($EnvironmentPath)) {
   $EnvironmentPath = Join-Path $PSScriptRoot '..\deploy\production.env'
 }
@@ -78,7 +77,7 @@ $archive = Join-Path $tempDirectory 'zyapp-source.tgz'
 if ($LASTEXITCODE -ne 0) { throw 'Failed to create deployment archive.' }
 
 $target = "$SshUser@$HostName"
-$sshOptions = @('-i', $key, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new')
+$sshOptions = @($sshIdentity.sshOptions)
 
 & ssh @sshOptions $target "mkdir -p /tmp/zyapp-deploy/updates"
 if ($LASTEXITCODE -ne 0) {
