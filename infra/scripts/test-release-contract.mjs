@@ -24,6 +24,10 @@ const bggSettingsHelperPath = resolve(
   scriptDirectory,
   'resolve-bgg-deployment-settings.ps1'
 )
+const sshIdentityHelperPath = resolve(
+  scriptDirectory,
+  'resolve-deployment-ssh-identity.ps1'
+)
 const preChangeFixture = resolve(
   scriptDirectory,
   'fixtures/pre-0.23.2'
@@ -36,6 +40,60 @@ function runChecker(candidateRoot) {
     {
       cwd: workspaceRoot,
       encoding: 'utf8'
+    }
+  )
+}
+
+function createSshKeyPair(directory, name) {
+  const keyPath = resolve(directory, name)
+  const result = spawnSync(
+    'ssh-keygen',
+    ['-q', '-t', 'rsa', '-b', '2048', '-N', '', '-f', keyPath],
+    { cwd: workspaceRoot, encoding: 'utf8' }
+  )
+  assert.equal(result.status, 0, result.stderr)
+  return keyPath
+}
+
+function createSshIdentityFixture() {
+  const directory = mkdtempSync(resolve(tmpdir(), 'zyapp-ssh-identity-'))
+  const authorizedKeyPath = createSshKeyPair(directory, 'authorized')
+  const wrongKeyPath = createSshKeyPair(directory, 'wrong')
+  const identityPath = resolve(directory, 'ssh-identity.json')
+  writeFileSync(
+    identityPath,
+    JSON.stringify({
+      hostName: 'server.example.test',
+      sshUser: 'deployer',
+      publicKeyPath: 'authorized.pub',
+      keyPathEnvironmentVariable: 'ZYAPP_TEST_SSH_KEY_PATH'
+    }),
+    'utf8'
+  )
+  return { directory, authorizedKeyPath, wrongKeyPath, identityPath }
+}
+
+function runSshResolver(identityPath, args = [], environment = {}) {
+  return spawnSync(
+    'powershell',
+    [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      sshIdentityHelperPath,
+      '-IdentityPath',
+      identityPath,
+      ...args
+    ],
+    {
+      cwd: workspaceRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        ZYAPP_TEST_SSH_KEY_PATH: '',
+        ...environment
+      }
     }
   )
 }
@@ -191,6 +249,82 @@ test('BGG deployment settings require a non-empty server-only token in xmlapi mo
     assert.doesNotMatch(result.stdout, /server-only-token/u)
   } finally {
     rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('deployment SSH identity resolves a private key matching the authorized public key', () => {
+  const fixture = createSshIdentityFixture()
+  try {
+    const result = runSshResolver(
+      fixture.identityPath,
+      ['-KeyPath', fixture.authorizedKeyPath]
+    )
+
+    assert.equal(
+      result.status,
+      0,
+      `resolver failed: stdout=${JSON.stringify(result.stdout)} stderr=${JSON.stringify(result.stderr)}`
+    )
+    const identity = JSON.parse(result.stdout)
+    assert.equal(identity.hostName, 'server.example.test')
+    assert.equal(identity.sshUser, 'deployer')
+    assert.equal(identity.keyPath, fixture.authorizedKeyPath)
+    assert.equal(identity.actualFingerprint, identity.expectedFingerprint)
+    assert.match(identity.actualFingerprint, /^SHA256:[A-Za-z0-9+/]+$/u)
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true })
+  }
+})
+
+test('deployment SSH identity rejects a private key with the wrong fingerprint', () => {
+  const fixture = createSshIdentityFixture()
+  try {
+    const result = runSshResolver(
+      fixture.identityPath,
+      ['-KeyPath', fixture.wrongKeyPath]
+    )
+
+    assert.notEqual(result.status, 0)
+    assert.match(
+      `${result.stdout}\n${result.stderr}`,
+      /Deployment SSH private key fingerprint mismatch/u
+    )
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true })
+  }
+})
+
+test('explicit deployment SSH key takes precedence over the environment', () => {
+  const fixture = createSshIdentityFixture()
+  try {
+    const result = runSshResolver(
+      fixture.identityPath,
+      ['-KeyPath', fixture.wrongKeyPath],
+      { ZYAPP_TEST_SSH_KEY_PATH: fixture.authorizedKeyPath }
+    )
+
+    assert.notEqual(result.status, 0)
+    assert.match(
+      `${result.stdout}\n${result.stderr}`,
+      /Deployment SSH private key fingerprint mismatch/u
+    )
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true })
+  }
+})
+
+test('deployment SSH identity explains how to provide a missing private key', () => {
+  const fixture = createSshIdentityFixture()
+  try {
+    const result = runSshResolver(fixture.identityPath)
+
+    assert.notEqual(result.status, 0)
+    assert.match(
+      `${result.stdout}\n${result.stderr}`,
+      /Set ZYAPP_TEST_SSH_KEY_PATH or pass -KeyPath/u
+    )
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true })
   }
 })
 

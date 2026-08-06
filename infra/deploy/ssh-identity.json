@@ -1,0 +1,6 @@
+{
+  "hostName": "124.220.69.209",
+  "sshUser": "ubuntu",
+  "publicKeyPath": "zyapp-deploy.pub",
+  "keyPathEnvironmentVariable": "ZYAPP_SSH_KEY_PATH"
+}
