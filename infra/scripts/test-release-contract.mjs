@@ -61,7 +61,8 @@ function createSshIdentityFixture() {
   const authorizedKeyPath = createSshKeyPair(directory, 'authorized')
   const wrongKeyPath = createSshKeyPair(directory, 'wrong')
   const identityPath = resolve(directory, 'ssh-identity.json')
-  const environmentName = `ZYAPP_TEST_SSH_KEY_${randomUUID().replaceAll('-', '')}`
+  const environmentName =
+    `ZYAPP_TEST_SSH_KEY_${randomUUID().replaceAll('-', '').toUpperCase()}`
   writeFileSync(
     identityPath,
     JSON.stringify({
