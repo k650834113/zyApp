@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Inject,
   Param,
   Query,
   Req,
@@ -24,7 +25,10 @@ function principal(request: DeviceRequest): DevicePrincipal {
 @UseGuards(DeviceAuthGuard)
 @Controller('board-game-metadata')
 export class BoardGameMetadataController {
-  constructor(private readonly service: BoardGameMetadataService) {}
+  constructor(
+    @Inject(BoardGameMetadataService)
+    private readonly service: BoardGameMetadataService
+  ) {}
 
   @Get('status')
   status(

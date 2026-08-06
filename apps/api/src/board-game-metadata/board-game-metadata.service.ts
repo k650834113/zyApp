@@ -55,7 +55,7 @@ function externalId(value: string): string {
 export class BoardGameMetadataService {
   constructor(
     @Inject(POSTGRES_POOL) private readonly pool: Pool,
-    private readonly gate: BggRequestGate,
+    @Inject(BggRequestGate) private readonly gate: BggRequestGate,
     @Inject(BOARD_GAME_METADATA_ADAPTER)
     private readonly adapter: BoardGameMetadataAdapter
   ) {}
