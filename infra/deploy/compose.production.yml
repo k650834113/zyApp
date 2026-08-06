@@ -99,9 +99,9 @@ services:
       MINIAPP_WECHAT_AUTH_MODE: ${MINIAPP_WECHAT_AUTH_MODE:-disabled}
       WECHAT_MINIAPP_APP_ID: ${WECHAT_MINIAPP_APP_ID:-}
       WECHAT_MINIAPP_APP_SECRET: ${WECHAT_MINIAPP_APP_SECRET:-}
-      BGG_METADATA_MODE: disabled
+      BGG_METADATA_MODE: ${BGG_METADATA_MODE:-disabled}
       BGG_XML_API_TOKEN_FILE: ${BGG_XML_API_TOKEN_FILE:-/run/secrets/bgg/xml-api-token}
-      BGG_PUBLIC_IMAGES_ENABLED: "false"
+      BGG_PUBLIC_IMAGES_ENABLED: ${BGG_PUBLIC_IMAGES_ENABLED:-false}
     volumes:
       - ./updates/production/windows:/app/updates/windows:ro
       - ${WECHATPAY_SECRETS_DIRECTORY:-/opt/zyapp/secrets/wechatpay}:/run/secrets/wechatpay:ro

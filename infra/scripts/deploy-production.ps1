@@ -10,7 +10,9 @@ param(
 
   [string]$RemoteDirectory = '/opt/zyapp',
 
-  [string]$EnvironmentPath
+  [string]$EnvironmentPath,
+
+  [string]$BggTokenPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +29,9 @@ if (-not (Test-Path -LiteralPath $key -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $environment -PathType Leaf)) {
   throw "Production environment not found: $environment"
 }
+$bggSettings = (& (Join-Path $PSScriptRoot 'resolve-bgg-deployment-settings.ps1') `
+  -EnvironmentPath $environment `
+  -BggTokenPath $BggTokenPath) | ConvertFrom-Json
 if ($RemoteDirectory -notmatch '^/[a-zA-Z0-9._/-]+$') {
   throw 'RemoteDirectory must be an absolute Linux path containing only letters, digits, dot, underscore, slash or dash.'
 }
@@ -81,9 +86,24 @@ if ($LASTEXITCODE -ne 0) { throw 'SSH connection failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Source upload failed.' }
 & scp @sshOptions $environment "${target}:/tmp/zyapp-deploy/production.env"
 if ($LASTEXITCODE -ne 0) { throw 'Environment upload failed.' }
+if ($bggSettings.enabled) {
+  & scp @sshOptions $bggSettings.tokenPath "${target}:/tmp/zyapp-deploy/bgg-xml-api-token"
+  if ($LASTEXITCODE -ne 0) { throw 'BGG token upload failed.' }
+}
 foreach ($file in $updateFiles) {
   & scp @sshOptions $file "${target}:/tmp/zyapp-deploy/updates/"
   if ($LASTEXITCODE -ne 0) { throw "Update upload failed: $file" }
+}
+
+$bggSecretInstallScript = if ($bggSettings.enabled) {
+@"
+sudo mkdir -p '$RemoteDirectory/secrets/bgg'
+sudo chmod 0700 '$RemoteDirectory/secrets/bgg'
+sudo install -o root -g root -m 0600 /tmp/zyapp-deploy/bgg-xml-api-token '$RemoteDirectory/secrets/bgg/xml-api-token'
+rm -f /tmp/zyapp-deploy/bgg-xml-api-token
+"@
+} else {
+  ''
 }
 
 $remoteScript = @"
@@ -93,6 +113,7 @@ sudo chmod 0755 '$RemoteDirectory'
 sudo tar -xzf /tmp/zyapp-deploy/zyapp-source.tgz -C '$RemoteDirectory'
 sudo mkdir -p '$RemoteDirectory/infra/deploy/updates/production/windows'
 sudo install -m 0600 /tmp/zyapp-deploy/production.env '$RemoteDirectory/infra/deploy/production.env'
+$bggSecretInstallScript
 if ! command -v docker >/dev/null 2>&1; then
   sudo bash '$RemoteDirectory/infra/deploy/bootstrap-ubuntu.sh'
 fi

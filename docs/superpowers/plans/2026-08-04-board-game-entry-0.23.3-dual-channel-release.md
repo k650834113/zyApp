@@ -17,6 +17,8 @@
 - Production deployment must create its existing database backup before migration.
 - Uncommitted and untracked workspace files must not enter deployment archives.
 - The same committed source and locally verified installer hashes must be used for both channels.
+- The BGG token must be deployed as a root-owned server file and must never enter Git, environment values, the installer, logs, or user-facing output.
+- Public BGG images remain disabled until their written license scope is separately confirmed.
 
 ---
 
@@ -82,8 +84,8 @@
 - Produces: test API/worker on migration 20 and test desktop update channel 0.23.3.
 
 - [ ] **Step 1: Record current test/production health and update versions.**
-- [ ] **Step 2: Run the test deployment script**, which backs up the test database, builds test services, runs migration 20, restarts test API/worker, and publishes the update files.
-- [ ] **Step 3: Verify test health, migration 20, update manifest 0.23.3, and downloadable installer/blockmap.**
+- [ ] **Step 2: Install the approved BGG token as a server-only root-owned file and run the test deployment script**, which backs up the test database, builds test services, runs migration 20, restarts test API/worker, and publishes the update files.
+- [ ] **Step 3: Verify test health, migration 20, BGG availability/search/details, update manifest 0.23.3, and downloadable installer/blockmap.**
 
 ### Task 5: Deploy and Verify Production Channel
 

@@ -10,7 +10,9 @@ param(
 
   [string]$RemoteDirectory = '/opt/zyapp',
 
-  [string]$EnvironmentPath
+  [string]$EnvironmentPath,
+
+  [string]$BggTokenPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,6 +28,9 @@ if (-not (Test-Path -LiteralPath $key -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $environment -PathType Leaf)) {
   throw "Deployment environment not found: $environment"
 }
+$bggSettings = (& (Join-Path $PSScriptRoot 'resolve-bgg-deployment-settings.ps1') `
+  -EnvironmentPath $environment `
+  -BggTokenPath $BggTokenPath) | ConvertFrom-Json
 if ($RemoteDirectory -notmatch '^/[a-zA-Z0-9._/-]+$') {
   throw 'RemoteDirectory is invalid.'
 }
@@ -71,9 +76,24 @@ if ($LASTEXITCODE -ne 0) { throw 'SSH connection failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Source upload failed.' }
 & scp @sshOptions $environment "${target}:/tmp/zyapp-test-release/production.env"
 if ($LASTEXITCODE -ne 0) { throw 'Environment upload failed.' }
+if ($bggSettings.enabled) {
+  & scp @sshOptions $bggSettings.tokenPath "${target}:/tmp/zyapp-test-release/bgg-xml-api-token"
+  if ($LASTEXITCODE -ne 0) { throw 'BGG token upload failed.' }
+}
 foreach ($file in $updateFiles) {
   & scp @sshOptions $file "${target}:/tmp/zyapp-test-release/updates/"
   if ($LASTEXITCODE -ne 0) { throw "Update upload failed: $file" }
+}
+
+$bggSecretInstallScript = if ($bggSettings.enabled) {
+@"
+sudo mkdir -p '$RemoteDirectory/secrets/bgg'
+sudo chmod 0700 '$RemoteDirectory/secrets/bgg'
+sudo install -o root -g root -m 0600 /tmp/zyapp-test-release/bgg-xml-api-token '$RemoteDirectory/secrets/bgg/xml-api-token'
+rm -f /tmp/zyapp-test-release/bgg-xml-api-token
+"@
+} else {
+  ''
 }
 
 $remoteScript = @"
@@ -81,6 +101,7 @@ set -euo pipefail
 sudo mkdir -p '$RemoteDirectory'
 sudo tar -xzf /tmp/zyapp-test-release/zyapp-source.tgz -C '$RemoteDirectory'
 sudo install -m 0600 /tmp/zyapp-test-release/production.env '$RemoteDirectory/infra/deploy/production.env'
+$bggSecretInstallScript
 sudo mkdir -p '$RemoteDirectory/infra/deploy/updates/test/windows'
 sudo cp -f /tmp/zyapp-test-release/updates/* '$RemoteDirectory/infra/deploy/updates/test/windows/'
 cd '$RemoteDirectory'

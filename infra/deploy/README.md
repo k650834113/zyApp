@@ -49,9 +49,9 @@ During an ICP filing review, the isolated test API may temporarily set `TEST_MIN
 
 ## BGG metadata import
 
-BGG integration is wired but disabled by default. While the Commercial Application is under review, keep `BGG_METADATA_MODE=disabled` and `BGG_PUBLIC_IMAGES_ENABLED=false`; manual PC entry remains available.
+BGG integration is disabled by default. After written approval, place the XML API token in `${BGG_SECRETS_DIRECTORY}/xml-api-token` on the server with owner-only permissions. The file is mounted read-only at `/run/secrets/bgg/xml-api-token`; never put the token value in `production.env`, Git, desktop configuration, logs or the Mini Program.
 
-After written approval, place the XML API token in `${BGG_SECRETS_DIRECTORY}/xml-api-token` on the server with owner-only permissions. The file is mounted read-only at `/run/secrets/bgg/xml-api-token`; never put the token value in `production.env`, Git, desktop configuration or the Mini Program. Enable `BGG_METADATA_MODE=xmlapi` only for the isolated test API first. The production API is hard-disabled in Compose until a separate owner-approved production change, and images must remain disabled unless the written license explicitly permits them.
+Set `BGG_METADATA_MODE=xmlapi` only after the token has passed an isolated real-request check. Test and production APIs read the same explicit mode, but must still be deployed and verified test-first. Keep `BGG_PUBLIC_IMAGES_ENABLED=false` unless the written license explicitly permits public image use. The deployment wrappers accept `-BggTokenPath`, upload it separately from source and environment files, install it with owner-only permissions, and remove the temporary remote copy.
 
 ## Start
 

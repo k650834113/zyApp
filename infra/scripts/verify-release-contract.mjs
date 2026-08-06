@@ -79,13 +79,17 @@ if (!contractMatch) {
         'typecheck',
         'build',
         'artifact-sha256',
+        'bgg-token-real-search',
         'test-health',
         'test-migration-20',
+        'test-bgg-enabled',
         'test-update-0.23.3',
         'production-backup',
         'production-health',
         'production-migration-20',
+        'production-bgg-enabled',
         'production-update-0.23.3',
+        'public-images-disabled',
         'test-still-0.23.3'
       ]
     }

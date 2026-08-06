@@ -20,6 +20,10 @@ const archiveHelperPath = resolve(
   scriptDirectory,
   'create-deployment-source-archive.ps1'
 )
+const bggSettingsHelperPath = resolve(
+  scriptDirectory,
+  'resolve-bgg-deployment-settings.ps1'
+)
 const preChangeFixture = resolve(
   scriptDirectory,
   'fixtures/pre-0.23.2'
@@ -85,6 +89,108 @@ test('deployment source archive contains committed HEAD and excludes dirty works
     assert.equal(existsSync(resolve(extracted, 'untracked.txt')), false)
   } finally {
     rmSync(repository, { recursive: true, force: true })
+  }
+})
+
+test('approved BGG mode reaches both API services while public images stay disabled', () => {
+  const result = spawnSync(
+    'docker',
+    [
+      'compose',
+      '--env-file',
+      resolve(workspaceRoot, 'infra/deploy/production.env.example'),
+      '-f',
+      resolve(workspaceRoot, 'infra/deploy/compose.production.yml'),
+      'config',
+      '--format',
+      'json'
+    ],
+    {
+      cwd: workspaceRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        BGG_METADATA_MODE: 'xmlapi',
+        BGG_PUBLIC_IMAGES_ENABLED: 'false'
+      }
+    }
+  )
+  assert.equal(
+    result.status,
+    0,
+    `compose config failed: stdout=${JSON.stringify(result.stdout)} stderr=${JSON.stringify(result.stderr)}`
+  )
+
+  const compose = JSON.parse(result.stdout)
+  assert.equal(compose.services.api.environment.BGG_METADATA_MODE, 'xmlapi')
+  assert.equal(
+    compose.services['api-test'].environment.BGG_METADATA_MODE,
+    'xmlapi'
+  )
+  assert.equal(
+    compose.services.api.environment.BGG_PUBLIC_IMAGES_ENABLED,
+    'false'
+  )
+  assert.equal(
+    compose.services['api-test'].environment.BGG_PUBLIC_IMAGES_ENABLED,
+    'false'
+  )
+})
+
+test('BGG deployment settings require a non-empty server-only token in xmlapi mode', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'zyapp-bgg-deploy-'))
+  const environmentPath = resolve(directory, 'production.env')
+  const tokenPath = resolve(directory, 'xml-api-token')
+
+  try {
+    writeFileSync(
+      environmentPath,
+      'BGG_METADATA_MODE=xmlapi\nBGG_PUBLIC_IMAGES_ENABLED=false\n',
+      'utf8'
+    )
+    let result = spawnSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        bggSettingsHelperPath,
+        '-EnvironmentPath',
+        environmentPath
+      ],
+      { cwd: workspaceRoot, encoding: 'utf8' }
+    )
+    assert.notEqual(result.status, 0)
+
+    writeFileSync(tokenPath, 'server-only-token\n', 'utf8')
+    result = spawnSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        bggSettingsHelperPath,
+        '-EnvironmentPath',
+        environmentPath,
+        '-BggTokenPath',
+        tokenPath
+      ],
+      { cwd: workspaceRoot, encoding: 'utf8' }
+    )
+    assert.equal(
+      result.status,
+      0,
+      `BGG settings helper failed: stdout=${JSON.stringify(result.stdout)} stderr=${JSON.stringify(result.stderr)}`
+    )
+    const settings = JSON.parse(result.stdout)
+    assert.equal(settings.enabled, true)
+    assert.equal(settings.publicImagesEnabled, false)
+    assert.equal(settings.tokenPath, tokenPath)
+    assert.doesNotMatch(result.stdout, /server-only-token/u)
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
   }
 })
 
