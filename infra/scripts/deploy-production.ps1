@@ -1,11 +1,9 @@
 param(
-  [Parameter(Mandatory = $true)]
   [ValidatePattern('^[a-zA-Z0-9.-]+$')]
   [string]$HostName,
 
-  [string]$SshUser = 'ubuntu',
+  [string]$SshUser,
 
-  [Parameter(Mandatory = $true)]
   [string]$KeyPath,
 
   [string]$RemoteDirectory = '/opt/zyapp',
@@ -16,16 +14,19 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$sshIdentity = (& (Join-Path $PSScriptRoot 'resolve-deployment-ssh-identity.ps1') `
+  -HostName $HostName `
+  -SshUser $SshUser `
+  -KeyPath $KeyPath) | ConvertFrom-Json
+$HostName = $sshIdentity.hostName
+$SshUser = $sshIdentity.sshUser
+$key = $sshIdentity.keyPath
 if ([string]::IsNullOrWhiteSpace($EnvironmentPath)) {
   $EnvironmentPath = Join-Path $PSScriptRoot '..\deploy\production.env'
 }
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$key = [IO.Path]::GetFullPath($KeyPath)
 $environment = [IO.Path]::GetFullPath($EnvironmentPath)
 
-if (-not (Test-Path -LiteralPath $key -PathType Leaf)) {
-  throw "SSH private key not found: $key"
-}
 if (-not (Test-Path -LiteralPath $environment -PathType Leaf)) {
   throw "Production environment not found: $environment"
 }
@@ -80,7 +81,12 @@ $target = "$SshUser@$HostName"
 $sshOptions = @('-i', $key, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new')
 
 & ssh @sshOptions $target "mkdir -p /tmp/zyapp-deploy/updates"
-if ($LASTEXITCODE -ne 0) { throw 'SSH connection failed.' }
+if ($LASTEXITCODE -ne 0) {
+  throw (
+    "SSH connection to $target failed after validating key fingerprint " +
+    "$($sshIdentity.actualFingerprint). Check server authorized_keys."
+  )
+}
 
 & scp @sshOptions $archive "${target}:/tmp/zyapp-deploy/zyapp-source.tgz"
 if ($LASTEXITCODE -ne 0) { throw 'Source upload failed.' }

@@ -328,6 +328,71 @@ test('deployment SSH identity explains how to provide a missing private key', ()
   }
 })
 
+test('every deployment entry point rejects the wrong SSH key before other work', () => {
+  const fixture = createSshIdentityFixture()
+  try {
+    const commit = spawnSync(
+      'git',
+      ['rev-parse', 'HEAD'],
+      { cwd: workspaceRoot, encoding: 'utf8' }
+    )
+    assert.equal(commit.status, 0, commit.stderr)
+    const currentCommit = commit.stdout.trim()
+    const scriptCases = [
+      {
+        name: 'deploy-production.ps1',
+        args: ['-KeyPath', fixture.wrongKeyPath]
+      },
+      {
+        name: 'deploy-test-release.ps1',
+        args: ['-KeyPath', fixture.wrongKeyPath]
+      },
+      {
+        name: 'deploy-miniapp-production.ps1',
+        args: [
+          '-KeyPath', fixture.wrongKeyPath,
+          '-ExpectedCommit', currentCommit,
+          '-ValidateOnly'
+        ]
+      },
+      {
+        name: 'deploy-miniapp-production-test.ps1',
+        args: [
+          '-KeyPath', fixture.wrongKeyPath,
+          '-EnvironmentPath', fixture.wrongKeyPath,
+          '-ApiV3KeyPath', fixture.wrongKeyPath,
+          '-MerchantCertificatePath', fixture.wrongKeyPath,
+          '-MerchantPrivateKeyPath', fixture.wrongKeyPath,
+          '-WechatPayPublicKeyPath', fixture.wrongKeyPath
+        ]
+      }
+    ]
+
+    for (const scriptCase of scriptCases) {
+      const result = spawnSync(
+        'powershell',
+        [
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          resolve(scriptDirectory, scriptCase.name),
+          ...scriptCase.args
+        ],
+        { cwd: workspaceRoot, encoding: 'utf8' }
+      )
+      assert.notEqual(result.status, 0, `${scriptCase.name} accepted the wrong key`)
+      assert.match(
+        `${result.stdout}\n${result.stderr}`,
+        /Deployment SSH private key fingerprint mismatch/u,
+        `${scriptCase.name} did not fail at the SSH identity boundary`
+      )
+    }
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true })
+  }
+})
+
 test('rejects the committed pre-0.23.2 fixture against the 0.23.3 release contract', () => {
   const result = runChecker(preChangeFixture)
 
