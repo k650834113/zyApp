@@ -11,7 +11,8 @@ import { WalletPage } from './WalletPage'
 import { MonthlyCardPage } from './MonthlyCardPage'
 import { CatalogPage } from './CatalogPage'
 import { ActivityPage } from './ActivityPage'
-import { ContentPage } from './ContentPage'
+import { AnnouncementPage } from './AnnouncementPage'
+import { BoardGamePage } from './BoardGamePage'
 import { CashierPage } from './CashierPage'
 import { RefundPage } from './RefundPage'
 import { LegacyImportPage } from './LegacyImportPage'
@@ -29,7 +30,8 @@ type Page =
   | 'monthly-card'
   | 'catalog'
   | 'activity'
-  | 'content'
+  | 'announcements'
+  | 'board-games'
   | 'cashier'
   | 'refund'
   | 'report'
@@ -260,15 +262,26 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             </button>
           ) : null}
           {canReadContent ? (
-            <button
-              className={page === 'content' ? 'active' : ''}
-              type="button"
-              onClick={() => setPage('content')}
-              title="内容管理"
-            >
-              <span className="nav-short">内</span>
-              <span className="nav-label">内容管理</span>
-            </button>
+            <>
+              <button
+                className={page === 'announcements' ? 'active' : ''}
+                type="button"
+                onClick={() => setPage('announcements')}
+                title="公告管理"
+              >
+                <span className="nav-short">告</span>
+                <span className="nav-label">公告管理</span>
+              </button>
+              <button
+                className={page === 'board-games' ? 'active' : ''}
+                type="button"
+                onClick={() => setPage('board-games')}
+                title="桌游管理"
+              >
+                <span className="nav-short">游</span>
+                <span className="nav-label">桌游管理</span>
+              </button>
+            </>
           ) : null}
           {canManageStoreProfile ? (
             <button
@@ -391,8 +404,11 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
         {page === 'activity' && canReadActivity ? (
           <ActivityPage session={session} />
         ) : null}
-        {page === 'content' && canReadContent ? (
-          <ContentPage session={session} />
+        {page === 'announcements' && canReadContent ? (
+          <AnnouncementPage session={session} />
+        ) : null}
+        {page === 'board-games' && canReadContent ? (
+          <BoardGamePage session={session} />
         ) : null}
         {page === 'store-profile' && canManageStoreProfile ? (
           <StoreProfilePage onStoreNameChanged={setStoreName} />

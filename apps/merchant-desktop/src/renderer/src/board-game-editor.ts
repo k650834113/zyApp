@@ -1,4 +1,5 @@
 import type {
+  BoardGameCoverSource,
   BoardGameMetadataDetails,
   BoardGameSummary,
   CreateBoardGameRequest
@@ -31,6 +32,7 @@ export type BoardGameEditor = {
   consignorNickname: string
   missingParts: string
   reason: string
+  coverSource: BoardGameCoverSource
 }
 
 export type BggLookupInput =
@@ -102,7 +104,23 @@ export function defaultBoardGameEditor(): BoardGameEditor {
     internalNote: '',
     consignorNickname: '',
     missingParts: '',
-    reason: ''
+    reason: '',
+    coverSource: 'none'
+  }
+}
+
+function persistedCoverSource(game: BoardGameSummary): BoardGameCoverSource {
+  if (game.localImagePath) return 'local'
+  if (!game.imageUrl) return 'none'
+  try {
+    const url = new URL(game.imageUrl)
+    return /\/v1\/public\/board-game-covers\/[0-9a-f]{64}\.(jpg|png|webp)$/.test(
+      url.pathname
+    )
+      ? 'cached'
+      : 'external'
+  } catch {
+    return 'external'
   }
 }
 
@@ -137,7 +155,8 @@ export function boardGameEditorFor(
     internalNote: game.internalNote ?? '',
     consignorNickname: game.consignorNickname ?? '',
     missingParts: partsToText(game),
-    reason: ''
+    reason: '',
+    coverSource: persistedCoverSource(game)
   }
 }
 
@@ -169,6 +188,10 @@ export function applyMetadataDetails(
     imageUrl: imagesEnabled
       ? details.imageUrl ?? details.thumbnailUrl ?? editor.imageUrl
       : editor.imageUrl,
+    coverSource:
+      imagesEnabled && (details.imageUrl || details.thumbnailUrl)
+        ? 'bgg'
+        : editor.coverSource,
     bggId: details.externalId,
     metadataSource: details.source,
     metadataImportedAt: details.fetchedAt
@@ -249,6 +272,7 @@ export function boardGameRequest(
     missingPieces: editor.missingPieces,
     private: editor.private,
     recommended: editor.recommended,
+    coverSource: editor.coverSource,
     ...(editor.imageUrl.trim() ? { imageUrl: editor.imageUrl.trim() } : {}),
     ...(editor.localImagePath ? { localImagePath: editor.localImagePath } : {}),
     ...(bggId === undefined ? {} : { bggId }),

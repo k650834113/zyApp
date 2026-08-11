@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { BoardGameMetadataDetails } from '@zyapp/contracts'
+import type {
+  BoardGameMetadataDetails,
+  BoardGameSummary
+} from '@zyapp/contracts'
 import {
   applyMetadataDetails,
+  boardGameEditorFor,
   boardGameRequest,
   defaultBoardGameEditor,
   findBoardGameByBggId,
@@ -57,6 +61,7 @@ describe('board-game quick editor', () => {
       complexityRating: '2.3',
       bggId: '13',
       imageUrl: 'https://example.com/image.jpg',
+      coverSource: 'bgg',
       metadataSource: 'bgg',
       metadataImportedAt: details.fetchedAt
     })
@@ -70,6 +75,7 @@ describe('board-game quick editor', () => {
     )
     expect(result.name).toBe('')
     expect(result.imageUrl).toBe('')
+    expect(result.coverSource).toBe('none')
   })
 
   it('validates numeric complexity and includes provenance only after import', () => {
@@ -99,5 +105,66 @@ describe('board-game quick editor', () => {
     expect(findBoardGameByBggId([existing], 13)).toBe(existing)
     expect(findBoardGameByBggId([existing], 14)).toBeNull()
     expect(findBoardGameByBggId([existing], undefined)).toBeNull()
+  })
+
+  it('tracks persisted cached, local and external cover sources', () => {
+    const game = {
+      id: 'game-13',
+      name: '卡坦岛',
+      introduction: '通过交易与建设发展岛屿。',
+      categories: ['经营'],
+      minPlayers: 3,
+      maxPlayers: 4,
+      minMinutes: 60,
+      maxMinutes: 120,
+      difficulty: 'medium',
+      complexityRating: 2.3,
+      quantity: 1,
+      recordStatus: 'active',
+      available: true,
+      customerConsigned: false,
+      missingPieces: false,
+      private: false,
+      recommended: true,
+      imageUrl:
+        `https://judian.icu/test/v1/public/board-game-covers/${'a'.repeat(64)}.jpg`,
+      localImagePath: null,
+      bggId: 13,
+      metadataSource: 'bgg',
+      metadataImportedAt: details.fetchedAt,
+      customerNote: null,
+      internalNote: null,
+      consignorNickname: null,
+      missingParts: [],
+      createdAt: details.fetchedAt,
+      updatedAt: details.fetchedAt
+    } satisfies BoardGameSummary
+
+    expect(boardGameEditorFor(game).coverSource).toBe('cached')
+    expect(boardGameEditorFor({
+      ...game,
+      imageUrl: 'https://images.example.com/catan.jpg'
+    }).coverSource).toBe('external')
+    expect(boardGameEditorFor({
+      ...game,
+      imageUrl: null,
+      localImagePath: 'board-games/catan.jpg'
+    }).coverSource).toBe('local')
+    expect(defaultBoardGameEditor().coverSource).toBe('none')
+  })
+
+  it('includes cover source in the desktop save request', () => {
+    expect(boardGameRequest({
+      ...defaultBoardGameEditor(),
+      name: '测试桌游',
+      introduction: '用于验证封面来源。',
+      categories: '策略',
+      private: true,
+      coverSource: 'external',
+      imageUrl: 'https://images.example.com/game.jpg'
+    })).toMatchObject({
+      coverSource: 'external',
+      imageUrl: 'https://images.example.com/game.jpg'
+    })
   })
 })
