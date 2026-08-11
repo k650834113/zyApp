@@ -3,6 +3,7 @@ import {
   Get,
   Inject,
   Param,
+  Post,
   Query,
   Req,
   UnauthorizedException,
@@ -54,5 +55,14 @@ export class BoardGameMetadataController {
     @Param('externalId') externalId: string
   ) {
     return this.service.details(principal(request), actorId, externalId)
+  }
+
+  @Post('bgg/:externalId/cache-cover')
+  cacheCover(
+    @Req() request: DeviceRequest,
+    @Query('actorId') actorId: string,
+    @Param('externalId') externalId: string
+  ) {
+    return this.service.cacheCover(principal(request), actorId, externalId)
   }
 }

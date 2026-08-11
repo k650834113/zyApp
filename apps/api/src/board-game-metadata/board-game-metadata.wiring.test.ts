@@ -12,6 +12,7 @@ import {
 import { BoardGameMetadataController } from './board-game-metadata.controller'
 import { BoardGameMetadataService } from './board-game-metadata.service'
 import { BggRequestGate } from './request-gate'
+import { BoardGameCoverCacheService } from '../board-game-cover-cache.service'
 
 describe('board-game metadata dependency wiring', () => {
   it('resolves the service request gate through an explicit runtime token', async () => {
@@ -45,7 +46,11 @@ describe('board-game metadata dependency wiring', () => {
         BggRequestGate,
         { provide: POSTGRES_POOL, useValue: { query: async () => ({ rows: [] }) } },
         { provide: REDIS_CLIENT, useValue: {} },
-        { provide: BOARD_GAME_METADATA_ADAPTER, useValue: adapter }
+        { provide: BOARD_GAME_METADATA_ADAPTER, useValue: adapter },
+        {
+          provide: BoardGameCoverCacheService,
+          useValue: { cacheFromBgg: async () => ({}) }
+        }
       ]
     }).compile()
 
@@ -74,7 +79,8 @@ describe('board-game metadata dependency wiring', () => {
                   imagesEnabled: false
                 }),
                 search: async () => [],
-                details: async (externalId: string) => ({ externalId })
+                details: async (externalId: string) => ({ externalId }),
+                cacheCover: async (externalId: string) => ({ externalId })
               }
             }
           ]

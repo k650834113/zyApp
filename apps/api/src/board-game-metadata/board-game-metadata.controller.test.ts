@@ -15,7 +15,8 @@ describe('board-game metadata controller', () => {
     const service = {
       status: vi.fn(async () => ({ source: 'bgg', enabled: false, imagesEnabled: false })),
       search: vi.fn(async () => []),
-      details: vi.fn(async () => ({ externalId: '13' }))
+      details: vi.fn(async () => ({ externalId: '13' })),
+      cacheCover: vi.fn(async () => ({ externalId: '13' }))
     }
     const controller = new BoardGameMetadataController(
       service as unknown as BoardGameMetadataService
@@ -25,9 +26,25 @@ describe('board-game metadata controller', () => {
     await controller.status(request, 'actor-1')
     await controller.search(request, 'actor-1', 'Catan')
     await controller.details(request, 'actor-1', '13')
+    await controller.cacheCover(request, 'actor-1', '13')
 
     expect(service.status).toHaveBeenCalledWith(device, 'actor-1')
     expect(service.search).toHaveBeenCalledWith(device, 'actor-1', 'Catan')
     expect(service.details).toHaveBeenCalledWith(device, 'actor-1', '13')
+    expect(service.cacheCover).toHaveBeenCalledWith(device, 'actor-1', '13')
+  })
+
+  it('rejects cache requests without an authenticated device', async () => {
+    const service = { cacheCover: vi.fn() }
+    const controller = new BoardGameMetadataController(
+      service as unknown as BoardGameMetadataService
+    )
+
+    expect(() => controller.cacheCover(
+      { headers: {} } as DeviceRequest,
+      'actor-1',
+      '13'
+    )).toThrow('Device authentication is required')
+    expect(service.cacheCover).not.toHaveBeenCalled()
   })
 })

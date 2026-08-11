@@ -11,7 +11,8 @@ import {
 import type {
   BoardGameMetadataAvailability,
   BoardGameMetadataCandidate,
-  BoardGameMetadataDetails
+  BoardGameMetadataDetails,
+  CacheBoardGameCoverResult
 } from '@zyapp/contracts'
 import type { Pool } from '@zyapp/cloud-db'
 import { createHash } from 'node:crypto'
@@ -23,6 +24,7 @@ import {
   BggMetadataError
 } from './bgg-adapter'
 import { BggRequestGate } from './request-gate'
+import { BoardGameCoverCacheService } from '../board-game-cover-cache.service'
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -57,7 +59,9 @@ export class BoardGameMetadataService {
     @Inject(POSTGRES_POOL) private readonly pool: Pool,
     @Inject(BggRequestGate) private readonly gate: BggRequestGate,
     @Inject(BOARD_GAME_METADATA_ADAPTER)
-    private readonly adapter: BoardGameMetadataAdapter
+    private readonly adapter: BoardGameMetadataAdapter,
+    @Inject(BoardGameCoverCacheService)
+    private readonly covers: BoardGameCoverCacheService
   ) {}
 
   async status(
@@ -103,6 +107,26 @@ export class BoardGameMetadataService {
     await this.requireManager(principal, actorId(actorIdValue))
     this.requireEnabled()
     const id = externalId(externalIdValue)
+    return this.loadDetails(id)
+  }
+
+  async cacheCover(
+    principal: DevicePrincipal,
+    actorIdValue: string,
+    externalIdValue: string
+  ): Promise<CacheBoardGameCoverResult> {
+    await this.requireManager(principal, actorId(actorIdValue))
+    this.requireEnabled()
+    const id = externalId(externalIdValue)
+    const details = await this.loadDetails(id)
+    const imageUrl = details.imageUrl ?? details.thumbnailUrl
+    if (!imageUrl) {
+      throw new BadGatewayException('BGG cover image is unavailable')
+    }
+    return this.covers.cacheFromBgg(id, imageUrl)
+  }
+
+  private async loadDetails(id: string): Promise<BoardGameMetadataDetails> {
     try {
       return await this.gate.cached(
         `zyapp:bgg:details:${id}`,

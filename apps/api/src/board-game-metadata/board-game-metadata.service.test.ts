@@ -1,6 +1,7 @@
 import type { Pool } from '@zyapp/cloud-db'
 import { describe, expect, it, vi } from 'vitest'
 import type { DevicePrincipal } from '../device-auth'
+import type { BoardGameCoverCacheService } from '../board-game-cover-cache.service'
 import type { BoardGameMetadataAdapter } from './bgg-adapter'
 import { BggMetadataError } from './bgg-adapter'
 import { BoardGameMetadataService } from './board-game-metadata.service'
@@ -39,6 +40,7 @@ function adapter(overrides: Partial<BoardGameMetadataAdapter> = {}): BoardGameMe
 function service(options: {
   authorized?: boolean
   adapter?: BoardGameMetadataAdapter
+  coverError?: Error
 } = {}) {
   const query = vi.fn(async () => ({
     rows: options.authorized === false ? [] : [{ id: actorId }]
@@ -46,13 +48,27 @@ function service(options: {
   const gate = {
     cached: vi.fn(async (_key: string, _ttl: number, load: () => Promise<unknown>) => load())
   } as unknown as BggRequestGate
+  const covers = {
+    cacheFromBgg: options.coverError
+      ? vi.fn().mockRejectedValue(options.coverError)
+      : vi.fn().mockResolvedValue({
+          source: 'bgg',
+          externalId: '13',
+          cachedUrl:
+            `https://judian.icu/test/v1/public/board-game-covers/${'a'.repeat(64)}.jpg`,
+          contentType: 'image/jpeg',
+          sha256: 'a'.repeat(64)
+        })
+  }
   return {
     query,
     gate,
+    covers,
     instance: new BoardGameMetadataService(
       { query } as unknown as Pool,
       gate,
-      options.adapter ?? adapter()
+      options.adapter ?? adapter(),
+      covers as unknown as BoardGameCoverCacheService
     )
   }
 }
@@ -126,5 +142,58 @@ describe('board-game metadata service', () => {
       .toMatchObject({ enabled: false })
     await expect(fixture.instance.search(principal, actorId, 'Catan'))
       .rejects.toMatchObject({ status: 503 })
+  })
+
+  it('caches a normalized BGG cover only after manager authorization', async () => {
+    const metadata = adapter({
+      imagesEnabled: true,
+      details: vi.fn(async () => ({
+        source: 'bgg' as const,
+        externalId: '13',
+        primaryName: 'Catan',
+        alternateNames: ['卡坦岛'],
+        yearPublished: 1995,
+        minPlayers: 3,
+        maxPlayers: 4,
+        minMinutes: 60,
+        maxMinutes: 120,
+        complexityRating: 2.3,
+        categories: ['经营'],
+        mechanics: ['交易'],
+        thumbnailUrl: 'https://cf.geekdo-images.com/catan-thumb.jpg',
+        imageUrl: 'https://cf.geekdo-images.com/catan.jpg',
+        sourceUrl: 'https://boardgamegeek.com/boardgame/13',
+        fetchedAt: '2026-08-03T00:00:00.000Z'
+      }))
+    })
+    const fixture = service({ adapter: metadata })
+
+    await expect(fixture.instance.cacheCover(principal, actorId, '13'))
+      .resolves.toMatchObject({ source: 'bgg', externalId: '13' })
+    expect(metadata.details).toHaveBeenCalledWith('13')
+    expect(fixture.covers.cacheFromBgg).toHaveBeenCalledWith(
+      '13',
+      'https://cf.geekdo-images.com/catan.jpg'
+    )
+  })
+
+  it('does not load or cache covers for unauthorized actors', async () => {
+    const metadata = adapter()
+    const fixture = service({ authorized: false, adapter: metadata })
+
+    await expect(fixture.instance.cacheCover(principal, actorId, '13'))
+      .rejects.toMatchObject({ status: 403 })
+    expect(metadata.details).not.toHaveBeenCalled()
+    expect(fixture.covers.cacheFromBgg).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing BGG images and invalid IDs without caching', async () => {
+    const fixture = service()
+
+    await expect(fixture.instance.cacheCover(principal, actorId, '13'))
+      .rejects.toMatchObject({ status: 502 })
+    await expect(fixture.instance.cacheCover(principal, actorId, '1x'))
+      .rejects.toMatchObject({ status: 400 })
+    expect(fixture.covers.cacheFromBgg).not.toHaveBeenCalled()
   })
 })
