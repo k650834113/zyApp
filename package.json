@@ -15,6 +15,7 @@
     "cloud:down": "powershell -NoProfile -ExecutionPolicy Bypass -File ./infra/scripts/cloud-down.ps1",
     "cloud:status": "powershell -NoProfile -ExecutionPolicy Bypass -File ./infra/scripts/cloud-status.ps1",
     "miniapp:build": "pnpm --filter @zyapp/miniapp build",
+    "miniapp:build:production": "pnpm --filter @zyapp/miniapp build:production",
     "miniapp:dev": "pnpm --filter @zyapp/miniapp dev",
     "miniapp:test": "pnpm --filter @zyapp/miniapp test",
     "miniapp:typecheck": "pnpm --filter @zyapp/miniapp typecheck",

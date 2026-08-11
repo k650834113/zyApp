@@ -80,6 +80,16 @@ APIv3 密钥必须保存在本机单行文件中，部署时只提供文件绝�
 正式版还需在被 Git 忽略的 `config/public-endpoints.local.json` 中设置
 `miniappProductionApiBaseUrl` 和 `miniappProductionStoreId`。构建器会拒绝正式版使用 HTTP、IP 地址或 `/test`，也会拒绝体验版绕过 `/test`。登录令牌按 API 地址和门店隔离，因此体验版不会复用正式版会话。
 
+生成正式线上版时使用专用命令，避免普通 `miniapp:build` 根据本机测试端点生成测试包：
+
+```powershell
+corepack pnpm miniapp:build:production
+```
+
+该命令会清除当前 shell 中可能遗留的 API、门店和认证覆盖项，并强制使用
+`production-wechat`。桌游库随后通过正式门店的
+`GET /v1/public/games` 读取云端真实数据；Mock 和测试 API 不会进入正式产物。
+
 充值金额统一按整数分提交。四个快捷金额与自定义金额使用同一个
 `POST /v1/member/recharge-orders` 接口，赠送余额按门店当前生效的充值规则计算；
 体验版不再有自动锁定 0.01 元的专用流程。

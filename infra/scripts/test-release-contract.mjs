@@ -296,3 +296,42 @@ test('formal production deployment enables and verifies WeChat authentication', 
   assert.ok(serviceActivationPosition > authenticationMutationPosition)
   assert.ok(serviceActivationPosition > paymentMutationPosition)
 })
+
+test('general production deployment cannot disable formal WeChat services', () => {
+  const deploymentScript = readFileSync(
+    resolve(scriptDirectory, 'deploy-production.ps1'),
+    'utf8'
+  )
+
+  assert.match(
+    deploymentScript,
+    /Production environment must set \$requiredWechatMode=wechat\./u
+  )
+  for (const setting of [
+    'MINIAPP_WECHAT_AUTH_MODE',
+    'TEST_MINIAPP_WECHAT_AUTH_MODE',
+    'PRODUCTION_WECHAT_PAYMENT_MODE',
+    'TEST_WECHAT_PAYMENT_MODE'
+  ]) {
+    assert.match(deploymentScript, new RegExp(`'${setting}'`))
+  }
+
+  const preflightPosition = deploymentScript.indexOf(
+    'Production environment must set $requiredWechatMode=wechat.'
+  )
+  const firstNetworkPosition = deploymentScript.indexOf('& ssh @sshOptions')
+  const serviceActivationPosition = deploymentScript.indexOf(
+    'up -d --no-deps --force-recreate api worker'
+  )
+  const authenticationVerificationPosition = deploymentScript.indexOf(
+    'Production WeChat authentication mode is not enabled.'
+  )
+  const paymentVerificationPosition = deploymentScript.indexOf(
+    'Production WeChat payment mode is not enabled.'
+  )
+
+  assert.ok(preflightPosition >= 0)
+  assert.ok(firstNetworkPosition > preflightPosition)
+  assert.ok(authenticationVerificationPosition > serviceActivationPosition)
+  assert.ok(paymentVerificationPosition > serviceActivationPosition)
+})

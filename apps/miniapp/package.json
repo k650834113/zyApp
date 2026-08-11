@@ -5,9 +5,10 @@
   "description": "ZyApp WeChat mini program",
   "scripts": {
     "build": "pnpm run typecheck && node scripts/build.mjs",
+    "build:production": "pnpm run typecheck && node scripts/build-production.mjs",
     "dev": "pnpm run typecheck && node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test scripts/build-configuration.test.mjs scripts/build-output.test.mjs scripts/member-page-layout.test.mjs scripts/board-game-library-layout.test.mjs && vitest run --root ../.. apps/miniapp/src/services/mock-client.test.ts apps/miniapp/src/services/member-login.test.ts apps/miniapp/src/services/member-profile.test.ts apps/miniapp/src/services/member-home.test.ts apps/miniapp/src/services/monthly-card-display.test.ts apps/miniapp/src/services/recharge-amount.test.ts apps/miniapp/src/services/recharge-gift.test.ts apps/miniapp/src/services/http-client.test.ts apps/miniapp/src/services/client.test.ts apps/miniapp/src/services/wechat-payment.test.ts apps/miniapp/src/services/recharge-flow.test.ts apps/miniapp/src/services/board-game-library.test.ts apps/miniapp/src/services/range-values.test.ts"
+    "test": "node --test scripts/build-configuration.test.mjs scripts/build-production.test.mjs scripts/build-output.test.mjs scripts/member-page-layout.test.mjs scripts/board-game-library-layout.test.mjs && vitest run --root ../.. apps/miniapp/src/services/mock-client.test.ts apps/miniapp/src/services/member-login.test.ts apps/miniapp/src/services/member-profile.test.ts apps/miniapp/src/services/member-home.test.ts apps/miniapp/src/services/monthly-card-display.test.ts apps/miniapp/src/services/recharge-amount.test.ts apps/miniapp/src/services/recharge-gift.test.ts apps/miniapp/src/services/http-client.test.ts apps/miniapp/src/services/client.test.ts apps/miniapp/src/services/wechat-payment.test.ts apps/miniapp/src/services/recharge-flow.test.ts apps/miniapp/src/services/board-game-library.test.ts apps/miniapp/src/services/range-values.test.ts"
   },
   "devDependencies": {
     "esbuild": "0.27.7",

@@ -29,6 +29,36 @@ if (-not (Test-Path -LiteralPath $key -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $environment -PathType Leaf)) {
   throw "Production environment not found: $environment"
 }
+
+function Get-RequiredEnvironmentValue(
+  [string]$Path,
+  [string]$Name
+) {
+  $prefix = "$Name="
+  $matches = @(
+    Get-Content -Encoding UTF8 -LiteralPath $Path |
+      Where-Object { $_.StartsWith($prefix, [StringComparison]::Ordinal) }
+  )
+  if ($matches.Count -ne 1) {
+    throw "Production environment must define $Name exactly once."
+  }
+  return $matches[0].Substring($prefix.Length).Trim()
+}
+
+foreach ($requiredWechatMode in @(
+  'MINIAPP_WECHAT_AUTH_MODE',
+  'TEST_MINIAPP_WECHAT_AUTH_MODE',
+  'PRODUCTION_WECHAT_PAYMENT_MODE',
+  'TEST_WECHAT_PAYMENT_MODE'
+)) {
+  if (
+    (Get-RequiredEnvironmentValue $environment $requiredWechatMode) -cne
+      'wechat'
+  ) {
+    throw "Production environment must set $requiredWechatMode=wechat."
+  }
+}
+
 $bggSettings = (& (Join-Path $PSScriptRoot 'resolve-bgg-deployment-settings.ps1') `
   -EnvironmentPath $environment `
   -BggTokenPath $BggTokenPath) | ConvertFrom-Json
@@ -145,6 +175,16 @@ for attempt in `$(seq 1 36); do
     fi
     if [ "`$test_version_after" != "`$test_version_before" ]; then
       echo "Test desktop version changed unexpectedly: `$test_version_before -> `$test_version_after" >&2
+      exit 1
+    fi
+    production_auth_mode=`$(sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml exec -T api sh -lc 'printf "%s" "`$MINIAPP_WECHAT_AUTH_MODE"')
+    production_payment_mode=`$(sudo docker compose --env-file infra/deploy/production.env -f infra/deploy/compose.production.yml exec -T api sh -lc 'printf "%s" "`$WECHAT_PAYMENT_MODE"')
+    if [ "`$production_auth_mode" != 'wechat' ]; then
+      echo 'Production WeChat authentication mode is not enabled.' >&2
+      exit 1
+    fi
+    if [ "`$production_payment_mode" != 'wechat' ]; then
+      echo 'Production WeChat payment mode is not enabled.' >&2
       exit 1
     fi
     echo "Production release healthy: production=`$production_version migration=`$production_migration test=`$test_version_after"
