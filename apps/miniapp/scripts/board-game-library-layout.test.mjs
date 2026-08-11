@@ -18,6 +18,51 @@ test('board-game library exposes the approved search and filter controls', () =>
   assert.match(wxml, /<board-game-card/)
   assert.match(wxml, /没有找到符合条件的桌游/)
   assert.match(wxml, /加载失败，点击重试/)
+  assert.doesNotMatch(wxml, /class="result-order"/)
+  assert.match(wxml, /Powered by BGG/)
+  assert.match(wxml, /bindtap="copyBggSource"/)
+  assert.equal((wxml.match(/Powered by BGG/g) ?? []).length, 1)
+})
+
+test('board-game search and filter controls use shrinkable flex tracks', () => {
+  const wxss = source('../src/pages/games/index.wxss')
+
+  assert.match(
+    wxss,
+    /\.search-row\s*\{[^}]*display:\s*flex;/s
+  )
+  assert.match(
+    wxss,
+    /\.search-input\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1;/s
+  )
+  assert.match(
+    wxss,
+    /\.search-button\s*\{[^}]*width:\s*132rpx;[^}]*flex:\s*0\s+0\s+132rpx;/s
+  )
+  assert.match(
+    wxss,
+    /\.search-button\s*\{[^}]*padding:\s*0;[^}]*white-space:\s*nowrap;/s
+  )
+  assert.match(
+    wxss,
+    /\.quick-filters\s*\{[^}]*display:\s*flex;/s
+  )
+  assert.match(
+    wxss,
+    /\.filter-pill\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*0;[^}]*flex:\s*1;/s
+  )
+  assert.match(
+    wxss,
+    /\.sheet-actions\s*\{[^}]*display:\s*flex;/s
+  )
+  assert.match(
+    wxss,
+    /\.clear-button\s*\{[^}]*width:\s*180rpx;[^}]*flex:\s*0\s+0\s+180rpx;/s
+  )
+  assert.match(
+    wxss,
+    /\.apply-button\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*0;[^}]*flex:\s*1;/s
+  )
 })
 
 test('board-game cards keep categories separate from one metadata row', () => {

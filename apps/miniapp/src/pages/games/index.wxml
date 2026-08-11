@@ -37,7 +37,6 @@
 
   <view class="result-head">
     <text>{{games.length}} 款桌游</text>
-    <text class="result-order">店长推荐优先</text>
   </view>
 
   <view wx:if="{{loadFailed}}" class="load-error" bindtap="retry">

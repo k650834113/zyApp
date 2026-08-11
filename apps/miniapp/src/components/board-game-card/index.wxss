@@ -1,3 +1,8 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
 .game-card {
   position: relative;
   margin-top: 22rpx;

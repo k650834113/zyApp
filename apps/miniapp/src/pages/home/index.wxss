@@ -77,8 +77,13 @@
 }
 
 .edit-profile {
+  box-sizing: border-box;
   width: 76rpx;
   min-width: 76rpx;
+  max-width: 76rpx;
+  height: 50rpx;
+  min-height: 50rpx;
+  flex: 0 0 76rpx;
   margin: 0 0 0 12rpx;
   border: 1rpx solid rgba(255, 255, 255, 0.72);
   border-radius: 14rpx;
@@ -427,9 +432,16 @@
 }
 
 .recharge-rule-info {
+  display: flex;
+  box-sizing: border-box;
   width: 42rpx;
   min-width: 42rpx;
+  max-width: 42rpx;
   height: 42rpx;
+  min-height: 42rpx;
+  flex: 0 0 42rpx;
+  align-items: center;
+  justify-content: center;
   margin: 0;
   border: 2rpx solid #b7b4ac;
   border-radius: 50%;
@@ -438,7 +450,7 @@
   background: transparent;
   font-size: 22rpx;
   font-weight: 800;
-  line-height: 38rpx;
+  line-height: 1;
 }
 
 .recharge-result {
@@ -581,6 +593,8 @@
   .edit-profile {
     width: 68rpx;
     min-width: 68rpx;
+    max-width: 68rpx;
+    flex-basis: 68rpx;
     margin-left: 8rpx;
   }
 
