@@ -11,6 +11,7 @@ coverage/
 .tmp/
 .tmp-*/
 .worktrees/
+.superpowers/
 output/
 outputs/
 infra/deploy/backups/
