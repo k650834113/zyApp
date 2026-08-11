@@ -122,7 +122,7 @@ describe('board-game metadata service', () => {
     await expect(fixture.instance.details(principal, actorId, '13'))
       .resolves.toMatchObject({ externalId: '13' })
     expect(fixture.gate.cached).toHaveBeenCalledWith(
-      'zyapp:bgg:details:13', 604_800, expect.any(Function)
+      'zyapp:bgg:details:text:13', 604_800, expect.any(Function)
     )
     await expect(fixture.instance.details(principal, actorId, '1x'))
       .rejects.toMatchObject({ status: 400 })
@@ -171,6 +171,11 @@ describe('board-game metadata service', () => {
     await expect(fixture.instance.cacheCover(principal, actorId, '13'))
       .resolves.toMatchObject({ source: 'bgg', externalId: '13' })
     expect(metadata.details).toHaveBeenCalledWith('13')
+    expect(fixture.gate.cached).toHaveBeenCalledWith(
+      'zyapp:bgg:details:images:13',
+      604_800,
+      expect.any(Function)
+    )
     expect(fixture.covers.cacheFromBgg).toHaveBeenCalledWith(
       '13',
       'https://cf.geekdo-images.com/catan.jpg'

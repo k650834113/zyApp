@@ -129,7 +129,7 @@ export class BoardGameMetadataService {
   private async loadDetails(id: string): Promise<BoardGameMetadataDetails> {
     try {
       return await this.gate.cached(
-        `zyapp:bgg:details:${id}`,
+        `zyapp:bgg:details:${this.adapter.imagesEnabled ? 'images' : 'text'}:${id}`,
         604_800,
         () => this.adapter.details(id)
       )
