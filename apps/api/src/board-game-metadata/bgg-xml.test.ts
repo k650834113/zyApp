@@ -22,6 +22,25 @@ describe('BGG XML parsing', () => {
     }])
   })
 
+  it('uses the matched alternate name when a search result omits its primary name', () => {
+    const result = parseBggSearchXml(`
+      <items total="1">
+        <item type="boardgame" id="134277">
+          <name type="alternate" value="The 7 Wonders of Catan"/>
+          <yearpublished value="2012"/>
+        </item>
+      </items>
+    `)
+
+    expect(result).toEqual([{
+      source: 'bgg',
+      externalId: '134277',
+      primaryName: 'The 7 Wonders of Catan',
+      alternateNames: [],
+      yearPublished: 2012
+    }])
+  })
+
   it('rounds complexity, maps Chinese labels and never returns descriptions', () => {
     const details = parseBggThingXml(`
       <items>

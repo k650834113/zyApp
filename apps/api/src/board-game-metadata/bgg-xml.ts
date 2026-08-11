@@ -70,7 +70,8 @@ function itemNames(item: JsonObject): {
   const names = array(item.name).map((value, index) =>
     object(value, `name ${index + 1}`)
   )
-  const primary = names.find((name) => attribute(name, 'type') === 'primary')
+  const primary =
+    names.find((name) => attribute(name, 'type') === 'primary') ?? names[0]
   const primaryName = boundedText(
     primary ? attribute(primary, 'value') : undefined,
     'primary name'
