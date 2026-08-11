@@ -53,6 +53,51 @@ BGG integration is disabled by default. After written approval, place the XML AP
 
 Set `BGG_METADATA_MODE=xmlapi` only after the token has passed an isolated real-request check. Test and production APIs read the same explicit mode, but must still be deployed and verified test-first. Keep `BGG_PUBLIC_IMAGES_ENABLED=false` unless the written license explicitly permits public image use. The deployment wrappers accept `-BggTokenPath`, upload it separately from source and environment files, install it with owner-only permissions, and remove the temporary remote copy.
 
+## Deployment SSH identity
+
+The repository stores only the authorized public key and target metadata in
+`infra/deploy/zyapp-deploy.pub` and `infra/deploy/ssh-identity.json`. Every
+deployment wrapper validates the selected private key against that public key
+before reading release artifacts or opening an SSH connection. A private key
+with a different fingerprint is rejected locally.
+
+On the authorized Windows deployment machine, set the private-key path once:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  'ZYAPP_SSH_KEY_PATH',
+  'E:\证书\codex.pem',
+  'User'
+)
+$env:ZYAPP_SSH_KEY_PATH = 'E:\证书\codex.pem'
+```
+
+Keep this idempotent profile in `C:\Users\泉\.ssh\config` for direct
+diagnostics:
+
+```sshconfig
+Host zyapp-server
+  HostName 124.220.69.209
+  User ubuntu
+  IdentityFile E:/证书/codex.pem
+  IdentitiesOnly yes
+  BatchMode yes
+  StrictHostKeyChecking accept-new
+```
+
+Verify it without changing server state:
+
+```powershell
+ssh zyapp-server true
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File infra/scripts/resolve-deployment-ssh-identity.ps1
+```
+
+`-HostName`, `-SshUser` and `-KeyPath` remain available as explicit
+overrides, but an override key must have the authorized fingerprint. The
+private key itself must never be copied into the repository or a deployment
+archive.
+
 ## Start
 
 ```bash
@@ -70,9 +115,7 @@ The Windows deployment wrapper can install Docker, upload only the current deskt
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/deploy-production.ps1 `
-  -HostName 203.0.113.10 `
-  -SshUser ubuntu `
-  -KeyPath C:\Keys\server.pem
+  -BggTokenPath E:\path\to\bgg-token
 ```
 
 ## Backup

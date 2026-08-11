@@ -1,11 +1,9 @@
 param(
-  [Parameter(Mandatory = $true)]
   [ValidatePattern('^[a-zA-Z0-9.-]+$')]
   [string]$HostName,
 
-  [string]$SshUser = 'ubuntu',
+  [string]$SshUser,
 
-  [Parameter(Mandatory = $true)]
   [string]$KeyPath,
 
   [string]$RemoteDirectory = '/opt/zyapp',
@@ -16,15 +14,17 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$sshIdentity = (& (Join-Path $PSScriptRoot 'resolve-deployment-ssh-identity.ps1') `
+  -HostName $HostName `
+  -SshUser $SshUser `
+  -KeyPath $KeyPath) | ConvertFrom-Json
+$HostName = $sshIdentity.hostName
+$SshUser = $sshIdentity.sshUser
 if ([string]::IsNullOrWhiteSpace($EnvironmentPath)) {
   $EnvironmentPath = Join-Path $PSScriptRoot '..\deploy\production.env'
 }
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$key = [IO.Path]::GetFullPath($KeyPath)
 $environment = [IO.Path]::GetFullPath($EnvironmentPath)
-if (-not (Test-Path -LiteralPath $key -PathType Leaf)) {
-  throw "SSH private key not found: $key"
-}
 if (-not (Test-Path -LiteralPath $environment -PathType Leaf)) {
   throw "Deployment environment not found: $environment"
 }
@@ -69,9 +69,14 @@ $archive = Join-Path $tempDirectory 'zyapp-source.tgz'
 if ($LASTEXITCODE -ne 0) { throw 'Failed to create deployment archive.' }
 
 $target = "$SshUser@$HostName"
-$sshOptions = @('-i', $key, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new')
+$sshOptions = @($sshIdentity.sshOptions)
 & ssh @sshOptions $target 'mkdir -p /tmp/zyapp-test-release/updates'
-if ($LASTEXITCODE -ne 0) { throw 'SSH connection failed.' }
+if ($LASTEXITCODE -ne 0) {
+  throw (
+    "SSH connection to $target failed after validating key fingerprint " +
+    "$($sshIdentity.actualFingerprint). Check server authorized_keys."
+  )
+}
 & scp @sshOptions $archive "${target}:/tmp/zyapp-test-release/zyapp-source.tgz"
 if ($LASTEXITCODE -ne 0) { throw 'Source upload failed.' }
 & scp @sshOptions $environment "${target}:/tmp/zyapp-test-release/production.env"

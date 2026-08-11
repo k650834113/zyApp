@@ -1,11 +1,9 @@
 param(
-  [Parameter(Mandatory = $true)]
   [ValidatePattern('^[a-zA-Z0-9.-]+$')]
   [string]$HostName,
 
-  [string]$SshUser = 'ubuntu',
+  [string]$SshUser,
 
-  [Parameter(Mandatory = $true)]
   [string]$KeyPath,
 
   [Parameter(Mandatory = $true)]
@@ -22,6 +20,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$sshIdentity = (& (Join-Path $PSScriptRoot 'resolve-deployment-ssh-identity.ps1') `
+  -HostName $HostName `
+  -SshUser $SshUser `
+  -KeyPath $KeyPath) | ConvertFrom-Json
+$HostName = $sshIdentity.hostName
+$SshUser = $sshIdentity.sshUser
 
 function Resolve-RequiredFile(
   [string]$Path,
@@ -52,7 +56,11 @@ function Invoke-RetryableNativeCommand(
       return
     }
     if ($attempt -eq $MaximumAttempts) {
-      throw "$Description failed after $MaximumAttempts attempts."
+      throw (
+        "$Description failed after $MaximumAttempts attempts for " +
+        "$SshUser@$HostName with validated SSH fingerprint " +
+        "$($sshIdentity.actualFingerprint)."
+      )
     }
     $delaySeconds = 5 * $attempt
     Write-Warning (
@@ -64,7 +72,6 @@ function Invoke-RetryableNativeCommand(
 }
 
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$key = Resolve-RequiredFile $KeyPath 'SSH private key'
 $candidateCommit = (& git -C $workspace rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $candidateCommit -cne $ExpectedCommit) {
   throw "Expected candidate commit $ExpectedCommit, got $candidateCommit."
@@ -129,10 +136,7 @@ if (-not $expectedMigrationVersion) {
 }
 
 $target = "$SshUser@$HostName"
-$sshOptions = @(
-  '-i', $key,
-  '-o', 'BatchMode=yes',
-  '-o', 'StrictHostKeyChecking=accept-new',
+$sshOptions = @($sshIdentity.sshOptions) + @(
   '-o', 'ConnectTimeout=15',
   '-o', 'ServerAliveInterval=15',
   '-o', 'ServerAliveCountMax=12'

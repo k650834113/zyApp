@@ -1,11 +1,9 @@
 param(
-  [Parameter(Mandatory = $true)]
   [ValidatePattern('^[a-zA-Z0-9.-]+$')]
   [string]$HostName,
 
-  [string]$SshUser = 'ubuntu',
+  [string]$SshUser,
 
-  [Parameter(Mandatory = $true)]
   [string]$KeyPath,
 
   [string]$RemoteDirectory = '/opt/zyapp',
@@ -27,6 +25,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$sshIdentity = (& (Join-Path $PSScriptRoot 'resolve-deployment-ssh-identity.ps1') `
+  -HostName $HostName `
+  -SshUser $SshUser `
+  -KeyPath $KeyPath) | ConvertFrom-Json
+$HostName = $sshIdentity.hostName
+$SshUser = $sshIdentity.sshUser
 
 function Resolve-RequiredFile(
   [string]$Path,
@@ -40,7 +44,6 @@ function Resolve-RequiredFile(
 }
 
 $workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$key = Resolve-RequiredFile $KeyPath 'SSH private key'
 $environment = Resolve-RequiredFile $EnvironmentPath 'Deployment environment'
 $apiV3Key = Resolve-RequiredFile $ApiV3KeyPath 'WeChat Pay APIv3 key file'
 $merchantCertificate = Resolve-RequiredFile `
@@ -126,16 +129,17 @@ try {
 }
 
 $target = "$SshUser@$HostName"
-$sshOptions = @(
-  '-i', $key,
-  '-o', 'BatchMode=yes',
-  '-o', 'StrictHostKeyChecking=accept-new'
-)
+$sshOptions = @($sshIdentity.sshOptions)
 $remoteTemporaryDirectory = '/tmp/zyapp-miniapp-payment'
 
 & ssh @sshOptions $target `
   "rm -rf '$remoteTemporaryDirectory' && mkdir -p '$remoteTemporaryDirectory'"
-if ($LASTEXITCODE -ne 0) { throw 'SSH connection failed.' }
+if ($LASTEXITCODE -ne 0) {
+  throw (
+    "SSH connection to $target failed after validating key fingerprint " +
+    "$($sshIdentity.actualFingerprint). Check server authorized_keys."
+  )
+}
 
 $uploads = @(
   @{ Local = $resolvedArchive; Remote = 'source.tgz' },
