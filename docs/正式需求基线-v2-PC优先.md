@@ -57,3 +57,7 @@ BGG Commercial Application 已于 2026-08-06 审核通过，服务端 Token 的�
 - 测试与生产使用独立持久卷，缓存能力通过真实测试环境验收后再启用生产图片开关。
 
 完整交互、数据流、安全边界和验收清单见 [PC 独立桌游管理、BGG 修复与封面缓存设计](./superpowers/specs/2026-08-11-pc-board-game-management-bgg-cover-cache-design.md)。
+
+## 2026-08-12：BGG 封面图片授权与生产启用确认
+
+负责人明确确认现有 BGG 商业授权允许 ZyApp 获取、缓存并在 PC 与小程序中展示 BGG 封面图片。按测试先行门禁完成真实卡坦岛封面的详情解析、HTTPS 下载、图片签名与媒体类型校验、测试/生产独立持久卷写入、公开 URL 回读和 SHA-256 一致性验证后，测试与生产均启用 `BGG_PUBLIC_IMAGES_ENABLED=true`。保存业务记录时仍只允许写入 ZyApp 自有缓存 URL，禁止持久化 BGG CDN 直链，并继续展示 `Powered by BGG` 署名。
