@@ -38,6 +38,8 @@ import { WechatPaymentController } from './wechat-payment.controller'
 import { BoardGameMetadataController } from './board-game-metadata/board-game-metadata.controller'
 import { BoardGameMetadataService } from './board-game-metadata/board-game-metadata.service'
 import { BggRequestGate } from './board-game-metadata/request-gate'
+import { BoardGameCoverController } from './board-game-cover.controller'
+import { BoardGameCoverCacheService } from './board-game-cover-cache.service'
 
 @Module({
   imports: [InfrastructureModule],
@@ -56,7 +58,8 @@ import { BggRequestGate } from './board-game-metadata/request-gate'
     WechatPaymentController,
     EmployeeMobileController,
     TenantAdminController,
-    BoardGameMetadataController
+    BoardGameMetadataController,
+    BoardGameCoverController
   ],
   providers: [
     DeviceService,
@@ -81,7 +84,8 @@ import { BggRequestGate } from './board-game-metadata/request-gate'
     EmployeeFinancialCommandService,
     TenantAdminService,
     BggRequestGate,
-    BoardGameMetadataService
+    BoardGameMetadataService,
+    BoardGameCoverCacheService
   ]
 })
 export class AppModule {}

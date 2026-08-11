@@ -7,6 +7,7 @@ export type ApiConfig = {
   deviceEnrollmentSecret: string
   desktopUpdateDirectory: string
   memberAvatarDirectory?: string
+  boardGameCoverDirectory?: string
   miniappPublicBaseUrl?: string
   phoneVerificationSecret: string
   phoneVerificationMode: 'mock' | 'disabled'
@@ -331,6 +332,9 @@ export function readApiConfig(
     memberAvatarDirectory:
       environment.MEMBER_AVATAR_DIRECTORY?.trim() ||
       `./var/member-avatars/${deploymentEnvironment}`,
+    boardGameCoverDirectory:
+      environment.BOARD_GAME_COVER_DIRECTORY?.trim() ||
+      `./var/board-game-covers/${deploymentEnvironment}`,
     miniappPublicBaseUrl: publicBaseUrl,
     phoneVerificationSecret,
     phoneVerificationMode,

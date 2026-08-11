@@ -84,6 +84,7 @@ describe('API configuration', () => {
         DEVICE_ENROLLMENT_SECRET: 'local-enrollment-secret-32-characters',
         DESKTOP_UPDATE_DIRECTORY: 'C:/updates/windows',
         MEMBER_AVATAR_DIRECTORY: 'C:/member-avatars/test',
+        BOARD_GAME_COVER_DIRECTORY: 'C:/board-game-covers/test',
         MINIAPP_PUBLIC_BASE_URL: 'https://judian.icu/test',
         PHONE_VERIFICATION_SECRET:
           'local-phone-verification-secret-32-characters',
@@ -104,6 +105,7 @@ describe('API configuration', () => {
       deviceEnrollmentSecret: 'local-enrollment-secret-32-characters',
       desktopUpdateDirectory: 'C:/updates/windows',
       memberAvatarDirectory: 'C:/member-avatars/test',
+      boardGameCoverDirectory: 'C:/board-game-covers/test',
       miniappPublicBaseUrl: 'https://judian.icu/test',
       phoneVerificationSecret:
         'local-phone-verification-secret-32-characters',
@@ -202,6 +204,7 @@ describe('API configuration', () => {
         DEPLOYMENT_ENVIRONMENT: 'production',
         MINIAPP_PUBLIC_BASE_URL: 'https://judian.icu',
         MEMBER_AVATAR_DIRECTORY: '/app/data/member-avatars',
+        BOARD_GAME_COVER_DIRECTORY: '/app/data/board-game-covers',
         WECHAT_PAY_NOTIFY_URL:
           'https://judian.icu/v1/payments/wechat/recharge/notify',
         WECHAT_PAY_OUT_TRADE_NO_PREFIX: 'ZYP-'
@@ -213,6 +216,9 @@ describe('API configuration', () => {
       'https://judian.icu/v1/payments/wechat/recharge/notify'
     )
     expect(config.memberAvatarDirectory).toBe('/app/data/member-avatars')
+    expect(config.boardGameCoverDirectory).toBe(
+      '/app/data/board-game-covers'
+    )
     expect(config.miniappPublicBaseUrl).toBe('https://judian.icu')
   })
 

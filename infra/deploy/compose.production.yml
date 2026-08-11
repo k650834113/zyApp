@@ -83,6 +83,7 @@ services:
       DEVICE_ENROLLMENT_SECRET: ${DEVICE_ENROLLMENT_SECRET:?DEVICE_ENROLLMENT_SECRET is required}
       DESKTOP_UPDATE_DIRECTORY: /app/updates/windows
       MEMBER_AVATAR_DIRECTORY: /app/data/member-avatars
+      BOARD_GAME_COVER_DIRECTORY: /app/data/board-game-covers
       MINIAPP_PUBLIC_BASE_URL: https://${MINIAPP_DOMAIN:?MINIAPP_DOMAIN is required}
       PHONE_VERIFICATION_SECRET: ${PHONE_VERIFICATION_SECRET:?PHONE_VERIFICATION_SECRET is required}
       PHONE_VERIFICATION_MODE: disabled
@@ -107,6 +108,7 @@ services:
       - ${WECHATPAY_SECRETS_DIRECTORY:-/opt/zyapp/secrets/wechatpay}:/run/secrets/wechatpay:ro
       - ${BGG_SECRETS_DIRECTORY:-/opt/zyapp/secrets/bgg}:/run/secrets/bgg:ro
       - member-avatar-production:/app/data/member-avatars
+      - board-game-cover-production:/app/data/board-game-covers
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -155,6 +157,7 @@ services:
       DEVICE_ENROLLMENT_SECRET: ${TEST_DEVICE_ENROLLMENT_SECRET:?TEST_DEVICE_ENROLLMENT_SECRET is required}
       DESKTOP_UPDATE_DIRECTORY: /app/updates/windows
       MEMBER_AVATAR_DIRECTORY: /app/data/member-avatars
+      BOARD_GAME_COVER_DIRECTORY: /app/data/board-game-covers
       MINIAPP_PUBLIC_BASE_URL: https://${MINIAPP_DOMAIN:?MINIAPP_DOMAIN is required}/test
       PHONE_VERIFICATION_SECRET: ${TEST_PHONE_VERIFICATION_SECRET:?TEST_PHONE_VERIFICATION_SECRET is required}
       PHONE_VERIFICATION_MODE: disabled
@@ -180,6 +183,7 @@ services:
       - ${WECHATPAY_SECRETS_DIRECTORY:-/opt/zyapp/secrets/wechatpay}:/run/secrets/wechatpay:ro
       - ${BGG_SECRETS_DIRECTORY:-/opt/zyapp/secrets/bgg}:/run/secrets/bgg:ro
       - member-avatar-test:/app/data/member-avatars
+      - board-game-cover-test:/app/data/board-game-covers
     depends_on:
       migrate-test:
         condition: service_completed_successfully
@@ -268,6 +272,8 @@ volumes:
   caddy-config:
   member-avatar-production:
   member-avatar-test:
+  board-game-cover-production:
+  board-game-cover-test:
 
 networks:
   frontend:
