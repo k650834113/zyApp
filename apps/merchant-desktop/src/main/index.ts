@@ -293,6 +293,7 @@ import {
   claimOfflineFinancialLease,
   claimCloudCashierCommand,
   claimCloudEmployeeFinancialCommand,
+  cacheCloudBoardGameCover,
   completeCloudCashierCommand,
   completeCloudEmployeeFinancialCommand,
   createCloudDevicePairingCode,
@@ -347,6 +348,10 @@ import {
   importBoardGameImage,
   readManagedBoardGameImage
 } from './board-game-image'
+import {
+  isBggCdnImageUrl,
+  persistBoardGameWithResolvedCover
+} from './board-game-cover-save'
 
 let mainWindow: BrowserWindow | null = null
 let localDatabase: LocalDatabase | null = null
@@ -1995,6 +2000,9 @@ function requireBoardGameFields(
           max: 100_000
         })
   const imageUrl = optionalText(request.imageUrl, '图片 URL', 2048)
+  if (imageUrl && isBggCdnImageUrl(imageUrl)) {
+    throw new TypeError('BGG 封面必须先缓存到 ZyApp 服务器')
+  }
   const localImagePath = optionalText(
     request.localImagePath,
     '本地图片路径',
@@ -4424,30 +4432,56 @@ function registerIpcHandlers(): void {
   )
   ipcMain.handle(
     IPC_CHANNELS.boardGameCreate,
-    (event, request: CreateBoardGameRequest) => {
+    async (event, request: CreateBoardGameRequest) => {
       const session = requireSession(event, PERMISSIONS.contentManage)
       const database = requireDatabase()
-      return createBoardGame(
-        database.connection,
-        requireMemberWriteContext(session),
-        requireBoardGameFields(request)
+      return persistBoardGameWithResolvedCover(
+        request,
+        async (externalId) => {
+          if (!cloudConnection) {
+            throw new Error('保存 BGG 封面需要连接 ZyApp 云端')
+          }
+          return cacheCloudBoardGameCover(
+            cloudConnection,
+            session.id,
+            externalId
+          )
+        },
+        (prepared) => createBoardGame(
+          database.connection,
+          requireMemberWriteContext(session),
+          requireBoardGameFields(prepared)
+        )
       )
     }
   )
   ipcMain.handle(
     IPC_CHANNELS.boardGameUpdate,
-    (event, request: UpdateBoardGameRequest) => {
+    async (event, request: UpdateBoardGameRequest) => {
       const session = requireSession(event, PERMISSIONS.contentManage)
       const database = requireDatabase()
-      return updateBoardGame(
-        database.connection,
-        requireMemberWriteContext(session),
-        requireText(request?.boardGameId, '桌游编号', {
-          min: 1,
-          max: 100
-        }),
-        requireBoardGameFields(request),
-        requireText(request?.reason, '修改原因', { min: 2, max: 200 })
+      return persistBoardGameWithResolvedCover(
+        request,
+        async (externalId) => {
+          if (!cloudConnection) {
+            throw new Error('保存 BGG 封面需要连接 ZyApp 云端')
+          }
+          return cacheCloudBoardGameCover(
+            cloudConnection,
+            session.id,
+            externalId
+          )
+        },
+        (prepared) => updateBoardGame(
+          database.connection,
+          requireMemberWriteContext(session),
+          requireText(prepared?.boardGameId, '桌游编号', {
+            min: 1,
+            max: 100
+          }),
+          requireBoardGameFields(prepared),
+          requireText(prepared?.reason, '修改原因', { min: 2, max: 200 })
+        )
       )
     }
   )

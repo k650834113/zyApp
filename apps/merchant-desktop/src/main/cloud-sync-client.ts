@@ -3,6 +3,7 @@ import type {
   BoardGameMetadataCandidate,
   BoardGameMetadataDetails,
   BoardGameMetadataDetailsRequest,
+  CacheBoardGameCoverResult,
   BusinessTemplateSummary,
   CashierCommandExecution,
   CashierCommandSummary,
@@ -278,6 +279,29 @@ export async function getCloudBoardGameMetadataDetails(
     {
       headers: headers(connection),
       signal: AbortSignal.timeout(BOARD_GAME_METADATA_REQUEST_TIMEOUT_MILLISECONDS)
+    }
+  )
+  return responseJson(response)
+}
+
+export async function cacheCloudBoardGameCover(
+  connection: CloudConnection,
+  actorId: string,
+  externalId: string,
+  fetchImpl: Fetch = fetch
+): Promise<CacheBoardGameCoverResult> {
+  if (!/^[1-9]\d*$/.test(externalId)) {
+    throw new TypeError('BGG cover cache request is invalid')
+  }
+  const baseUrl = normalizeCloudBaseUrl(connection.baseUrl)
+  const response = await fetchImpl(
+    `${baseUrl}/v1/board-game-metadata/bgg/${encodeURIComponent(externalId)}/cache-cover?actorId=${encodeURIComponent(actorId)}`,
+    {
+      method: 'POST',
+      headers: headers(connection),
+      signal: AbortSignal.timeout(
+        BOARD_GAME_METADATA_REQUEST_TIMEOUT_MILLISECONDS
+      )
     }
   )
   return responseJson(response)

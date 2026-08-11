@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   claimCloudCashierCommand,
   claimCloudEmployeeFinancialCommand,
+  cacheCloudBoardGameCover,
   completeCloudCashierCommand,
   completeCloudEmployeeFinancialCommand,
   enrollCloudDevice,
@@ -47,6 +48,12 @@ describe('desktop cloud sync client', () => {
         sourceUrl: 'https://boardgamegeek.com/boardgame/13',
         fetchedAt: '2026-08-03T00:00:00.000Z'
       }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        source: 'bgg', externalId: '13',
+        cachedUrl:
+          `https://judian.icu/test/v1/public/board-game-covers/${'a'.repeat(64)}.jpg`,
+        contentType: 'image/jpeg', sha256: 'a'.repeat(64)
+      }), { status: 200 }))
 
     await getCloudBoardGameMetadataStatus(connection, actorId, fetchMock)
     await searchCloudBoardGameMetadata(
@@ -61,6 +68,7 @@ describe('desktop cloud sync client', () => {
       { source: 'bgg', externalId: '13' },
       fetchMock
     )
+    await cacheCloudBoardGameCover(connection, actorId, '13', fetchMock)
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       `${connection.baseUrl}/v1/board-game-metadata/status?actorId=${actorId}`
@@ -71,6 +79,9 @@ describe('desktop cloud sync client', () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe(
       `${connection.baseUrl}/v1/board-game-metadata/bgg/13?actorId=${actorId}`
     )
+    expect(fetchMock.mock.calls[3]?.[0]).toBe(
+      `${connection.baseUrl}/v1/board-game-metadata/bgg/13/cache-cover?actorId=${actorId}`
+    )
     for (const call of fetchMock.mock.calls) {
       expect(call[1]).not.toHaveProperty('body')
       expect(call[1]?.headers).toMatchObject({
@@ -79,8 +90,9 @@ describe('desktop cloud sync client', () => {
       })
       expect(JSON.stringify(call[1]?.headers)).not.toContain('server-only')
     }
+    expect(fetchMock.mock.calls[3]?.[1]?.method).toBe('POST')
     expect(timeoutSpy.mock.calls.map(([milliseconds]) => milliseconds))
-      .toEqual([10_000, 25_000, 25_000])
+      .toEqual([10_000, 25_000, 25_000, 25_000])
   })
 
   it('propagates metadata cloud errors without retrying in the renderer', async () => {
