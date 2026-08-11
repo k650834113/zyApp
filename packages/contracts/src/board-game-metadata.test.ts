@@ -1,7 +1,10 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type {
+  BoardGameCoverSource,
   BoardGameMetadataDetails,
   BoardGameSummary,
+  CacheBoardGameCoverResult,
+  CreateBoardGameRequest,
   PublicBoardGameSummary,
   SaveBoardGameFields
 } from './index'
@@ -47,8 +50,23 @@ describe('board-game metadata contracts', () => {
       metadataImportedAt: '2026-08-03T00:00:00.000Z',
       missingParts: []
     } satisfies SaveBoardGameFields
+    const coverSource = 'bgg' satisfies BoardGameCoverSource
+    const cachedCover = {
+      source: 'bgg',
+      externalId: '13',
+      cachedUrl:
+        `https://judian.icu/test/v1/public/board-game-covers/${'a'.repeat(64)}.jpg`,
+      contentType: 'image/jpeg',
+      sha256: 'a'.repeat(64)
+    } satisfies CacheBoardGameCoverResult
+    const createRequest = {
+      ...saved,
+      coverSource
+    } satisfies CreateBoardGameRequest
 
     expect(details.externalId).toBe(String(saved.bggId))
+    expect(cachedCover.cachedUrl).toContain('/v1/public/board-game-covers/')
+    expect(createRequest.coverSource).toBe('bgg')
     expectTypeOf<BoardGameSummary>().toHaveProperty('complexityRating')
     expectTypeOf<PublicBoardGameSummary>().toHaveProperty('sourceAttribution')
     expect(IPC_CHANNELS).toMatchObject({

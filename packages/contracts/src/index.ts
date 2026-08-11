@@ -765,6 +765,12 @@ export type SetAnnouncementStatusRequest = {
 export type BoardGameDifficulty = 'light' | 'medium' | 'heavy'
 export type BoardGameRecordStatus = 'active' | 'disabled'
 export type BoardGameMetadataSource = 'bgg'
+export type BoardGameCoverSource =
+  | 'none'
+  | 'bgg'
+  | 'local'
+  | 'external'
+  | 'cached'
 
 export type BoardGameMetadataAvailability = {
   source: BoardGameMetadataSource
@@ -797,6 +803,14 @@ export type BoardGameMetadataDetails = BoardGameMetadataCandidate & {
 export type BoardGameMetadataDetailsRequest = {
   source: BoardGameMetadataSource
   externalId: string
+}
+
+export type CacheBoardGameCoverResult = {
+  source: 'bgg'
+  externalId: string
+  cachedUrl: string
+  contentType: 'image/jpeg' | 'image/png' | 'image/webp'
+  sha256: string
 }
 
 export type BoardGameMissingPart = {
@@ -865,11 +879,14 @@ export type SaveBoardGameFields = {
   }>
 }
 
-export type CreateBoardGameRequest = SaveBoardGameFields
+export type CreateBoardGameRequest = SaveBoardGameFields & {
+  coverSource?: BoardGameCoverSource
+}
 
 export type UpdateBoardGameRequest = SaveBoardGameFields & {
   boardGameId: Identifier
   reason: string
+  coverSource?: BoardGameCoverSource
 }
 
 export type UpdateBoardGameOperationsRequest = {
