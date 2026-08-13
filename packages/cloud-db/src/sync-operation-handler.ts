@@ -96,6 +96,7 @@ type AnnouncementProjection = {
 }
 
 type BoardGameProjection = {
+  baseGameId: string | null
   name: string
   introduction: string
   categories: string[]
@@ -573,6 +574,7 @@ export function parseBoardGameProjection(
     throw new Error('boardGame.maxMinutes must not be shorter than minMinutes')
   }
   return {
+    baseGameId: nullableText(after.baseGameId, 'boardGame.baseGameId'),
     name: text(after.name, 'boardGame.name'),
     introduction: text(after.introduction, 'boardGame.introduction'),
     categories,
@@ -1667,20 +1669,51 @@ async function confirmBoardGame(
     return markSyncConflict(client, operation, 'unknown',
       'board game belongs to another tenant')
   }
+  if (projection.baseGameId === operation.aggregate_id) {
+    return markSyncConflict(client, operation, 'unknown',
+      'an expansion cannot use itself as its base game')
+  }
+  if (projection.baseGameId) {
+    const children = await client.query(
+      `SELECT 1 FROM cloud_board_game
+       WHERE tenant_id = $1 AND base_game_id = $2 LIMIT 1`,
+      [operation.tenant_id, operation.aggregate_id]
+    )
+    if (children.rows[0]) {
+      return markSyncConflict(client, operation, 'unknown',
+        'a base game with expansions cannot become an expansion')
+    }
+    const baseGame = await client.query<{
+      tenant_id: string
+      base_game_id: string | null
+    }>(
+      `SELECT tenant_id, base_game_id FROM cloud_board_game
+       WHERE id = $1 FOR UPDATE`,
+      [projection.baseGameId]
+    )
+    if (
+      baseGame.rows[0]?.tenant_id !== operation.tenant_id ||
+      baseGame.rows[0]?.base_game_id !== null
+    ) {
+      return markSyncConflict(client, operation, 'unknown',
+        'base game must be a top-level game in the same tenant')
+    }
+  }
   const version = await appendEvent(client, operation, 'board_game')
   await client.query(
     `INSERT INTO cloud_board_game
-     (id, tenant_id, store_id, name, introduction, categories_json,
+     (id, tenant_id, store_id, base_game_id, name, introduction, categories_json,
       min_players, max_players, min_minutes, max_minutes, difficulty,
       complexity_rating, quantity, record_status, available,
       customer_consigned, missing_pieces, private, recommended, image_url,
       bgg_id, metadata_source, metadata_imported_at, customer_note,
       internal_note, consignor_nickname, missing_parts_json, server_version,
       created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12,
-             $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23,
-             $24, $25, $26, $27::jsonb, $28, $29, $30)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13,
+             $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
+             $25, $26, $27, $28::jsonb, $29, $30, $31)
      ON CONFLICT (id) DO UPDATE SET
+       base_game_id = EXCLUDED.base_game_id,
        name = EXCLUDED.name,
        introduction = EXCLUDED.introduction,
        categories_json = EXCLUDED.categories_json,
@@ -1701,6 +1734,7 @@ async function confirmBoardGame(
       operation.aggregate_id,
       operation.tenant_id,
       operation.store_id,
+      projection.baseGameId,
       projection.name,
       projection.introduction,
       JSON.stringify(projection.categories),

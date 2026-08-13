@@ -132,6 +132,7 @@ export function BoardGameRow({
       </div>
       <div className="board-game-row-summary">
         <h2>{game.name}</h2>
+        {game.baseGameId ? <span className="board-game-kind">扩展</span> : null}
         <p>{game.introduction}</p>
         <div className="activity-tags board-game-row-categories">
           {game.categories.map((category) => (
@@ -500,6 +501,11 @@ export function BoardGamePage({
 
       {gameEditor ? (
         <BoardGameEditorModal
+          baseGames={games
+            .filter((game) =>
+              game.baseGameId === null && game.id !== gameEditor.current?.id
+            )
+            .map(({ id, name }) => ({ id, name }))}
           busy={busy}
           coverCacheError={coverCacheError}
           editor={gameEditor}

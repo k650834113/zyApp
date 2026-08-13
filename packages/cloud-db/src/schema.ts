@@ -495,6 +495,7 @@ export const cloudBoardGames = pgTable(
   'cloud_board_game',
   {
     id: uuid('id').primaryKey(),
+    baseGameId: uuid('base_game_id'),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
     storeId: uuid('store_id').notNull().references(() => stores.id),
     name: text('name').notNull(),
@@ -542,6 +543,10 @@ export const cloudBoardGames = pgTable(
       table.private,
       table.recommended,
       table.available
+    ),
+    index('idx_cloud_board_game_base_game').on(
+      table.tenantId,
+      table.baseGameId
     )
   ]
 )

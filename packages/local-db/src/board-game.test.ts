@@ -57,12 +57,26 @@ describe('board-game repository', () => {
       }
       const created = createBoardGame(local.connection, context, fields)
       expect(created).toMatchObject({
+        baseGameId: null,
         complexityRating: 2.3,
         difficulty: 'medium',
         bggId: 13,
         metadataSource: 'bgg',
         metadataImportedAt: '2026-08-03T00:00:00.000Z'
       })
+      const expansion = createBoardGame(local.connection, context, {
+        ...fields,
+        name: 'Cascadia Expansion',
+        bggId: 14,
+        baseGameId: created.id
+      })
+      expect(expansion.baseGameId).toBe(created.id)
+      expect(() => createBoardGame(local.connection, context, {
+        ...fields,
+        name: 'Nested Expansion',
+        bggId: 16,
+        baseGameId: expansion.id
+      })).toThrow(/base game/i)
       const { complexityRating: _complexityRating, ...fieldsWithoutComplexity } =
         fields
       expect(() =>
@@ -75,7 +89,7 @@ describe('board-game repository', () => {
         createBoardGame(local.connection, context, {
           ...fieldsWithoutComplexity,
           name: 'Public game without complexity',
-          bggId: 14
+          bggId: 17
         })
       ).toThrow(/complexity/i)
       const privateGame = createBoardGame(local.connection, context, {
@@ -106,7 +120,7 @@ describe('board-game repository', () => {
       expect(updated.missingParts).toEqual([
         expect.objectContaining({ name: 'Nature token', quantity: 2 })
       ])
-      expect(listBoardGames(local.connection, store)).toHaveLength(2)
+      expect(listBoardGames(local.connection, store)).toHaveLength(3)
       const otherStoreId = randomUUID()
       const now = new Date().toISOString()
       local.connection.prepare(
@@ -117,7 +131,8 @@ describe('board-game repository', () => {
                  'automatic', ?, ?)`
       ).run(otherStoreId, store.tenantId, now, now)
       const otherContext = { ...store, storeId: otherStoreId, actor: manager }
-      expect(listBoardGames(local.connection, otherContext)[0]?.id).toBe(created.id)
+      expect(listBoardGames(local.connection, otherContext).map((game) => game.id))
+        .toContain(created.id)
       updateBoardGameOperations(local.connection, otherContext, {
         boardGameId: created.id,
         available: false,
@@ -127,11 +142,19 @@ describe('board-game repository', () => {
         missingParts: [],
         reason: 'Other-store state'
       })
-      expect(listBoardGames(local.connection, store)[0]).toMatchObject({
+      expect(
+        listBoardGames(local.connection, store).find(
+          (game) => game.id === created.id
+        )
+      ).toMatchObject({
         available: true,
         private: false
       })
-      expect(listBoardGames(local.connection, otherContext)[0]).toMatchObject({
+      expect(
+        listBoardGames(local.connection, otherContext).find(
+          (game) => game.id === created.id
+        )
+      ).toMatchObject({
         available: false,
         private: true
       })
@@ -141,7 +164,7 @@ describe('board-game repository', () => {
            WHERE operation_type LIKE 'board_game.%'`
         )
         .get() as { count: number }
-      expect(outbox.count).toBe(4)
+      expect(outbox.count).toBe(5)
 
       expect(() =>
         updateBoardGameOperations(local.connection, context, {

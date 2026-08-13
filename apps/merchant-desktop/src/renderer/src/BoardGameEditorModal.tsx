@@ -13,6 +13,7 @@ import {
 
 type Props = {
   editor: BoardGameEditor
+  baseGames: Array<{ id: string; name: string }>
   busy: boolean
   coverCacheError: string | null
   onChange: (editor: BoardGameEditor) => void
@@ -60,6 +61,7 @@ function chineseAlternate(candidate: BoardGameMetadataCandidate): string {
 
 export function BoardGameEditorModal({
   editor,
+  baseGames,
   busy,
   coverCacheError,
   onChange,
@@ -425,6 +427,41 @@ export function BoardGameEditorModal({
 
             <section>
               <h3>本店配置</h3>
+              <label>
+                <span>库存类型</span>
+                <select
+                  value={editor.baseGameId ? 'expansion' : 'base'}
+                  onChange={(event) => onChange({
+                    ...editor,
+                    baseGameId:
+                      event.currentTarget.value === 'expansion'
+                        ? baseGames[0]?.id ?? ''
+                        : ''
+                  })}
+                >
+                  <option value="base">基础游戏</option>
+                  <option value="expansion" disabled={baseGames.length === 0}>
+                    扩展
+                  </option>
+                </select>
+              </label>
+              {editor.baseGameId ? (
+                <label>
+                  <span>所属基础游戏</span>
+                  <select
+                    required
+                    value={editor.baseGameId}
+                    onChange={(event) => onChange({
+                      ...editor,
+                      baseGameId: event.currentTarget.value
+                    })}
+                  >
+                    {baseGames.map((game) => (
+                      <option key={game.id} value={game.id}>{game.name}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label>
                 <span>库存数量</span>
                 <input

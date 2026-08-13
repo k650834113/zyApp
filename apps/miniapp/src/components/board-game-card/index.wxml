@@ -19,7 +19,10 @@
         >{{item}}</text>
       </view>
       <text class="game-meta">{{game.playersText}} · {{game.durationText}} · {{game.complexityText}}</text>
-      <text wx:if="{{!game.expanded}}" class="expand-hint">点击展开简介</text>
+      <text wx:if="{{game.isExpansion}}" class="expansion-badge">扩展</text>
+      <text wx:if="{{!game.expanded}}" class="expand-hint">
+        {{game.expansionCount ? '点击展开扩展' : '点击展开简介'}}
+      </text>
       <view wx:if="{{game.expanded}}" class="game-introduction">
         <text>{{game.introduction}}</text>
         <text class="collapse-hint">再次点击收起</text>

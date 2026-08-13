@@ -9,7 +9,7 @@ import {
   writeFileSync,
   watch
 } from 'node:fs'
-import { dirname, extname, join, relative, resolve } from 'node:path'
+import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { build } from 'esbuild'
 import {
   filterCustomerAppManifest,
@@ -24,7 +24,27 @@ const publicEndpointsPath = join(
   'public-endpoints.local.json'
 )
 const source = join(root, 'src')
-const output = join(root, 'dist')
+const defaultOutput = join(root, 'dist')
+const temporaryOutputRoot = join(root, '.tmp')
+
+function readOutputDirectory(arguments_) {
+  const optionIndex = arguments_.indexOf('--output-directory')
+  if (optionIndex === -1) return defaultOutput
+
+  const value = arguments_[optionIndex + 1]
+  if (!value || value.startsWith('--')) {
+    throw new Error('--output-directory requires a path')
+  }
+  const requestedOutput = resolve(root, value)
+  if (!requestedOutput.startsWith(`${temporaryOutputRoot}${sep}`)) {
+    throw new Error(
+      '--output-directory must be inside apps/miniapp/.tmp'
+    )
+  }
+  return requestedOutput
+}
+
+const output = readOutputDirectory(process.argv.slice(2))
 const watchMode = process.argv.includes('--watch')
 
 function readPublicEndpoints() {

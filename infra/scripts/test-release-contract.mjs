@@ -450,7 +450,7 @@ test('every deployment entry point rejects the wrong SSH key before other work',
   }
 })
 
-test('rejects the committed pre-0.23.2 fixture against the 0.23.4 release contract', () => {
+test('rejects the committed pre-0.23.2 fixture against the 0.24.0 release contract', () => {
   const result = runChecker(preChangeFixture)
 
   assert.equal(
@@ -459,8 +459,8 @@ test('rejects the committed pre-0.23.2 fixture against the 0.23.4 release contra
     `expected fixture rejection, got stdout=${JSON.stringify(result.stdout)} stderr=${JSON.stringify(result.stderr)}`
   )
   const expectedFailures = [
-    'root package version: expected "0.23.4", got "0.23.1"',
-    'desktop package version: expected "0.23.4", got "0.23.1"',
+    'root package version: expected "0.24.0", got "0.23.1"',
+    'desktop package version: expected "0.24.0", got "0.23.1"',
     'release notes heading: expected true, got false',
     'acceptance document is missing the structured release-isolation contract'
   ]
@@ -479,7 +479,7 @@ test('accepts the current repository release candidate', () => {
   )
   assert.match(
     result.stdout,
-    /\[release-contract\] 0\.23\.4 production desktop-only release gates verified/u
+    /\[release-contract\] 0\.24\.0 expansion release gates verified/u
   )
 })
 

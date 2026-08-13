@@ -95,6 +95,7 @@ type MockBoardGameSeed = PublicBoardGameSummary & {
 const games: MockBoardGameSeed[] = [
   {
     id: 'game-cascadia',
+    baseGameId: null,
     name: '卡斯卡迪亚',
     introduction: '轻中度拼图与生态组合游戏，规则直观。',
     categories: ['家庭', '拼图', '策略'],
@@ -118,6 +119,7 @@ const games: MockBoardGameSeed[] = [
   },
   {
     id: 'game-splendor',
+    baseGameId: null,
     name: '璀璨宝石',
     introduction: '收集宝石并发展矿场，在竞争中争取贵族青睐。',
     categories: ['德式', '策略', '竞争'],
@@ -143,7 +145,32 @@ const games: MockBoardGameSeed[] = [
     recommended: true
   },
   {
+    id: 'game-cascadia-landmarks',
+    baseGameId: 'game-cascadia',
+    name: '卡斯卡迪亚：地标扩展',
+    introduction: '加入地标与新的计分方式，需要配合卡斯卡迪亚基础游戏使用。',
+    categories: ['家庭', '拼图', '扩展'],
+    minPlayers: 1,
+    maxPlayers: 4,
+    minMinutes: 35,
+    maxMinutes: 55,
+    complexityRating: 2.7,
+    imageUrl: null,
+    customerNote: '需同时领取卡斯卡迪亚基础游戏。',
+    sourceAttribution: null,
+    likeCount: 5,
+    likedByViewer: false,
+    difficulty: 'medium',
+    quantity: 1,
+    recordStatus: 'active',
+    available: true,
+    missingPieces: false,
+    private: false,
+    recommended: false
+  },
+  {
     id: 'game-dixit',
+    baseGameId: null,
     name: '妙语说书人',
     introduction: '用画面、联想和语言线索讲述属于大家的故事。',
     categories: ['聚会', '想象', '竞争'],
@@ -167,6 +194,7 @@ const games: MockBoardGameSeed[] = [
   },
   {
     id: 'game-brass',
+    baseGameId: null,
     name: '工业革命：伯明翰',
     introduction: '围绕工业网络、市场和资源展开的重度策略游戏。',
     categories: ['重策', '经济'],
@@ -190,6 +218,7 @@ const games: MockBoardGameSeed[] = [
   },
   {
     id: 'game-hidden-private',
+    baseGameId: null,
     name: '私有寄存桌游',
     introduction: '不应出现在顾客桌游库。',
     categories: ['策略'],
@@ -213,6 +242,7 @@ const games: MockBoardGameSeed[] = [
   },
   {
     id: 'game-hidden-missing',
+    baseGameId: null,
     name: '缺件桌游',
     introduction: '不应出现在顾客桌游库。',
     categories: ['家庭'],
@@ -254,6 +284,7 @@ let managerAnnouncements: AnnouncementSummary[] = [
 
 let employeeBoardGames: BoardGameSummary[] = games.map((game) => ({
   id: game.id,
+  baseGameId: game.baseGameId,
   name: game.name,
   introduction: game.introduction,
   categories: [...game.categories],
@@ -442,6 +473,7 @@ function publicGames(
     )
     .map((game) => ({
       id: game.id,
+      baseGameId: game.baseGameId,
       name: game.name,
       introduction: game.introduction,
       categories: [...game.categories],

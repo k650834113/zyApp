@@ -110,6 +110,7 @@ describe('board-game quick editor', () => {
   it('tracks persisted cached, local and external cover sources', () => {
     const game = {
       id: 'game-13',
+      baseGameId: null,
       name: '卡坦岛',
       introduction: '通过交易与建设发展岛屿。',
       categories: ['经营'],
@@ -166,5 +167,23 @@ describe('board-game quick editor', () => {
       coverSource: 'external',
       imageUrl: 'https://images.example.com/game.jpg'
     })
+  })
+
+  it('includes the selected base game only for an expansion', () => {
+    expect(boardGameRequest({
+      ...defaultBoardGameEditor(),
+      baseGameId: 'game-catan',
+      name: '卡坦岛：航海家',
+      introduction: '卡坦岛扩展。',
+      categories: '策略',
+      private: true
+    })).toMatchObject({ baseGameId: 'game-catan' })
+    expect(boardGameRequest({
+      ...defaultBoardGameEditor(),
+      name: '卡坦岛',
+      introduction: '基础游戏。',
+      categories: '策略',
+      private: true
+    })).not.toHaveProperty('baseGameId')
   })
 })

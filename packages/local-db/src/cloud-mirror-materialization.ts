@@ -341,16 +341,17 @@ function applyBoardGame(database: DatabaseSync, context: StoreContext, row: Json
   if (hasPendingAggregate(database, context, id)) return
   database.prepare(
     `INSERT INTO board_game
-     (id, tenant_id, store_id, name, introduction, categories_json, min_players,
+     (id, tenant_id, store_id, base_game_id, name, introduction, categories_json, min_players,
       max_players, min_minutes, max_minutes, difficulty, complexity_tenths,
       quantity, record_status,
       available, customer_consigned, missing_pieces, private, recommended,
       image_url, local_image_path, bgg_id, metadata_source,
       metadata_imported_at, customer_note, internal_note, consignor_nickname,
       created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL,
              ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET
+       base_game_id = excluded.base_game_id,
        name = excluded.name, introduction = excluded.introduction,
        categories_json = excluded.categories_json, min_players = excluded.min_players,
        max_players = excluded.max_players, min_minutes = excluded.min_minutes,
@@ -369,6 +370,7 @@ function applyBoardGame(database: DatabaseSync, context: StoreContext, row: Json
      WHERE board_game.tenant_id = excluded.tenant_id`
   ).run(
     id, context.tenantId, context.storeId,
+    nullableText(row.base_game_id),
     text(row.name, 'board_game.name'), text(row.introduction, 'board_game.introduction'),
     json(row.categories_json, []), integer(row.min_players, 'board_game.min_players'),
     integer(row.max_players, 'board_game.max_players'),

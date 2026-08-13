@@ -73,6 +73,16 @@
   line-height: 1.6;
 }
 
+.expansion-badge {
+  display: inline-block;
+  margin-top: 12rpx;
+  border-radius: 999rpx;
+  padding: 5rpx 13rpx;
+  color: #8a5b35;
+  background: #f7eadc;
+  font-size: 19rpx;
+}
+
 .expand-hint,
 .collapse-hint {
   margin-top: 14rpx;

@@ -821,6 +821,7 @@ export type BoardGameMissingPart = {
 
 export type BoardGameSummary = {
   id: Identifier
+  baseGameId: Identifier | null
   name: string
   introduction: string
   categories: string[]
@@ -851,6 +852,7 @@ export type BoardGameSummary = {
 }
 
 export type SaveBoardGameFields = {
+  baseGameId?: Identifier
   name: string
   introduction: string
   categories: string[]
@@ -1251,6 +1253,7 @@ export type BoardGameSourceAttribution = {
 
 export type PublicBoardGameSummary = {
   id: Identifier
+  baseGameId: Identifier | null
   name: string
   introduction: string
   categories: string[]

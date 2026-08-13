@@ -40,6 +40,7 @@ type AnnouncementRow = {
 
 type BoardGameRow = {
   id: string
+  base_game_id: string | null
   name: string
   introduction: string
   categories_json: unknown
@@ -349,6 +350,7 @@ function missingParts(value: unknown): BoardGameMissingPart[] {
 function boardGameSummary(row: BoardGameRow): BoardGameSummary {
   return {
     id: row.id,
+    baseGameId: row.base_game_id,
     name: row.name,
     introduction: row.introduction,
     categories: stringArray(row.categories_json, '桌游分类'),
@@ -949,7 +951,7 @@ export class EmployeeContentService {
   }
 
   private boardGameSelect(): string {
-    return `SELECT id, name, introduction, categories_json, min_players,
+    return `SELECT id, base_game_id, name, introduction, categories_json, min_players,
                    max_players, min_minutes, max_minutes, difficulty,
                    complexity_rating,
                    quantity, record_status, available, customer_consigned,

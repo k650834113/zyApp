@@ -135,7 +135,7 @@ export class DesktopMirrorService {
                AND config.catalog_item_id = item.id)`
         : selected === 'board_games'
           ? `(SELECT game.id, game.tenant_id, $2::uuid store_id,
-                     game.name, game.introduction, game.categories_json,
+                     game.base_game_id, game.name, game.introduction, game.categories_json,
                      game.min_players, game.max_players, game.min_minutes,
                      game.max_minutes, game.difficulty,
                      game.complexity_rating,

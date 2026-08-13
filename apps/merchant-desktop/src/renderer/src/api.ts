@@ -1507,6 +1507,7 @@ const previewApi: DesktopApi = {
     const game: BoardGameSummary = {
       id: crypto.randomUUID(),
       ...request,
+      baseGameId: request.baseGameId ?? null,
       minMinutes: request.minMinutes ?? null,
       maxMinutes: request.maxMinutes ?? null,
       difficulty:

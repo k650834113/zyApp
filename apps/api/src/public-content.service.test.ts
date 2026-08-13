@@ -31,11 +31,13 @@ describe('public content service', () => {
           'COALESCE(game.max_minutes, game.min_minutes) >='
         )
         expect(sql).toContain('game.complexity_rating BETWEEN')
+        expect(sql).toContain('LIMIT 1000')
         expect(parameters).toContain(viewerId)
         return {
           rows: [
             {
               id: 'game-1',
+              base_game_id: null,
               name: 'Cascadia',
               introduction: 'Family strategy',
               categories_json: ['Family', 'Strategy'],
@@ -74,6 +76,7 @@ describe('public content service', () => {
     expect(result).toEqual([
       {
         id: 'game-1',
+        baseGameId: null,
         name: 'Cascadia',
         introduction: 'Family strategy',
         categories: ['Family', 'Strategy'],
@@ -103,6 +106,7 @@ describe('public content service', () => {
         rows: [
           {
             id: 'game-1',
+            base_game_id: null,
             name: 'Cascadia',
             introduction: 'Family strategy',
             categories_json: ['Family'],

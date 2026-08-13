@@ -11,6 +11,13 @@ export type BoardGameCardView = PublicBoardGameSummary & {
   expanded: boolean
   likeBusy: boolean
   imageFailed: boolean
+  isExpansion: boolean
+  expansionCount: number
+}
+
+export type BoardGameListView = BoardGameCardView & {
+  expansions: BoardGameCardView[]
+  expansionsExpanded: boolean
 }
 
 export function cleanBoardGameFilters(
@@ -137,8 +144,37 @@ export function toBoardGameCardView(
         : `复杂度 ${game.complexityRating.toFixed(1)}/5`,
     expanded: state.expanded ?? false,
     likeBusy: state.likeBusy ?? false,
-    imageFailed: state.imageFailed ?? false
+    imageFailed: state.imageFailed ?? false,
+    isExpansion: game.baseGameId !== null,
+    expansionCount: 0
   }
+}
+
+export function groupBoardGames(
+  games: BoardGameCardView[],
+  expandedBaseGameIds: ReadonlySet<string> = new Set()
+): BoardGameListView[] {
+  const children = new Map<string, BoardGameCardView[]>()
+  for (const game of games) {
+    if (!game.baseGameId) continue
+    const current = children.get(game.baseGameId) ?? []
+    current.push(game)
+    children.set(game.baseGameId, current)
+  }
+  const visibleIds = new Set(games.map((game) => game.id))
+  return games
+    .filter((game) =>
+      game.baseGameId === null || !visibleIds.has(game.baseGameId)
+    )
+    .map((game) => {
+      const expansions = children.get(game.id) ?? []
+      return {
+        ...game,
+        expansionCount: expansions.length,
+        expansions,
+        expansionsExpanded: expandedBaseGameIds.has(game.id)
+      }
+    })
 }
 
 export function withLikeResult(

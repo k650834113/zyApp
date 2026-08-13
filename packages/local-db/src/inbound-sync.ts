@@ -762,15 +762,16 @@ function applyBoardGame(
   database
     .prepare(
       `INSERT INTO board_game
-       (id, tenant_id, store_id, name, introduction, categories_json,
+       (id, tenant_id, store_id, base_game_id, name, introduction, categories_json,
         min_players, max_players, min_minutes, max_minutes, difficulty,
         complexity_tenths, quantity, record_status, available, customer_consigned,
         missing_pieces, private, recommended, image_url, local_image_path,
         bgg_id, metadata_source, metadata_imported_at, customer_note,
         internal_note, consignor_nickname, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                NULL, ?, ?, ?, ?, ?, ?, 'cloud-sync', ?, ?)
        ON CONFLICT (id) DO UPDATE SET
+         base_game_id = excluded.base_game_id,
          name = excluded.name,
          introduction = excluded.introduction,
          categories_json = excluded.categories_json,
@@ -802,6 +803,7 @@ function applyBoardGame(
       event.aggregate_id,
       context.tenantId,
       context.storeId,
+      nullableText(after.baseGameId, 'boardGame.baseGameId'),
       text(after.name, 'boardGame.name'),
       text(after.introduction, 'boardGame.introduction'),
       JSON.stringify(categories),

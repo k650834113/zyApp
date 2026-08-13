@@ -33,20 +33,22 @@ describe('cloud migrations', () => {
       join(import.meta.dirname, '..', 'migrations')
     )
 
-    expect(migrations.slice(-4).map((migration) => migration.version)).toEqual([
-      17, 18, 19, 20
+    expect(migrations.slice(-5).map((migration) => migration.version)).toEqual([
+      17, 18, 19, 20, 21
     ])
-    expect(migrations.at(-2)?.name).toBe('miniapp_board_game_library')
-    expect(migrations.at(-2)?.sql).toContain(
+    expect(migrations.at(-3)?.name).toBe('miniapp_board_game_library')
+    expect(migrations.at(-3)?.sql).toContain(
       'complexity_rating NUMERIC(2,1)'
     )
-    expect(migrations.at(-2)?.sql).toContain(
+    expect(migrations.at(-3)?.sql).toContain(
       'UNIQUE (tenant_id, store_id, board_game_id, viewer_id)'
     )
-    expect(migrations.at(-1)?.name).toBe('board_game_metadata_import')
-    expect(migrations.at(-1)?.sql).toContain('metadata_source TEXT')
-    expect(migrations.at(-1)?.sql).toContain(
+    expect(migrations.at(-2)?.name).toBe('board_game_metadata_import')
+    expect(migrations.at(-2)?.sql).toContain('metadata_source TEXT')
+    expect(migrations.at(-2)?.sql).toContain(
       'CREATE UNIQUE INDEX uq_cloud_board_game_tenant_bgg_id'
     )
+    expect(migrations.at(-1)?.name).toBe('board_game_expansion_parent')
+    expect(migrations.at(-1)?.sql).toContain('base_game_id UUID')
   })
 })

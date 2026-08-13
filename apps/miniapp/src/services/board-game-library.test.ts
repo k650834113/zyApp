@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PublicBoardGameSummary } from '@zyapp/contracts'
 import {
   cleanBoardGameFilters,
+  groupBoardGames,
   matchesBoardGameFilters,
   toBoardGameCardView,
   withLikeResult
@@ -9,6 +10,7 @@ import {
 
 const game: PublicBoardGameSummary = {
   id: 'game-splendor',
+  baseGameId: null,
   name: '璀璨宝石',
   introduction: '收集宝石并发展矿场。',
   categories: ['德式', '策略', '竞争'],
@@ -25,6 +27,31 @@ const game: PublicBoardGameSummary = {
 }
 
 describe('board-game card view model', () => {
+  it('groups expansions under their base game and preserves the expanded family', () => {
+    const expansion = toBoardGameCardView({
+      ...game,
+      id: 'game-splendor-cities',
+      baseGameId: game.id,
+      name: '璀璨宝石：城市'
+    })
+    const grouped = groupBoardGames(
+      [toBoardGameCardView(game), expansion],
+      new Set([game.id])
+    )
+
+    expect(grouped).toEqual([
+      expect.objectContaining({
+        id: game.id,
+        expansionCount: 1,
+        expansionsExpanded: true,
+        expansions: [expect.objectContaining({
+          id: expansion.id,
+          isExpansion: true
+        })]
+      })
+    ])
+  })
+
   it('preserves safe public source attribution without exposing provenance fields', () => {
     const view = toBoardGameCardView({
       ...game,

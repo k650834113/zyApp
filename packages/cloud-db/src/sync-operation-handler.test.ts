@@ -86,6 +86,7 @@ describe('cloud sync operation projections', () => {
       parseBoardGameProjection(
         operation('board_game.updated', {
           name: 'Cascadia',
+          baseGameId: null,
           introduction: 'A family strategy game.',
           categories: ['Family', 'Strategy'],
           minPlayers: 1,
@@ -113,6 +114,7 @@ describe('cloud sync operation projections', () => {
       )
     ).toMatchObject({
       name: 'Cascadia',
+      baseGameId: null,
       categories: ['Family', 'Strategy'],
       complexityRating: 2.3,
       metadataSource: 'bgg',

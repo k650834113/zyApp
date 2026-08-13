@@ -1784,6 +1784,16 @@ const migrations: Migration[] = [
         ON board_game (tenant_id, bgg_id)
         WHERE bgg_id IS NOT NULL;
     `
+  },
+  {
+    version: 31,
+    name: 'board-game-expansion-parent',
+    sql: `
+      ALTER TABLE board_game ADD COLUMN base_game_id TEXT;
+
+      CREATE INDEX idx_board_game_base_game
+        ON board_game (tenant_id, base_game_id);
+    `
   }
 ]
 

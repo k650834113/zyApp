@@ -161,6 +161,37 @@ function validateFields(fields: SaveBoardGameFields): void {
   validateOperationalFields(fields)
 }
 
+function validateBaseGame(
+  database: DatabaseSync,
+  tenantId: string,
+  baseGameId: string | undefined,
+  currentGameId?: string
+): void {
+  if (!baseGameId) return
+  if (baseGameId === currentGameId) {
+    throw new Error('An expansion cannot use itself as its base game')
+  }
+  const baseGame = database.prepare(
+    `SELECT id, base_game_id FROM board_game
+     WHERE tenant_id = ? AND id = ?`
+  ).get(tenantId, baseGameId) as
+    | { id: string; base_game_id: string | null }
+    | undefined
+  if (!baseGame) throw new Error('Base game was not found in this tenant')
+  if (baseGame.base_game_id !== null) {
+    throw new Error('An expansion cannot be selected as a base game')
+  }
+  if (currentGameId) {
+    const child = database.prepare(
+      `SELECT 1 FROM board_game
+       WHERE tenant_id = ? AND base_game_id = ? LIMIT 1`
+    ).get(tenantId, currentGameId)
+    if (child) {
+      throw new Error('A base game with expansions cannot become an expansion')
+    }
+  }
+}
+
 function requireComplexityForPublicPlayableGame(
   game: Pick<
     BoardGameSummary,
@@ -187,7 +218,7 @@ function findBoardGame(
   const row = database
     .prepare(
       configured
-        ? `SELECT game.id, game.name, game.introduction, game.categories_json,
+        ? `SELECT game.id, game.base_game_id, game.name, game.introduction, game.categories_json,
                   game.min_players, game.max_players, game.min_minutes,
                   game.max_minutes, game.difficulty, game.complexity_tenths,
                   COALESCE(config.quantity, game.quantity) quantity,
@@ -208,7 +239,7 @@ function findBoardGame(
              ON config.tenant_id = game.tenant_id AND config.store_id = ?
             AND config.board_game_id = game.id
            WHERE game.tenant_id = ? AND game.id = ?`
-        : `SELECT id, name, introduction, categories_json, min_players,
+        : `SELECT id, base_game_id, name, introduction, categories_json, min_players,
                   max_players, min_minutes, max_minutes, difficulty,
                   complexity_tenths, quantity,
                   record_status, available, customer_consigned, missing_pieces,
@@ -241,6 +272,8 @@ function findBoardGame(
   }
   return {
     id: String(row.id),
+    baseGameId:
+      row.base_game_id === null ? null : String(row.base_game_id),
     name: String(row.name),
     introduction: String(row.introduction),
     categories: parsedCategories,
@@ -406,9 +439,13 @@ export function listBoardGames(
             AND config.board_game_id = game.id
            WHERE game.tenant_id = ?
            ORDER BY COALESCE(config.recommended, game.recommended) DESC,
+                    game.base_game_id IS NOT NULL,
+                    COALESCE(game.base_game_id, game.id),
                     game.name COLLATE NOCASE, game.created_at DESC`
         : `SELECT id FROM board_game WHERE tenant_id = ? AND store_id = ?
-           ORDER BY recommended DESC, name COLLATE NOCASE, created_at DESC`
+           ORDER BY recommended DESC, base_game_id IS NOT NULL,
+                    COALESCE(base_game_id, id), name COLLATE NOCASE,
+                    created_at DESC`
     )
     .all(...(configured
       ? [context.storeId, context.tenantId]
@@ -424,6 +461,7 @@ export function createBoardGame(
   fields: SaveBoardGameFields
 ): BoardGameSummary {
   validateFields(fields)
+  validateBaseGame(database, context.tenantId, fields.baseGameId)
   const id = randomUUID()
   const timestamp = new Date().toISOString()
   const categories = normalizeCategories(fields.categories)
@@ -432,20 +470,21 @@ export function createBoardGame(
     database
       .prepare(
         `INSERT INTO board_game
-         (id, tenant_id, store_id, name, introduction, categories_json,
+         (id, tenant_id, store_id, base_game_id, name, introduction, categories_json,
           min_players, max_players, min_minutes, max_minutes, difficulty,
           complexity_tenths, metadata_source, metadata_imported_at,
           quantity, record_status, available, customer_consigned,
           missing_pieces, private, recommended, image_url, local_image_path,
           bgg_id, customer_note, internal_note, consignor_nickname,
           created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?,
                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
         context.tenantId,
         context.storeId,
+        fields.baseGameId ?? null,
         fields.name.trim(),
         fields.introduction.trim(),
         JSON.stringify(categories),
@@ -516,6 +555,12 @@ export function updateBoardGame(
   reason: string
 ): BoardGameSummary {
   validateFields(fields)
+  validateBaseGame(
+    database,
+    context.tenantId,
+    fields.baseGameId,
+    boardGameId
+  )
   const before = findBoardGame(database, context, boardGameId)
   const timestamp = new Date().toISOString()
   const categories = normalizeCategories(fields.categories)
@@ -525,14 +570,14 @@ export function updateBoardGame(
     database
       .prepare(
         configured
-          ? `UPDATE board_game SET name = ?, introduction = ?,
+          ? `UPDATE board_game SET base_game_id = ?, name = ?, introduction = ?,
              categories_json = ?, min_players = ?, max_players = ?,
              min_minutes = ?, max_minutes = ?, difficulty = ?,
              complexity_tenths = ?, metadata_source = ?,
              metadata_imported_at = ?, image_url = ?, local_image_path = ?,
              bgg_id = ?, updated_at = ?
            WHERE tenant_id = ? AND id = ?`
-          : `UPDATE board_game SET name = ?, introduction = ?,
+          : `UPDATE board_game SET base_game_id = ?, name = ?, introduction = ?,
            categories_json = ?, min_players = ?, max_players = ?,
            min_minutes = ?, max_minutes = ?, difficulty = ?,
            complexity_tenths = ?, metadata_source = ?, metadata_imported_at = ?,
@@ -544,6 +589,7 @@ export function updateBoardGame(
          WHERE tenant_id = ? AND id = ?`
       )
       .run(
+        fields.baseGameId ?? null,
         fields.name.trim(),
         fields.introduction.trim(),
         JSON.stringify(categories),

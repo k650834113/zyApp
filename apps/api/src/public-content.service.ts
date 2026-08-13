@@ -305,6 +305,7 @@ export class PublicContentService {
     }
     const result = await this.pool.query<{
       id: string
+      base_game_id: string | null
       name: string
       introduction: string
       categories_json: unknown
@@ -320,7 +321,7 @@ export class PublicContentService {
       like_count: string | number
       liked_by_viewer: boolean | null
     }>(
-      `SELECT game.id, game.name, game.introduction, game.categories_json,
+      `SELECT game.id, game.base_game_id, game.name, game.introduction, game.categories_json,
               game.min_players, game.max_players, game.min_minutes,
               game.max_minutes, game.complexity_rating, game.metadata_source,
               game.bgg_id, game.image_url,
@@ -344,12 +345,14 @@ export class PublicContentService {
        ) likes ON TRUE
        WHERE current_store.id = $1
          AND ${conditions.join('\n         AND ')}
-       ORDER BY COALESCE(config.recommended, game.recommended) DESC, game.name
-       LIMIT 100`,
+       ORDER BY (game.base_game_id IS NOT NULL),
+                COALESCE(game.base_game_id, game.id), game.name
+       LIMIT 1000`,
       values
     )
     return result.rows.map((row) => ({
       id: row.id,
+      baseGameId: row.base_game_id,
       name: row.name,
       introduction: row.introduction,
       categories: jsonArray<string>(row.categories_json),

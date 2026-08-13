@@ -89,8 +89,8 @@ $candidateVersion = (
   Get-Content -Raw -Encoding utf8 (Join-Path $workspace 'package.json') |
     ConvertFrom-Json
 ).version
-if ($candidateVersion -cne '0.23.2') {
-  throw "Expected candidate version 0.23.2, got $candidateVersion."
+if ($candidateVersion -cne '0.24.0') {
+  throw "Expected candidate version 0.24.0, got $candidateVersion."
 }
 
 if ($RemoteDirectory -notmatch '^/[a-zA-Z0-9._/-]+$') {
@@ -235,8 +235,8 @@ production_migration="$(
     exec -T postgres sh -lc \
     "psql -U \"\$POSTGRES_USER\" -d '$production_database' -Atc 'SELECT version FROM cloud_schema_migration ORDER BY version DESC LIMIT 1'"
 )"
-if [ "$production_migration" != "$expected_migration" ]; then
-  echo "Expected production migration $expected_migration before deployment; found $production_migration." >&2
+if [ "$production_migration" -gt "$expected_migration" ]; then
+  echo "Production migration $production_migration is newer than candidate $expected_migration." >&2
   exit 1
 fi
 store_sql="SELECT tenant_id::text || '|' || id::text || '|' || name || '|' || status FROM store ORDER BY id"
@@ -492,7 +492,10 @@ test "$test_database_identity_before" = "$expected_test_database_identity"
 test "$production_database_identity_before" != "$test_database_identity_before"
 test_migration_before="$(database_migration "$test_database_before")"
 production_migration_before="$(database_migration "$production_database_before")"
-test "$production_migration_before" = "$expected_migration"
+if [ "$production_migration_before" -gt "$expected_migration" ]; then
+  echo "Production migration $production_migration_before is newer than candidate $expected_migration." >&2
+  exit 1
+fi
 test_payment_test_amount_before="$(
   sudo docker compose --env-file "$env_file" -f "$compose_file" \
     exec -T api-test sh -lc \

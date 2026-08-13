@@ -7,6 +7,7 @@ import { defaultBoardGameEditor } from './board-game-editor'
 function render(coverCacheError: string | null): string {
   return renderToStaticMarkup(createElement(BoardGameEditorModal, {
     busy: false,
+    baseGames: [],
     coverCacheError,
     editor: {
       ...defaultBoardGameEditor(),

@@ -14,6 +14,7 @@ function game(
 ): BoardGameSummary {
   return {
     id: 'game-13',
+    baseGameId: null,
     name: '卡坦岛',
     introduction: '通过交易与建设发展岛屿。',
     categories: ['经营', '策略'],

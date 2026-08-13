@@ -36,7 +36,7 @@
   </view>
 
   <view class="result-head">
-    <text>{{games.length}} 款桌游</text>
+    <text>{{resultCount}} 款桌游</text>
   </view>
 
   <view wx:if="{{loadFailed}}" class="load-error" bindtap="retry">
@@ -44,14 +44,29 @@
   </view>
   <view wx:if="{{loading && games.length}}" class="loading-line">正在更新结果…</view>
 
-  <board-game-card
-    wx:for="{{games}}"
-    wx:key="id"
-    game="{{item}}"
-    bindtoggle="toggleGame"
-    bindlike="likeGame"
-    bindimageerror="imageError"
-  />
+  <view wx:for="{{games}}" wx:key="id" class="game-family">
+    <board-game-card
+      game="{{item}}"
+      bindtoggle="toggleGame"
+      bindlike="likeGame"
+      bindimageerror="imageError"
+    />
+    <view wx:if="{{item.expansionCount}}" class="expansion-summary" bindtap="toggleExpansions" data-game-id="{{item.id}}">
+      <text>{{item.expansionsExpanded ? '收起' : '展开'}} {{item.expansionCount}} 个扩展</text>
+      <text>{{item.expansionsExpanded ? '⌃' : '⌄'}}</text>
+    </view>
+    <view wx:if="{{item.expansionsExpanded}}" class="expansion-list">
+      <board-game-card
+        wx:for="{{item.expansions}}"
+        wx:for-item="expansion"
+        wx:key="id"
+        game="{{expansion}}"
+        bindtoggle="toggleGame"
+        bindlike="likeGame"
+        bindimageerror="imageError"
+      />
+    </view>
+  </view>
 
   <view wx:if="{{loading && !games.length}}" class="empty-state">正在加载桌游…</view>
   <view wx:elif="{{!loading && !games.length && !loadFailed}}" class="card no-result">

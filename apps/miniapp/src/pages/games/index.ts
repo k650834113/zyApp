@@ -5,9 +5,11 @@ import type {
 } from '@zyapp/contracts'
 import {
   cleanBoardGameFilters,
+  groupBoardGames,
   toBoardGameCardView,
   withLikeResult,
-  type BoardGameCardView
+  type BoardGameCardView,
+  type BoardGameListView
 } from '../../services/board-game-library'
 import { getMiniappClient } from '../../services/client'
 
@@ -126,7 +128,8 @@ function chips(filters: PublicBoardGameFilters): FilterChip[] {
 Page({
   data: {
     query: '',
-    games: [] as BoardGameCardView[],
+    games: [] as BoardGameListView[],
+    resultCount: 0,
     sourceAttribution: null as BoardGameSourceAttribution | null,
     loading: true,
     loadFailed: false,
@@ -208,8 +211,17 @@ Page({
         filters ?? this.requestFilters()
       )
       if (sequence !== loadSequence) return
-      const existing = new Map(this.data.games.map((game) => [game.id, game]))
-      const games = result.map((game) => {
+      const previousCards = this.data.games.flatMap((game) => [
+        game,
+        ...game.expansions
+      ])
+      const existing = new Map(previousCards.map((game) => [game.id, game]))
+      const expandedBaseGameIds = new Set(
+        this.data.games
+          .filter((game) => game.expansionsExpanded)
+          .map((game) => game.id)
+      )
+      const cards = result.map((game) => {
         const previous = existing.get(game.id)
         return toBoardGameCardView(game, {
           expanded: previous?.expanded ?? false,
@@ -217,8 +229,10 @@ Page({
           imageFailed: previous?.imageFailed ?? false
         })
       })
+      const games = groupBoardGames(cards, expandedBaseGameIds)
       const patch: Record<string, unknown> = {
         games,
+        resultCount: result.length,
         sourceAttribution:
           result.find((game) => game.sourceAttribution !== null)
             ?.sourceAttribution ?? null,
@@ -433,7 +447,32 @@ Page({
     const gameId = event.detail.gameId
     this.setData({
       games: this.data.games.map((game) =>
-        game.id === gameId ? { ...game, expanded: !game.expanded } : game
+        game.id === gameId && game.expansionCount > 0
+          ? { ...game, expansionsExpanded: !game.expansionsExpanded }
+          : game.id === gameId
+            ? { ...game, expanded: !game.expanded }
+            : {
+                ...game,
+                expansions: game.expansions.map((expansion) =>
+                  expansion.id === gameId
+                    ? { ...expansion, expanded: !expansion.expanded }
+                    : expansion
+                )
+              }
+      )
+    })
+  },
+
+  toggleExpansions(event: {
+    currentTarget: { dataset: { gameId?: string } }
+  }) {
+    const gameId = event.currentTarget.dataset.gameId
+    if (!gameId) return
+    this.setData({
+      games: this.data.games.map((game) =>
+        game.id === gameId
+          ? { ...game, expansionsExpanded: !game.expansionsExpanded }
+          : game
       )
     })
   },
@@ -442,39 +481,64 @@ Page({
     const gameId = event.detail.gameId
     this.setData({
       games: this.data.games.map((game) =>
-        game.id === gameId ? { ...game, imageFailed: true } : game
+        game.id === gameId
+          ? { ...game, imageFailed: true }
+          : {
+              ...game,
+              expansions: game.expansions.map((expansion) =>
+                expansion.id === gameId
+                  ? { ...expansion, imageFailed: true }
+                  : expansion
+              )
+            }
       )
     })
   },
 
   async likeGame(event: GameEvent) {
     const gameId = event.detail.gameId
-    const original = this.data.games.find((game) => game.id === gameId)
+    const flatGames = this.data.games.flatMap((game) => [game, ...game.expansions])
+    const original = flatGames.find((game) => game.id === gameId)
     if (!original || original.likeBusy) return
     const liked = !original.likedByViewer
     this.setData({
-      games: this.data.games.map((game) =>
-        game.id === gameId
-          ? {
-              ...game,
-              likedByViewer: liked,
-              likeCount: Math.max(0, game.likeCount + (liked ? 1 : -1)),
-              likeBusy: true
-            }
-          : game
-      )
+      games: this.data.games.map((game) => {
+        const update = (card: BoardGameCardView): BoardGameCardView =>
+          card.id === gameId
+            ? {
+                ...card,
+                likedByViewer: liked,
+                likeCount: Math.max(0, card.likeCount + (liked ? 1 : -1)),
+                likeBusy: true
+              }
+            : card
+        return {
+          ...game,
+          ...update(game),
+          expansionsExpanded: game.expansionsExpanded,
+          expansions: game.expansions.map(update)
+        }
+      })
     })
     try {
       const result = await getMiniappClient().setGameLiked(gameId, {
         liked,
         requestId: requestId('board-game-like')
       })
-      this.setData({ games: withLikeResult(this.data.games, result) })
+      this.setData({
+        games: this.data.games.map((game) => ({
+          ...withLikeResult([game], result)[0] as BoardGameListView,
+          expansions: withLikeResult(game.expansions, result)
+        }))
+      })
     } catch {
       this.setData({
-        games: this.data.games.map((game) =>
-          game.id === gameId ? { ...original, likeBusy: false } : game
-        )
+        games: this.data.games.map((game) => ({
+          ...(game.id === gameId ? { ...game, ...original, likeBusy: false } : game),
+          expansions: game.expansions.map((expansion) =>
+            expansion.id === gameId ? { ...original, likeBusy: false } : expansion
+          )
+        }))
       })
       wx.showToast({ title: '操作失败，请重试', icon: 'none' })
     }

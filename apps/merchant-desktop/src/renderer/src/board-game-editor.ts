@@ -7,6 +7,7 @@ import type {
 
 export type BoardGameEditor = {
   current: BoardGameSummary | null
+  baseGameId: string
   name: string
   introduction: string
   categories: string
@@ -80,6 +81,7 @@ export function findBoardGameByBggId<
 export function defaultBoardGameEditor(): BoardGameEditor {
   return {
     current: null,
+    baseGameId: '',
     name: '',
     introduction: '',
     categories: '',
@@ -130,6 +132,7 @@ export function boardGameEditorFor(
 ): BoardGameEditor {
   return {
     current: game,
+    baseGameId: game.baseGameId ?? '',
     name: game.name,
     introduction: game.introduction,
     categories: game.categories.join('、'),
@@ -255,6 +258,7 @@ export function boardGameRequest(
     editor.metadataSource === 'bgg' &&
     Number.isFinite(Date.parse(editor.metadataImportedAt))
   return {
+    ...(editor.baseGameId ? { baseGameId: editor.baseGameId } : {}),
     name: editor.name,
     introduction: editor.introduction,
     categories: editor.categories

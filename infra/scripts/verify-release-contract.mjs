@@ -45,14 +45,14 @@ const releaseNotes = readWorkspaceFile(
   'apps/merchant-desktop/release-notes.md'
 )
 const acceptance = readWorkspaceFile(
-  'docs/0.23.4PC桌游管理生产更新验收.md',
+  'docs/0.24.0桌游扩展与小程序正式发布验收.md',
   true
 )
 
-requireEqual(rootPackage.version, '0.23.4', 'root package version')
-requireEqual(desktopPackage.version, '0.23.4', 'desktop package version')
+requireEqual(rootPackage.version, '0.24.0', 'root package version')
+requireEqual(desktopPackage.version, '0.24.0', 'desktop package version')
 requireEqual(
-  releaseNotes.startsWith('# 0.23.4\n'),
+  releaseNotes.startsWith('# 0.24.0\n'),
   true,
   'release notes heading'
 )
@@ -68,21 +68,27 @@ if (!contractMatch) {
   try {
     const contract = JSON.parse(contractMatch[1])
     const expectedContract = {
-      candidateVersion: '0.23.4',
+      candidateVersion: '0.24.0',
       desktopChannels: ['production'],
-      backendDeployment: false,
-      databaseMigration: false,
+      localSqliteSchemaVersion: 31,
+      cloudDatabaseMigrationVersion: 21,
       deploymentSource: 'git-head',
       requiredChecks: [
         'release-contract',
-        'desktop-typecheck',
-        'desktop-build',
+        'targeted-tests',
+        'typecheck',
+        'build',
         'artifact-sha256',
-        'production-update-0.23.4',
+        'production-backup',
+        'production-health',
+        'production-migration-21',
+        'production-update-0.24.0',
         'production-range-download',
         'test-channel-unchanged',
-        'backend-unchanged',
-        'database-unchanged'
+        'miniapp-production-build',
+        'miniapp-upload',
+        'expansion-import-count',
+        'expansion-parent-integrity'
       ]
     }
     requireDeepEqual(
@@ -103,5 +109,5 @@ if (failures.length > 0) {
   }
   process.exitCode = 1
 } else {
-  console.log('[release-contract] 0.23.4 production desktop-only release gates verified')
+  console.log('[release-contract] 0.24.0 expansion release gates verified')
 }

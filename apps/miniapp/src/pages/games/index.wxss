@@ -100,6 +100,29 @@
   font-weight: 700;
 }
 
+.game-family {
+  position: relative;
+}
+
+.expansion-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -2rpx 24rpx 0;
+  border-radius: 0 0 18rpx 18rpx;
+  padding: 15rpx 22rpx;
+  color: #365949;
+  background: #e8f0e9;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.expansion-list {
+  margin-left: 34rpx;
+  border-left: 4rpx solid #c9d9cd;
+  padding-left: 18rpx;
+}
+
 .load-error,
 .loading-line {
   margin-top: 18rpx;
