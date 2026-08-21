@@ -3468,6 +3468,18 @@ footer {
   justify-content: flex-end;
 }
 
+.cloud-conflict-prompt {
+  display: grid;
+  gap: 20px;
+  width: min(560px, 100%);
+}
+
+.cloud-conflict-prompt > p {
+  margin: 0;
+  color: #5f5548;
+  line-height: 1.7;
+}
+
 footer {
   margin-top: 28px;
   color: #938674;
@@ -3977,6 +3989,64 @@ footer {
   border: 1px solid rgba(120, 96, 70, 0.14);
   border-radius: 14px;
   background: rgba(255, 253, 248, 0.78);
+}
+
+.game-editor-fields-pane .game-relation-section {
+  border-color: rgba(30, 104, 76, 0.28);
+  background: rgba(239, 248, 243, 0.86);
+}
+
+.game-relation-heading {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.game-relation-heading p,
+.game-relation-warning {
+  margin: 4px 0 0;
+  color: #5f6f66;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.game-kind-badge {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #d9ebdf;
+  color: #1e684c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.game-relation-summary {
+  align-self: end;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px dashed rgba(30, 104, 76, 0.28);
+  border-radius: 10px;
+  color: #5f6f66;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.game-relation-selector {
+  display: grid;
+  gap: 8px;
+}
+
+.game-relation-selector small {
+  color: #5f6f66;
+  font-size: 12px;
+}
+
+.game-relation-warning {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff2df;
+  color: #8a531c;
 }
 
 .game-cover-heading {

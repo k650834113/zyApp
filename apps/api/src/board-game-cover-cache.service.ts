@@ -6,7 +6,10 @@ import {
   Injectable,
   NotFoundException
 } from '@nestjs/common'
-import type { CacheBoardGameCoverResult } from '@zyapp/contracts'
+import type {
+  CacheBoardGameCoverResult,
+  UploadBoardGameCoverResult
+} from '@zyapp/contracts'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -17,14 +20,22 @@ const MAX_COVER_BYTES = 10 * 1024 * 1024
 const MAX_REDIRECTS = 3
 const DOWNLOAD_TIMEOUT_MILLISECONDS = 10_000
 const ALLOWED_HOSTS = new Set(['cf.geekdo-images.com'])
-const FILE_NAME_PATTERN = /^[0-9a-f]{64}\.(jpg|png|webp)$/
+const FILE_NAME_PATTERN = /^[0-9a-f]{64}\.(jpg|png|webp|gif)$/
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 
 type CoverContentType = CacheBoardGameCoverResult['contentType']
+type LocalCoverContentType = UploadBoardGameCoverResult['contentType']
+
+export type BoardGameCoverUpload = {
+  buffer: Buffer
+  originalname: string
+  mimetype: string
+  size: number
+}
 
 type DetectedImage = {
-  extension: 'jpg' | 'png' | 'webp'
-  contentType: CoverContentType
+  extension: 'jpg' | 'png' | 'webp' | 'gif'
+  contentType: LocalCoverContentType
 }
 
 function validateExternalId(value: string): string {
@@ -53,7 +64,7 @@ function allowedUrl(value: string | URL): URL {
   return url
 }
 
-function detectImage(buffer: Buffer): DetectedImage {
+function detectImage(buffer: Buffer, allowGif = false): DetectedImage {
   if (
     buffer.length >= 3 &&
     buffer[0] === 0xff &&
@@ -76,6 +87,14 @@ function detectImage(buffer: Buffer): DetectedImage {
     buffer.subarray(8, 12).toString('ascii') === 'WEBP'
   ) {
     return { extension: 'webp', contentType: 'image/webp' }
+  }
+  if (
+    allowGif &&
+    buffer.length >= 6 &&
+    (buffer.subarray(0, 6).toString('ascii') === 'GIF87a' ||
+      buffer.subarray(0, 6).toString('ascii') === 'GIF89a')
+  ) {
+    return { extension: 'gif', contentType: 'image/gif' }
   }
   throw new BadGatewayException('BGG cover is not a supported image')
 }
@@ -165,9 +184,43 @@ export class BoardGameCoverCacheService {
     }
   }
 
+  async cacheLocal(
+    file: BoardGameCoverUpload
+  ): Promise<UploadBoardGameCoverResult> {
+    if (
+      !Buffer.isBuffer(file?.buffer) ||
+      file.buffer.length === 0 ||
+      file.size !== file.buffer.length
+    ) {
+      throw new BadRequestException('Local board-game cover upload is invalid')
+    }
+    if (file.size > MAX_COVER_BYTES) {
+      throw new BadRequestException('Board-game cover exceeds 10 MiB')
+    }
+    const detected = detectImage(file.buffer, true)
+    const declaredType = file.mimetype === 'image/jpg'
+      ? 'image/jpeg'
+      : file.mimetype
+    if (declaredType !== detected.contentType) {
+      throw new BadRequestException(
+        'Board-game cover content does not match its media type'
+      )
+    }
+    const sha256 = createHash('sha256').update(file.buffer).digest('hex')
+    const fileName = `${sha256}.${detected.extension}`
+    await this.store(fileName, file.buffer)
+    return {
+      source: 'local',
+      cachedUrl:
+        `${this.publicBaseUrl}/v1/public/board-game-covers/${fileName}`,
+      contentType: detected.contentType,
+      sha256
+    }
+  }
+
   async read(fileName: string): Promise<{
     buffer: Buffer
-    contentType: CoverContentType
+    contentType: LocalCoverContentType
   }> {
     const match = FILE_NAME_PATTERN.exec(fileName)
     if (!match) {
@@ -178,7 +231,9 @@ export class BoardGameCoverCacheService {
       ? 'image/jpeg'
       : extension === 'png'
         ? 'image/png'
-        : 'image/webp'
+        : extension === 'webp'
+          ? 'image/webp'
+          : 'image/gif'
     try {
       return {
         buffer: await readFile(join(this.directory, fileName)),

@@ -77,6 +77,7 @@ export function BoardGameEditorModal({
   const [candidates, setCandidates] = useState<BoardGameMetadataCandidate[]>([])
   const [metadataBusy, setMetadataBusy] = useState(false)
   const [metadataMessage, setMetadataMessage] = useState<string | null>(null)
+  const [baseGameQuery, setBaseGameQuery] = useState('')
 
   useEffect(() => {
     let active = true
@@ -113,7 +114,7 @@ export function BoardGameEditorModal({
       )
       setCandidates([])
       setMetadataMessage(
-        '已带入 BGG 结构化资料，请核对中文名称和中文简介后保存。'
+        '已带入 BGG 基础资料；标签不会从 BGG 覆盖，请按集石中文词表核对后保存。'
       )
     } catch (error) {
       setMetadataMessage(readableError(error))
@@ -185,6 +186,16 @@ export function BoardGameEditorModal({
 
   const imported = editor.metadataSource === 'bgg'
   const preview = editor.imagePreview || editor.imageUrl
+  const normalizedBaseGameQuery = baseGameQuery.trim().toLocaleLowerCase('zh-CN')
+  const matchingBaseGames = baseGames.filter((game) =>
+    !normalizedBaseGameQuery ||
+    game.name.toLocaleLowerCase('zh-CN').includes(normalizedBaseGameQuery)
+  )
+  const selectedBaseGame = baseGames.find((game) => game.id === editor.baseGameId)
+  const visibleBaseGames = selectedBaseGame &&
+    !matchingBaseGames.some((game) => game.id === selectedBaseGame.id)
+    ? [selectedBaseGame, ...matchingBaseGames]
+    : matchingBaseGames
 
   return (
     <div className="modal-backdrop game-editor-backdrop">
@@ -334,11 +345,91 @@ export function BoardGameEditorModal({
           </aside>
 
           <div className="game-editor-fields-pane">
+            <section className="game-relation-section">
+              <div className="game-relation-heading">
+                <div>
+                  <h3>游戏类型与归属</h3>
+                  <p>基础游戏可独立游玩；扩展必须关联一款基础游戏。</p>
+                </div>
+                <span className="game-kind-badge">
+                  {editor.gameKind === 'expansion' ? '扩展' : '基础游戏'}
+                </span>
+              </div>
+              <div className="field-grid two-columns">
+                <label>
+                  <span>游戏类型</span>
+                  <select
+                    aria-label="游戏类型"
+                    value={editor.gameKind}
+                    onChange={(event) => {
+                      const gameKind = event.currentTarget.value as
+                        BoardGameEditor['gameKind']
+                      onChange({
+                        ...editor,
+                        gameKind,
+                        baseGameId:
+                          gameKind === 'expansion' ? editor.baseGameId : ''
+                      })
+                    }}
+                  >
+                    <option value="base">基础游戏</option>
+                    <option value="expansion">扩展</option>
+                  </select>
+                </label>
+                {editor.gameKind === 'expansion' ? (
+                  <div className="game-relation-selector">
+                    <label>
+                      <span>搜索基础游戏</span>
+                      <input
+                        aria-label="搜索基础游戏"
+                        placeholder="输入名称筛选"
+                        value={baseGameQuery}
+                        onChange={(event) => setBaseGameQuery(
+                          event.currentTarget.value
+                        )}
+                      />
+                    </label>
+                    <label>
+                      <span>所属基础游戏</span>
+                      <select
+                        required
+                        aria-label="所属基础游戏"
+                        value={editor.baseGameId}
+                        onChange={(event) => onChange({
+                          ...editor,
+                          baseGameId: event.currentTarget.value
+                        })}
+                      >
+                        <option value="">请选择基础游戏</option>
+                        {visibleBaseGames.map((game) => (
+                          <option key={game.id} value={game.id}>{game.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <small>
+                      {normalizedBaseGameQuery
+                        ? `找到 ${matchingBaseGames.length} 款基础游戏`
+                        : `共 ${baseGames.length} 款基础游戏`}
+                    </small>
+                  </div>
+                ) : (
+                  <div className="game-relation-summary">
+                    作为独立基础游戏保存，后续可作为扩展的父游戏。
+                  </div>
+                )}
+              </div>
+              {editor.gameKind === 'expansion' && baseGames.length === 0 ? (
+                <p className="game-relation-warning" role="alert">
+                  当前没有可关联的基础游戏，请先保存一款基础游戏。
+                </p>
+              ) : null}
+            </section>
+
             <section>
               <h3>公开资料</h3>
               {imported ? (
                 <p className="metadata-source-note">
-                  来自 BGG，保存前请核对结构化字段；中文简介需由店方填写。
+                  来自 BGG，保存前请核对结构化字段；中文简介和集石标签需由店方填写。
                 </p>
               ) : null}
               <label>
@@ -367,7 +458,7 @@ export function BoardGameEditorModal({
                 />
               </label>
               <label>
-                <span>中文分类（逗号、顿号或换行分隔）</span>
+                <span>集石中文标签（风格/分类/模式/主题/机制，顿号等分隔）</span>
                 <input
                   required
                   value={editor.categories}
@@ -427,41 +518,6 @@ export function BoardGameEditorModal({
 
             <section>
               <h3>本店配置</h3>
-              <label>
-                <span>库存类型</span>
-                <select
-                  value={editor.baseGameId ? 'expansion' : 'base'}
-                  onChange={(event) => onChange({
-                    ...editor,
-                    baseGameId:
-                      event.currentTarget.value === 'expansion'
-                        ? baseGames[0]?.id ?? ''
-                        : ''
-                  })}
-                >
-                  <option value="base">基础游戏</option>
-                  <option value="expansion" disabled={baseGames.length === 0}>
-                    扩展
-                  </option>
-                </select>
-              </label>
-              {editor.baseGameId ? (
-                <label>
-                  <span>所属基础游戏</span>
-                  <select
-                    required
-                    value={editor.baseGameId}
-                    onChange={(event) => onChange({
-                      ...editor,
-                      baseGameId: event.currentTarget.value
-                    })}
-                  >
-                    {baseGames.map((game) => (
-                      <option key={game.id} value={game.id}>{game.name}</option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
               <label>
                 <span>库存数量</span>
                 <input

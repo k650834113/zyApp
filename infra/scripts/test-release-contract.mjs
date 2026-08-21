@@ -460,7 +460,7 @@ test('rejects the committed pre-0.23.2 fixture against the 0.24.0 release contra
   )
   const expectedFailures = [
     'root package version: expected "0.24.0", got "0.23.1"',
-    'desktop package version: expected "0.24.0", got "0.23.1"',
+    'desktop package version: expected "0.24.2", got "0.23.1"',
     'release notes heading: expected true, got false',
     'acceptance document is missing the structured release-isolation contract'
   ]

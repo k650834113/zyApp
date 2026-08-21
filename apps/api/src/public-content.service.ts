@@ -7,6 +7,7 @@ import {
 import type {
   MiniappHomeSnapshot,
   PublicBoardGameFilters,
+  PublicBoardGameFilterOptions,
   PublicActivitySummary,
   PublicAnnouncementSummary,
   PublicBoardGameSummary,
@@ -222,7 +223,11 @@ export class PublicContentService {
     storeIdInput: string,
     filters: PublicBoardGameFilters = {},
     viewerId: string | null = null,
-    options: { recommendedOnly?: boolean; favoriteOnly?: boolean } = {}
+    options: {
+      recommendedOnly?: boolean
+      favoriteOnly?: boolean
+      baseGamesOnly?: boolean
+    } = {}
   ): Promise<PublicBoardGameSummary[]> {
     const storeId = requireStoreId(storeIdInput)
     if (options.favoriteOnly && !viewerId) {
@@ -244,10 +249,12 @@ export class PublicContentService {
     const query = filters.query?.trim().slice(0, 100)
     if (query) {
       const marker = parameter(query)
-      conditions.push(
-        `(game.name ILIKE '%' || ${marker} || '%' OR ` +
-          `game.categories_json::text ILIKE '%' || ${marker} || '%')`
-      )
+      conditions.push(`game.name ILIKE '%' || ${marker} || '%'`)
+    }
+    if (filters.baseGameId) {
+      conditions.push(`game.base_game_id = ${parameter(filters.baseGameId)}`)
+    } else if (options.baseGamesOnly) {
+      conditions.push('game.base_game_id IS NULL')
     }
     if (filters.categories?.length) {
       conditions.push(
@@ -303,6 +310,10 @@ export class PublicContentService {
         )`
       )
     }
+    const limit = filters.limit ?? 1000
+    const offset = filters.offset ?? 0
+    const limitMarker = parameter(limit)
+    const offsetMarker = parameter(offset)
     const result = await this.pool.query<{
       id: string
       base_game_id: string | null
@@ -320,6 +331,7 @@ export class PublicContentService {
       customer_note: string | null
       like_count: string | number
       liked_by_viewer: boolean | null
+      expansion_count: string | number
     }>(
       `SELECT game.id, game.base_game_id, game.name, game.introduction, game.categories_json,
               game.min_players, game.max_players, game.min_minutes,
@@ -327,7 +339,22 @@ export class PublicContentService {
               game.bgg_id, game.image_url,
               COALESCE(config.customer_note, game.customer_note) customer_note,
               COALESCE(likes.like_count, 0) like_count,
-              COALESCE(likes.liked_by_viewer, FALSE) liked_by_viewer
+              COALESCE(likes.liked_by_viewer, FALSE) liked_by_viewer,
+              (
+                SELECT COUNT(*)::integer
+                FROM cloud_board_game expansion
+                LEFT JOIN cloud_board_game_store_config expansion_config
+                  ON expansion_config.tenant_id = current_store.tenant_id
+                 AND expansion_config.store_id = current_store.id
+                 AND expansion_config.board_game_id = expansion.id
+                WHERE expansion.tenant_id = current_store.tenant_id
+                  AND expansion.base_game_id = game.id
+                  AND COALESCE(expansion_config.record_status, expansion.record_status) = 'active'
+                  AND COALESCE(expansion_config.private, expansion.private) = FALSE
+                  AND COALESCE(expansion_config.available, expansion.available) = TRUE
+                  AND COALESCE(expansion_config.quantity, expansion.quantity) > 0
+                  AND COALESCE(expansion_config.missing_pieces, expansion.missing_pieces) = FALSE
+              ) expansion_count
        FROM store current_store
        JOIN cloud_board_game game
          ON game.tenant_id = current_store.tenant_id
@@ -345,14 +372,16 @@ export class PublicContentService {
        ) likes ON TRUE
        WHERE current_store.id = $1
          AND ${conditions.join('\n         AND ')}
-       ORDER BY (game.base_game_id IS NOT NULL),
-                COALESCE(game.base_game_id, game.id), game.name
-       LIMIT 1000`,
+       ORDER BY COALESCE(game.base_game_id, game.id),
+                (game.base_game_id IS NOT NULL), game.name
+       LIMIT ${limitMarker}
+       OFFSET ${offsetMarker}`,
       values
     )
     return result.rows.map((row) => ({
       id: row.id,
       baseGameId: row.base_game_id,
+      expansionCount: Number(row.expansion_count ?? 0),
       name: row.name,
       introduction: row.introduction,
       categories: jsonArray<string>(row.categories_json),
@@ -378,6 +407,77 @@ export class PublicContentService {
     }))
   }
 
+  async getGameFilterOptions(
+    storeIdInput: string
+  ): Promise<PublicBoardGameFilterOptions> {
+    const storeId = requireStoreId(storeIdInput)
+    const playableWhere = `current_store.id = $1
+         AND current_store.status = 'active'
+         AND COALESCE(config.record_status, game.record_status) = 'active'
+         AND COALESCE(config.private, game.private) = FALSE
+         AND COALESCE(config.available, game.available) = TRUE
+         AND COALESCE(config.quantity, game.quantity) > 0
+         AND COALESCE(config.missing_pieces, game.missing_pieces) = FALSE
+         AND game.base_game_id IS NULL`
+    const [categoryResult, boundsResult] = await Promise.all([
+      this.pool.query<{ category: string }>(
+        `SELECT category.value category
+         FROM store current_store
+         JOIN cloud_board_game game
+           ON game.tenant_id = current_store.tenant_id
+         LEFT JOIN cloud_board_game_store_config config
+           ON config.tenant_id = current_store.tenant_id
+          AND config.store_id = current_store.id
+          AND config.board_game_id = game.id
+         CROSS JOIN LATERAL jsonb_array_elements_text(game.categories_json) category(value)
+         WHERE ${playableWhere}
+         GROUP BY category.value
+         ORDER BY COUNT(*) DESC, category.value`,
+        [storeId]
+      ),
+      this.pool.query<{
+        min_players: string | number | null
+        max_players: string | number | null
+        min_minutes: string | number | null
+        max_minutes: string | number | null
+        min_complexity: string | number | null
+        max_complexity: string | number | null
+      }>(
+        `SELECT MIN(game.min_players) min_players,
+                MAX(game.max_players) max_players,
+                MIN(game.min_minutes) min_minutes,
+                MAX(COALESCE(game.max_minutes, game.min_minutes)) max_minutes,
+                MIN(game.complexity_rating) min_complexity,
+                MAX(game.complexity_rating) max_complexity
+         FROM store current_store
+         JOIN cloud_board_game game
+           ON game.tenant_id = current_store.tenant_id
+         LEFT JOIN cloud_board_game_store_config config
+           ON config.tenant_id = current_store.tenant_id
+          AND config.store_id = current_store.id
+          AND config.board_game_id = game.id
+         WHERE ${playableWhere}`,
+        [storeId]
+      )
+    ])
+    const bounds = boundsResult.rows[0]
+    return {
+      categories: categoryResult.rows.map((row) => row.category),
+      playerBounds: {
+        min: Number(bounds?.min_players ?? 1),
+        max: Number(bounds?.max_players ?? 8)
+      },
+      minuteBounds: {
+        min: Number(bounds?.min_minutes ?? 15),
+        max: Number(bounds?.max_minutes ?? 240)
+      },
+      complexityBounds: {
+        min: Number(bounds?.min_complexity ?? 0),
+        max: Number(bounds?.max_complexity ?? 5)
+      }
+    }
+  }
+
   listFavoriteGames(
     principal: Pick<MiniappPrincipal, 'storeId' | 'identityId'>
   ): Promise<PublicBoardGameSummary[]> {
@@ -392,7 +492,10 @@ export class PublicContentService {
         this.getStore(storeId),
         this.listAnnouncements(storeId),
         this.listActivities(storeId),
-        this.listGames(storeId, {}, null, { recommendedOnly: true })
+        this.listGames(storeId, {}, null, {
+          recommendedOnly: true,
+          baseGamesOnly: true
+        })
       ])
     return {
       store,

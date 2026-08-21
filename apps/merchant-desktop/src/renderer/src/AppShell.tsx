@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type {
   ApplicationState,
   CloudConnectionStatus
@@ -59,6 +59,11 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
   const [notice, setNotice] = useState<string | null>(null)
   const [cloudStatus, setCloudStatus] =
     useState<CloudConnectionStatus | null>(null)
+  const previousCloudStatus = useRef<CloudConnectionStatus | null>(null)
+  const [conflictPrompt, setConflictPrompt] = useState<{
+    upload: number
+    inbound: number
+  } | null>(null)
   const session = state.session
   if (!session) {
     throw new Error('Authenticated shell requires a session')
@@ -87,7 +92,32 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
     const refresh = async () => {
       try {
         const next = await getDesktopApi().getCloudConnectionStatus()
-        if (active) setCloudStatus(next)
+        if (active) {
+          const previous = previousCloudStatus.current
+          const previousConflicts = previous
+            ? previous.pendingConflicts + previous.inboundConflicts
+            : 0
+          const nextConflicts = next.pendingConflicts + next.inboundConflicts
+          const reconnected = next.runtimeMode === 'cloud_online' &&
+            previous !== null &&
+            previous.runtimeMode !== 'cloud_online'
+          if (
+            canManageCloud &&
+            nextConflicts > 0 &&
+            previous !== null &&
+            (
+              reconnected ||
+              nextConflicts > previousConflicts
+            )
+          ) {
+            setConflictPrompt({
+              upload: next.pendingConflicts,
+              inbound: next.inboundConflicts
+            })
+          }
+          previousCloudStatus.current = next
+          setCloudStatus(next)
+        }
       } catch {
         // The page-level cloud settings surface configuration errors.
       }
@@ -146,6 +176,51 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      {conflictPrompt ? (
+        <div className="modal-backdrop cloud-conflict-prompt-backdrop">
+          <section
+            aria-labelledby="cloud-conflict-prompt-title"
+            aria-modal="true"
+            className="modal-card cloud-conflict-prompt"
+            role="dialog"
+          >
+            <div className="form-heading">
+              <span>云端重连后需要确认</span>
+              <h2 id="cloud-conflict-prompt-title">发现需要人工合并的资料</h2>
+            </div>
+            <p>
+              桌游与公告的普通冲突已经自动采用云端版本。当前仍有
+              {conflictPrompt.upload > 0
+                ? ` ${conflictPrompt.upload} 条本机上传被云端拒绝`
+                : ''}
+              {conflictPrompt.upload > 0 && conflictPrompt.inbound > 0 ? '，以及' : ''}
+              {conflictPrompt.inbound > 0
+                ? ` ${conflictPrompt.inbound} 条云端资料需要合并`
+                : ''}
+              。资金、月卡、订单和退款不会自动覆盖。
+            </p>
+            <div className="modal-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setConflictPrompt(null)}
+              >
+                稍后处理
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => {
+                  setConflictPrompt(null)
+                  setPage('cloud')
+                }}
+              >
+                前往云端资料合并
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <aside className="sidebar">
         <div className="sidebar-heading">
           <div className="brand">

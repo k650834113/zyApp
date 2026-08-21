@@ -9,6 +9,7 @@ import {
 import type {
   MiniappHomeSnapshot,
   PublicActivitySummary,
+  PublicBoardGameFilterOptions,
   PublicBoardGameSummary
 } from '@zyapp/contracts'
 import { normalizePublicBoardGameFilters } from './board-game-library'
@@ -41,10 +42,19 @@ export class PublicContentController {
     @Query() query: Record<string, unknown>,
     @Req() request: MiniappRequest
   ): Promise<PublicBoardGameSummary[]> {
+    const filters = normalizePublicBoardGameFilters(query)
     return this.publicContent.listGames(
       query.storeId as string,
-      normalizePublicBoardGameFilters(query),
-      request.zyappMiniapp?.identityId ?? null
+      filters,
+      request.zyappMiniapp?.identityId ?? null,
+      { baseGamesOnly: filters.baseGameId === undefined }
     )
+  }
+
+  @Get('game-filter-options')
+  gameFilterOptions(
+    @Query('storeId') storeId: string
+  ): Promise<PublicBoardGameFilterOptions> {
+    return this.publicContent.getGameFilterOptions(storeId)
   }
 }

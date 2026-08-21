@@ -75,6 +75,10 @@ export function normalizePublicBoardGameFilters(
 ): PublicBoardGameFilters {
   const query =
     typeof raw.query === 'string' ? raw.query.trim().slice(0, 100) : ''
+  const baseGameId =
+    raw.baseGameId === undefined || raw.baseGameId === ''
+      ? undefined
+      : normalizeBoardGameId(raw.baseGameId)
   const selectedCategories = categories(raw.categories)
   const minPlayers = optionalInteger(raw.minPlayers, '最少人数', 1, 100)
   const maxPlayers = optionalInteger(raw.maxPlayers, '最多人数', 1, 100)
@@ -82,6 +86,8 @@ export function normalizePublicBoardGameFilters(
   const maxMinutes = optionalInteger(raw.maxMinutes, '最长时长', 1, 1_440)
   const minComplexity = optionalComplexity(raw.minComplexity)
   const maxComplexity = optionalComplexity(raw.maxComplexity)
+  const limit = optionalInteger(raw.limit, '每页数量', 1, 50) ?? 24
+  const offset = optionalInteger(raw.offset, '分页偏移', 0, 10_000) ?? 0
 
   assertRange(minPlayers, maxPlayers, '人数范围')
   assertRange(minMinutes, maxMinutes, '时长范围')
@@ -89,13 +95,16 @@ export function normalizePublicBoardGameFilters(
 
   return {
     ...(query ? { query } : {}),
+    ...(baseGameId ? { baseGameId } : {}),
     ...(selectedCategories ? { categories: selectedCategories } : {}),
     ...(minPlayers === undefined ? {} : { minPlayers }),
     ...(maxPlayers === undefined ? {} : { maxPlayers }),
     ...(minMinutes === undefined ? {} : { minMinutes }),
     ...(maxMinutes === undefined ? {} : { maxMinutes }),
     ...(minComplexity === undefined ? {} : { minComplexity }),
-    ...(maxComplexity === undefined ? {} : { maxComplexity })
+    ...(maxComplexity === undefined ? {} : { maxComplexity }),
+    limit,
+    offset
   }
 }
 

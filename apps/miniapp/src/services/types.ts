@@ -31,6 +31,7 @@ import type {
   MiniappIdentity,
   PhoneVerificationChallenge,
   PublicActivitySummary,
+  PublicBoardGameFilterOptions,
   PublicBoardGameFilters,
   PublicBoardGameSummary,
   SetBoardGameLikeRequest,
@@ -60,6 +61,7 @@ export interface MiniappClient {
   getHome(): Promise<MiniappHomeSnapshot>
   listActivities(): Promise<PublicActivitySummary[]>
   listGames(filters?: PublicBoardGameFilters): Promise<PublicBoardGameSummary[]>
+  getGameFilterOptions(): Promise<PublicBoardGameFilterOptions>
   listFavoriteGames(): Promise<PublicBoardGameSummary[]>
   setGameLiked(
     gameId: string,

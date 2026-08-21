@@ -4,13 +4,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { BoardGameEditorModal } from './BoardGameEditorModal'
 import { defaultBoardGameEditor } from './board-game-editor'
 
-function render(coverCacheError: string | null): string {
+function render(
+  coverCacheError: string | null,
+  expansion = false
+): string {
   return renderToStaticMarkup(createElement(BoardGameEditorModal, {
     busy: false,
-    baseGames: [],
+    baseGames: [{ id: 'game-catan', name: '卡坦岛' }],
     coverCacheError,
     editor: {
       ...defaultBoardGameEditor(),
+      gameKind: expansion ? 'expansion' : 'base',
+      baseGameId: expansion ? 'game-catan' : '',
       bggId: '13',
       imageUrl: 'https://cf.geekdo-images.com/catan.jpg',
       coverSource: 'bgg'
@@ -44,5 +49,18 @@ describe('BoardGameEditorModal', () => {
     expect(html).toContain('重试缓存')
     expect(html).toContain('上传本地图片')
     expect(html).toContain('使用默认封面并保存')
+  })
+
+  it('places expansion type and parent relation before public metadata', () => {
+    const html = render(null, true)
+
+    expect(html).toContain('游戏类型与归属')
+    expect(html).toContain('搜索基础游戏')
+    expect(html).toContain('输入名称筛选')
+    expect(html).toContain('所属基础游戏')
+    expect(html).toContain('卡坦岛')
+    expect(html.indexOf('游戏类型与归属')).toBeLessThan(
+      html.indexOf('公开资料')
+    )
   })
 })

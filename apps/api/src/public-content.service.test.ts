@@ -31,7 +31,12 @@ describe('public content service', () => {
           'COALESCE(game.max_minutes, game.min_minutes) >='
         )
         expect(sql).toContain('game.complexity_rating BETWEEN')
-        expect(sql).toContain('LIMIT 1000')
+        expect(sql).toContain('game.name ILIKE')
+        expect(sql).not.toContain('categories_json::text ILIKE')
+        expect(sql).toContain('LIMIT $')
+        expect(sql).toContain('OFFSET $')
+        expect(parameters).toContain(1000)
+        expect(parameters).toContain(0)
         expect(parameters).toContain(viewerId)
         return {
           rows: [
@@ -52,6 +57,7 @@ describe('public content service', () => {
               customer_note: 'Ask staff for help.',
               like_count: '7',
               liked_by_viewer: true,
+              expansion_count: 0,
               internal_note: 'must not leak',
               consignor_nickname: 'must not leak'
             }
@@ -77,6 +83,7 @@ describe('public content service', () => {
       {
         id: 'game-1',
         baseGameId: null,
+        expansionCount: 0,
         name: 'Cascadia',
         introduction: 'Family strategy',
         categories: ['Family', 'Strategy'],
@@ -136,6 +143,33 @@ describe('public content service', () => {
         likedByViewer: false
       })
     ])
+  })
+
+  it('returns frequent playable tags and range bounds without loading game cards', async () => {
+    const pool = {
+      query: async (sql: string) =>
+        sql.includes('jsonb_array_elements_text')
+          ? { rows: [{ category: '策略' }, { category: '聚会' }] }
+          : {
+              rows: [{
+                min_players: 1,
+                max_players: 12,
+                min_minutes: 10,
+                max_minutes: 240,
+                min_complexity: '1.0',
+                max_complexity: '4.5'
+              }]
+            }
+    } as unknown as Pool
+
+    await expect(
+      new PublicContentService(pool).getGameFilterOptions(storeId)
+    ).resolves.toEqual({
+      categories: ['策略', '聚会'],
+      playerBounds: { min: 1, max: 12 },
+      minuteBounds: { min: 10, max: 240 },
+      complexityBounds: { min: 1, max: 4.5 }
+    })
   })
 
   it('requires a viewer before running a favorites query', async () => {

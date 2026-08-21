@@ -22,7 +22,8 @@ import type {
   SaveBusinessTemplateOverrideRequest,
   SaveBusinessTemplateRequest,
   SetEmployeeStoreAccessRequest,
-  TenantStoreAdminSummary
+  TenantStoreAdminSummary,
+  UploadBoardGameCoverResult
 } from '@zyapp/contracts'
 import type {
   SyncCommandResult,
@@ -299,6 +300,43 @@ export async function cacheCloudBoardGameCover(
     {
       method: 'POST',
       headers: headers(connection),
+      signal: AbortSignal.timeout(
+        BOARD_GAME_METADATA_REQUEST_TIMEOUT_MILLISECONDS
+      )
+    }
+  )
+  return responseJson(response)
+}
+
+export async function uploadCloudBoardGameCover(
+  connection: CloudConnection,
+  actorId: string,
+  file: {
+    buffer: Buffer
+    fileName: string
+    contentType: string
+  },
+  fetchImpl: Fetch = fetch
+): Promise<UploadBoardGameCoverResult> {
+  if (!Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
+    throw new TypeError('Local board-game cover upload is invalid')
+  }
+  const baseUrl = normalizeCloudBaseUrl(connection.baseUrl)
+  const form = new FormData()
+  form.append(
+    'cover',
+    new Blob([Uint8Array.from(file.buffer)], { type: file.contentType }),
+    file.fileName
+  )
+  const response = await fetchImpl(
+    `${baseUrl}/v1/board-game-metadata/covers/local?actorId=${encodeURIComponent(actorId)}`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${connection.token}`,
+        'x-zyapp-device-id': connection.deviceId
+      },
+      body: form,
       signal: AbortSignal.timeout(
         BOARD_GAME_METADATA_REQUEST_TIMEOUT_MILLISECONDS
       )

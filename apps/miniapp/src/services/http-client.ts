@@ -32,6 +32,7 @@ import type {
   MiniappSessionResult,
   PhoneVerificationChallenge,
   PublicActivitySummary,
+  PublicBoardGameFilterOptions,
   PublicBoardGameFilters,
   PublicBoardGameSummary,
   SetBoardGameLikeRequest,
@@ -91,6 +92,7 @@ function boardGameQuery(
     if (value !== undefined) pairs.push([key, String(value)])
   }
   append('query', filters.query?.trim() || undefined)
+  append('baseGameId', filters.baseGameId)
   for (const category of filters.categories ?? []) {
     append('categories', category)
   }
@@ -100,6 +102,8 @@ function boardGameQuery(
   append('maxMinutes', filters.maxMinutes)
   append('minComplexity', filters.minComplexity)
   append('maxComplexity', filters.maxComplexity)
+  append('limit', filters.limit)
+  append('offset', filters.offset)
   return pairs
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
     .join('&')
@@ -265,6 +269,12 @@ export class HttpMiniappClient implements MiniappClient {
   ): Promise<PublicBoardGameSummary[]> {
     return this.request(
       `/v1/public/games?${boardGameQuery(this.options.storeId, filters)}`
+    )
+  }
+
+  getGameFilterOptions(): Promise<PublicBoardGameFilterOptions> {
+    return this.request(
+      `/v1/public/game-filter-options?storeId=${encodeURIComponent(this.options.storeId)}`
     )
   }
 

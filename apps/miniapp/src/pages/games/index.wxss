@@ -104,25 +104,6 @@
   position: relative;
 }
 
-.expansion-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: -2rpx 24rpx 0;
-  border-radius: 0 0 18rpx 18rpx;
-  padding: 15rpx 22rpx;
-  color: #365949;
-  background: #e8f0e9;
-  font-size: 22rpx;
-  font-weight: 700;
-}
-
-.expansion-list {
-  margin-left: 34rpx;
-  border-left: 4rpx solid #c9d9cd;
-  padding-left: 18rpx;
-}
-
 .load-error,
 .loading-line {
   margin-top: 18rpx;
@@ -140,6 +121,17 @@
 .loading-line {
   color: #54705f;
   background: #eaf1ea;
+}
+
+.load-more-state {
+  padding: 28rpx 0 12rpx;
+  color: #6f7b73;
+  text-align: center;
+  font-size: 23rpx;
+}
+
+.load-more-state.finished {
+  color: #9a9c97;
 }
 
 .no-result {
@@ -238,8 +230,38 @@
   display: block;
   margin-bottom: 16rpx;
   color: #2e3f36;
-  font-size: 25rpx;
+  font-size: 28rpx;
   font-weight: 750;
+}
+
+.filter-helper {
+  display: block;
+  margin: -4rpx 0 18rpx;
+  color: #777f79;
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+
+.category-search-input {
+  min-height: 72rpx;
+  margin-bottom: 18rpx;
+  border-radius: 18rpx;
+  font-size: 25rpx;
+}
+
+.category-match-count,
+.category-empty-result {
+  display: block;
+  margin: -2rpx 0 16rpx;
+  font-size: 22rpx;
+}
+
+.category-match-count {
+  color: #52725f;
+}
+
+.category-empty-result {
+  color: #9a6b62;
 }
 
 .category-options {
@@ -256,7 +278,7 @@
   padding: 12rpx 16rpx;
   color: #46544c;
   background: #faf7f0;
-  font-size: 22rpx;
+  font-size: 24rpx;
 }
 
 .category-option checkbox {

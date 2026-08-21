@@ -46,16 +46,20 @@ describe('board-game quick editor', () => {
     })
   })
 
-  it('applies structured metadata while preserving manager-written introduction', () => {
+  it('applies structured metadata while preserving manager-reviewed content', () => {
     const applied = applyMetadataDetails(
-      { ...defaultBoardGameEditor(), introduction: '店方中文简介' },
+      {
+        ...defaultBoardGameEditor(),
+        introduction: '店方中文简介',
+        categories: '德式、竞争'
+      },
       details,
       true
     )
     expect(applied).toMatchObject({
       name: '卡坦岛',
       introduction: '店方中文简介',
-      categories: '经营、策略',
+      categories: '德式、竞争',
       minPlayers: '3',
       maxPlayers: '4',
       complexityRating: '2.3',
@@ -82,7 +86,8 @@ describe('board-game quick editor', () => {
     const imported = applyMetadataDetails(defaultBoardGameEditor(), details, false)
     expect(boardGameRequest({
       ...imported,
-      introduction: '通过交易与建设发展岛屿。'
+      introduction: '通过交易与建设发展岛屿。',
+      categories: '德式、竞争、建设、交易'
     })).toMatchObject({
       name: '卡坦岛',
       complexityRating: 2.3,
@@ -172,6 +177,7 @@ describe('board-game quick editor', () => {
   it('includes the selected base game only for an expansion', () => {
     expect(boardGameRequest({
       ...defaultBoardGameEditor(),
+      gameKind: 'expansion',
       baseGameId: 'game-catan',
       name: '卡坦岛：航海家',
       introduction: '卡坦岛扩展。',
@@ -185,5 +191,16 @@ describe('board-game quick editor', () => {
       categories: '策略',
       private: true
     })).not.toHaveProperty('baseGameId')
+  })
+
+  it('requires a base-game relation before saving an expansion', () => {
+    expect(() => boardGameRequest({
+      ...defaultBoardGameEditor(),
+      gameKind: 'expansion',
+      name: '卡坦岛：航海家',
+      introduction: '卡坦岛扩展。',
+      categories: '策略',
+      private: true
+    })).toThrow(/扩展必须选择所属基础游戏/)
   })
 })

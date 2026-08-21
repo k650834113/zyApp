@@ -1482,6 +1482,92 @@ export function applyPendingInboundEvents(
   return { applied, conflicts, skippedSuperseded }
 }
 
+export function autoResolveNonCriticalInboundConflicts(
+  database: DatabaseSync,
+  context: StoreContext
+): { applied: number; skippedSuperseded: number } {
+  const events = database.prepare(
+    `SELECT sequence, event_id, aggregate_type, aggregate_id, event_type,
+            payload_json, occurred_at
+     FROM sync_inbound_event
+     WHERE tenant_id = ? AND store_id = ? AND apply_status = 'conflict'
+       AND error_message = 'Local pending changes exist for the same aggregate'
+       AND aggregate_type IN ('announcement', 'board_game')
+     ORDER BY length(sequence), sequence`
+  ).all(context.tenantId, context.storeId) as InboundEventRow[]
+  let applied = 0
+  let skippedSuperseded = 0
+
+  for (const event of events) {
+    if (hasPendingLocalChange(database, context, event)) continue
+    const timestampValue = new Date().toISOString()
+    if (hasLaterLocalOriginEvent(database, context, event)) {
+      database.exec('BEGIN IMMEDIATE')
+      try {
+        database.prepare(
+          `UPDATE sync_inbound_event
+           SET apply_status = 'skipped_origin', applied_at = ?,
+               error_message = 'auto_resolved_superseded_by_later_local_origin'
+           WHERE sequence = ? AND apply_status = 'conflict'`
+        ).run(timestampValue, event.sequence)
+        appendInboundAudit(
+          database,
+          context,
+          event,
+          'sync.inbound.applied',
+          'Automatically skipped cloud event superseded by a later confirmed local event',
+          currentSnapshot(database, event),
+          null,
+          timestampValue
+        )
+        database.exec('COMMIT')
+        skippedSuperseded += 1
+      } catch (error) {
+        database.exec('ROLLBACK')
+        throw error
+      }
+      continue
+    }
+
+    database.exec('BEGIN IMMEDIATE')
+    try {
+      const before = currentSnapshot(database, event)
+      const after = afterPayload(event)
+      applyEvent(database, context, event, after)
+      database.prepare(
+        `UPDATE sync_inbound_event
+         SET apply_status = 'applied', applied_at = ?,
+             error_message = 'auto_resolved_apply_cloud_noncritical'
+         WHERE sequence = ? AND apply_status = 'conflict'`
+      ).run(timestampValue, event.sequence)
+      appendInboundAudit(
+        database,
+        context,
+        event,
+        'sync.inbound.applied',
+        'Automatically applied cloud version for non-critical content conflict',
+        before,
+        after,
+        timestampValue
+      )
+      database.exec('COMMIT')
+      applied += 1
+    } catch (error) {
+      database.exec('ROLLBACK')
+      database.prepare(
+        `UPDATE sync_inbound_event SET error_message = ?
+         WHERE sequence = ? AND apply_status = 'conflict'`
+      ).run(
+        `Automatic cloud apply failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`.slice(0, 1000),
+        event.sequence
+      )
+    }
+  }
+  return { applied, skippedSuperseded }
+}
+
 export function resolveInboundSyncConflict(
   database: DatabaseSync,
   context: InboundResolutionContext,

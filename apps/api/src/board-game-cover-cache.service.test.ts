@@ -80,6 +80,29 @@ describe('BoardGameCoverCacheService', () => {
     expect((await covers.read(`${sha256}.jpg`)).buffer).toEqual(jpeg)
   })
 
+  it('stores a manager-uploaded local cover in the same public cache', async () => {
+    const { covers, directory } = await service()
+    const gif = Buffer.from('GIF89a fixture')
+    const sha256 = createHash('sha256').update(gif).digest('hex')
+
+    const stored = await covers.cacheLocal({
+      buffer: gif,
+      originalname: 'local-cover.gif',
+      mimetype: 'image/gif',
+      size: gif.length
+    })
+
+    expect(stored).toEqual({
+      source: 'local',
+      cachedUrl:
+        `https://judian.icu/test/v1/public/board-game-covers/${sha256}.gif`,
+      contentType: 'image/gif',
+      sha256
+    })
+    expect(await readdir(directory)).toEqual([`${sha256}.gif`])
+    expect((await covers.read(`${sha256}.gif`)).buffer).toEqual(gif)
+  })
+
   it.each([
     ['non-HTTPS sources', 'http://cf.geekdo-images.com/catan.jpg'],
     ['non-BGG hosts', 'https://example.com/catan.jpg'],

@@ -78,6 +78,18 @@ describe('board-game card view model', () => {
     })
   })
 
+  it('previews at most three categories and signals additional details', () => {
+    expect(
+      toBoardGameCardView({
+        ...game,
+        categories: ['德式', '策略', '竞争', '卡牌']
+      })
+    ).toMatchObject({
+      previewCategories: ['德式', '策略', '竞争'],
+      hasMoreCategories: true
+    })
+  })
+
   it('shows readable fallbacks for missing duration and complexity', () => {
     expect(
       toBoardGameCardView({
@@ -134,6 +146,11 @@ describe('board-game filter semantics', () => {
     expect(
       matchesBoardGameFilters(game, { minPlayers: 1, maxPlayers: 4 })
     ).toBe(false)
+  })
+
+  it('matches the main search against the game name only', () => {
+    expect(matchesBoardGameFilters(game, { query: '宝石' })).toBe(true)
+    expect(matchesBoardGameFilters(game, { query: '策略' })).toBe(false)
   })
 
   it('uses time overlap and excludes null complexity only when filtered', () => {

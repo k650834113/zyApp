@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { hashPassword } from '@zyapp/auth'
 import {
+  cacheBoardGameCoverUrl,
   createBoardGame,
   listBoardGames,
   setBoardGameRecordStatus,
@@ -15,6 +16,73 @@ import { findEmployeeRecordById, getStoreContext } from './identity'
 import { openLocalDatabase } from './index'
 
 describe('board-game repository', () => {
+  it('records a cached local cover as an audited sync operation', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-board-game-cover-'))
+    const local = openLocalDatabase(join(directory, 'test.db'))
+    try {
+      const bootstrap = bootstrapStore(local.connection, {
+        storeName: 'Game store',
+        deviceName: 'Cashier',
+        managerUsername: 'manager',
+        managerPasswordHash: await hashPassword('Password123!'),
+        managerDisplayName: 'Manager'
+      })
+      const store = getStoreContext(local.connection)
+      if (!store) throw new Error('Store missing')
+      const manager = findEmployeeRecordById(
+        local.connection,
+        store.tenantId,
+        bootstrap.managerId
+      )
+      if (!manager) throw new Error('Manager missing')
+      const context = { ...store, actor: manager }
+      const game = createBoardGame(local.connection, context, {
+        name: 'Local Cover Game',
+        introduction: 'A game with a locally imported cover.',
+        categories: ['策略'],
+        minPlayers: 2,
+        maxPlayers: 4,
+        complexityRating: 2,
+        quantity: 1,
+        available: true,
+        customerConsigned: false,
+        missingPieces: false,
+        private: false,
+        recommended: false,
+        localImagePath: 'managed-cover.png',
+        missingParts: []
+      })
+      const cachedUrl =
+        `https://judian.icu/v1/public/board-game-covers/${'a'.repeat(64)}.png`
+
+      const updated = cacheBoardGameCoverUrl(
+        local.connection,
+        context,
+        game.id,
+        cachedUrl
+      )
+
+      expect(updated).toMatchObject({
+        imageUrl: cachedUrl,
+        localImagePath: 'managed-cover.png'
+      })
+      expect(local.connection.prepare(
+        `SELECT action, reason FROM audit_log
+         WHERE aggregate_id = ? ORDER BY occurred_at DESC LIMIT 1`
+      ).get(game.id)).toEqual({
+        action: 'board_game.cover.cached',
+        reason: '本地封面自动缓存到云端'
+      })
+      expect(local.connection.prepare(
+        `SELECT operation_type FROM outbox_operation
+         WHERE aggregate_id = ? ORDER BY device_seq DESC LIMIT 1`
+      ).get(game.id)).toEqual({ operation_type: 'board_game.cover.cached' })
+    } finally {
+      local.close()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('stores multi-select operations and private consignment details', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-board-game-'))
     const local = openLocalDatabase(join(directory, 'test.db'))
@@ -38,7 +106,7 @@ describe('board-game repository', () => {
       const fields = {
         name: 'Cascadia',
         introduction: 'A tile-laying family strategy game.',
-        categories: ['Family', 'Strategy'],
+        categories: Array.from({ length: 23 }, (_, index) => `集石标签${index + 1}`),
         minPlayers: 1,
         maxPlayers: 4,
         minMinutes: 30,
@@ -56,6 +124,13 @@ describe('board-game repository', () => {
         missingParts: []
       }
       const created = createBoardGame(local.connection, context, fields)
+      expect(created.categories).toHaveLength(23)
+      expect(() => createBoardGame(local.connection, context, {
+        ...fields,
+        name: 'Too many tags',
+        categories: Array.from({ length: 31 }, (_, index) => `标签${index + 1}`),
+        bggId: 99
+      })).toThrow(/1-30/)
       expect(created).toMatchObject({
         baseGameId: null,
         complexityRating: 2.3,

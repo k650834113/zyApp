@@ -71,6 +71,34 @@ describe('board-game cover save orchestration', () => {
     expect(persist).not.toHaveBeenCalled()
   })
 
+  it('replaces a local managed path with a public cached URL when available', async () => {
+    const localRequest = {
+      ...request,
+      imageUrl: '',
+      localImagePath: 'C:\\ZyApp\\assets\\board-games\\cover.png',
+      coverSource: 'local' as const
+    }
+    const persist = vi.fn(async (prepared: CreateBoardGameRequest) => prepared)
+    const upload = vi.fn().mockResolvedValue({
+      source: 'local',
+      cachedUrl:
+        `https://judian.icu/test/v1/public/board-game-covers/${'b'.repeat(64)}.png`,
+      contentType: 'image/png',
+      sha256: 'b'.repeat(64)
+    })
+
+    const result = await persistBoardGameWithResolvedCover(
+      localRequest,
+      vi.fn(),
+      persist,
+      upload
+    )
+
+    expect(upload).toHaveBeenCalledWith(localRequest.localImagePath)
+    expect(result.imageUrl).toContain('/v1/public/board-game-covers/')
+    expect(result.localImagePath).toBe(localRequest.localImagePath)
+  })
+
   it.each(['none', 'local', 'external', 'cached'] as const)(
     'does not cache cover source %s',
     async (coverSource) => {

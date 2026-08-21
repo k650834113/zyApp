@@ -1,11 +1,13 @@
 import type {
   BoardGameCoverSource,
-  CacheBoardGameCoverResult
+  CacheBoardGameCoverResult,
+  UploadBoardGameCoverResult
 } from '@zyapp/contracts'
 
 type CoverAwareBoardGameRequest = {
   bggId?: number
   imageUrl?: string
+  localImagePath?: string
   coverSource?: BoardGameCoverSource
 }
 
@@ -42,14 +44,48 @@ function validatedCachedUrl(
   return url.toString()
 }
 
+function validatedLocalCachedUrl(
+  result: UploadBoardGameCoverResult
+): string {
+  let url: URL
+  try {
+    url = new URL(result.cachedUrl)
+  } catch {
+    throw new Error('本地封面缓存返回了无效地址')
+  }
+  if (
+    result.source !== 'local' ||
+    url.protocol !== 'https:' ||
+    !/\/v1\/public\/board-game-covers\/[0-9a-f]{64}\.(jpg|png|webp|gif)$/.test(
+      url.pathname
+    )
+  ) {
+    throw new Error('本地封面缓存返回了不受信任的地址')
+  }
+  return url.toString()
+}
+
 export async function persistBoardGameWithResolvedCover<
   TRequest extends CoverAwareBoardGameRequest,
   TResult
 >(
   request: TRequest,
   cache: (externalId: string) => Promise<CacheBoardGameCoverResult>,
-  persist: (request: TRequest) => TResult | Promise<TResult>
+  persist: (request: TRequest) => TResult | Promise<TResult>,
+  uploadLocal?: (
+    managedPath: string
+  ) => Promise<UploadBoardGameCoverResult | null>
 ): Promise<TResult> {
+  if (request.coverSource === 'local' && request.localImagePath && uploadLocal) {
+    const cached = await uploadLocal(request.localImagePath)
+    if (cached) {
+      return await persist({
+        ...request,
+        imageUrl: validatedLocalCachedUrl(cached),
+        coverSource: 'cached'
+      })
+    }
+  }
   if (request.coverSource !== 'bgg') {
     return await persist(request)
   }

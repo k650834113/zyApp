@@ -12,7 +12,8 @@ import type {
   BoardGameMetadataAvailability,
   BoardGameMetadataCandidate,
   BoardGameMetadataDetails,
-  CacheBoardGameCoverResult
+  CacheBoardGameCoverResult,
+  UploadBoardGameCoverResult
 } from '@zyapp/contracts'
 import type { Pool } from '@zyapp/cloud-db'
 import { createHash } from 'node:crypto'
@@ -24,7 +25,10 @@ import {
   BggMetadataError
 } from './bgg-adapter'
 import { BggRequestGate } from './request-gate'
-import { BoardGameCoverCacheService } from '../board-game-cover-cache.service'
+import {
+  BoardGameCoverCacheService,
+  type BoardGameCoverUpload
+} from '../board-game-cover-cache.service'
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -124,6 +128,18 @@ export class BoardGameMetadataService {
       throw new BadGatewayException('BGG cover image is unavailable')
     }
     return this.covers.cacheFromBgg(id, imageUrl)
+  }
+
+  async uploadLocalCover(
+    principal: DevicePrincipal,
+    actorIdValue: string,
+    file: BoardGameCoverUpload | undefined
+  ): Promise<UploadBoardGameCoverResult> {
+    await this.requireManager(principal, actorId(actorIdValue))
+    if (!file) {
+      throw new BadRequestException('Local board-game cover is required')
+    }
+    return this.covers.cacheLocal(file)
   }
 
   private async loadDetails(id: string): Promise<BoardGameMetadataDetails> {

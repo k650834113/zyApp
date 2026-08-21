@@ -1,5 +1,6 @@
 {
   "navigationBarTitleText": "桌游库",
+  "onReachBottomDistance": 180,
   "usingComponents": {
     "board-game-card": "/components/board-game-card/index",
     "range-slider": "/components/range-slider/index"

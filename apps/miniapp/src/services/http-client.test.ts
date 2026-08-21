@@ -179,13 +179,16 @@ describe('HTTP miniapp client authentication', () => {
 
     await client.listGames({
       query: '宝石',
+      baseGameId: 'base-game-1',
       categories: ['德式', '策略'],
       minPlayers: 3,
       maxPlayers: 6,
       minMinutes: 30,
       maxMinutes: 120,
       minComplexity: 1.5,
-      maxComplexity: 3.5
+      maxComplexity: 3.5,
+      limit: 24,
+      offset: 48
     })
     await client.listFavoriteGames()
     await client.setGameLiked('game-1', {
@@ -195,10 +198,13 @@ describe('HTTP miniapp client authentication', () => {
 
     expect(requests[0]?.url).toContain(`storeId=${storeId}`)
     expect(requests[0]?.url).toContain('query=%E5%AE%9D%E7%9F%B3')
+    expect(requests[0]?.url).toContain('baseGameId=base-game-1')
     expect(requests[0]?.url).toContain('categories=%E5%BE%B7%E5%BC%8F')
     expect(requests[0]?.url).toContain('categories=%E7%AD%96%E7%95%A5')
     expect(requests[0]?.url).toContain('minPlayers=3')
     expect(requests[0]?.url).toContain('maxComplexity=3.5')
+    expect(requests[0]?.url).toContain('limit=24')
+    expect(requests[0]?.url).toContain('offset=48')
     expect(requests[1]?.url).toBe(`${baseUrl}/v1/miniapp/favorite-games`)
     expect(requests[2]).toMatchObject({
       url: `${baseUrl}/v1/miniapp/board-games/game-1/like`,

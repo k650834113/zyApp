@@ -31,6 +31,7 @@ import type {
   MiniappIdentity,
   PhoneVerificationChallenge,
   PublicActivitySummary,
+  PublicBoardGameFilterOptions,
   PublicBoardGameFilters,
   PublicBoardGameSummary,
   SetBoardGameLikeRequest,
@@ -462,18 +463,21 @@ function publicGames(
   likedGameIds: ReadonlySet<string>,
   likeCounts: ReadonlyMap<string, number>
 ): PublicBoardGameSummary[] {
-  return employeeBoardGames
-    .filter(
-      (game) =>
-        game.recordStatus === 'active' &&
-        !game.private &&
-        game.available &&
-        game.quantity > 0 &&
-        !game.missingPieces
-    )
+  const playableGames = employeeBoardGames.filter(
+    (game) =>
+      game.recordStatus === 'active' &&
+      !game.private &&
+      game.available &&
+      game.quantity > 0 &&
+      !game.missingPieces
+  )
+  return playableGames
     .map((game) => ({
       id: game.id,
       baseGameId: game.baseGameId,
+      expansionCount: playableGames.filter(
+        (candidate) => candidate.baseGameId === game.id
+      ).length,
       name: game.name,
       introduction: game.introduction,
       categories: [...game.categories],
@@ -633,9 +637,53 @@ export class MockMiniappClient implements MiniappClient {
   async listGames(
     filters: PublicBoardGameFilters = {}
   ): Promise<PublicBoardGameSummary[]> {
-    return this.publicGames().filter((game) =>
-      matchesBoardGameFilters(game, filters)
+    const matching = this.publicGames().filter(
+      (game) =>
+        matchesBoardGameFilters(game, filters) &&
+        (filters.baseGameId
+          ? game.baseGameId === filters.baseGameId
+          : game.baseGameId === null)
     )
+    return matching.slice(filters.offset ?? 0, (filters.offset ?? 0) + (filters.limit ?? matching.length))
+  }
+
+  async getGameFilterOptions(): Promise<PublicBoardGameFilterOptions> {
+    const available = this.publicGames().filter(
+      (game) => game.baseGameId === null
+    )
+    const categoryCounts = new Map<string, number>()
+    for (const game of available) {
+      for (const category of new Set(game.categories)) {
+        categoryCounts.set(category, (categoryCounts.get(category) ?? 0) + 1)
+      }
+    }
+    const minuteValues = available.flatMap((game) =>
+      game.minMinutes === null
+        ? []
+        : [game.minMinutes, game.maxMinutes ?? game.minMinutes]
+    )
+    const complexityValues = available.flatMap((game) =>
+      game.complexityRating === null ? [] : [game.complexityRating]
+    )
+    return {
+      categories: [...categoryCounts.entries()]
+        .sort((left, right) =>
+          right[1] - left[1] || left[0].localeCompare(right[0], 'zh-CN')
+        )
+        .map(([category]) => category),
+      playerBounds: {
+        min: Math.min(...available.map((game) => game.minPlayers)),
+        max: Math.max(...available.map((game) => game.maxPlayers))
+      },
+      minuteBounds: {
+        min: minuteValues.length ? Math.min(...minuteValues) : 15,
+        max: minuteValues.length ? Math.max(...minuteValues) : 240
+      },
+      complexityBounds: {
+        min: complexityValues.length ? Math.min(...complexityValues) : 0,
+        max: complexityValues.length ? Math.max(...complexityValues) : 5
+      }
+    }
   }
 
   async listFavoriteGames(): Promise<PublicBoardGameSummary[]> {

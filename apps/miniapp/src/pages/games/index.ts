@@ -1,7 +1,6 @@
 import type {
   BoardGameSourceAttribution,
-  PublicBoardGameFilters,
-  PublicBoardGameSummary
+  PublicBoardGameFilters
 } from '@zyapp/contracts'
 import {
   cleanBoardGameFilters,
@@ -18,6 +17,9 @@ type RangeBounds = { min: number; max: number; step: number }
 type RangeEvent = { detail: RangeValue }
 type CategoryEvent = { detail: { value: string[] } }
 type GameEvent = { detail: { gameId: string } }
+type ExpansionEvent = { detail: { gameId: string; gameName: string } }
+type FilterKind = 'category' | 'players' | 'minutes' | 'complexity'
+type FilterEvent = { currentTarget: { dataset: { filterKind?: FilterKind } } }
 
 type CategoryView = { name: string; selected: boolean }
 type FilterChip = {
@@ -28,8 +30,9 @@ type FilterChip = {
 }
 
 let loadSequence = 0
-let previewSequence = 0
-let previewTimer: ReturnType<typeof setTimeout> | null = null
+
+const PAGE_SIZE = 24
+const COMMON_CATEGORY_LIMIT = 12
 
 const defaultPlayerBounds: RangeBounds = { min: 1, max: 8, step: 1 }
 const defaultMinuteBounds: RangeBounds = { min: 15, max: 240, step: 5 }
@@ -39,56 +42,46 @@ function requestId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-function values(values: Array<number | null>): number[] {
-  return values.filter((value): value is number => value !== null)
-}
-
-function bounds(games: PublicBoardGameSummary[]): {
-  players: RangeBounds
-  minutes: RangeBounds
-  complexity: RangeBounds
-} {
-  const playerMinimums = games.map((game) => game.minPlayers)
-  const playerMaximums = games.map((game) => game.maxPlayers)
-  const minuteMinimums = values(games.map((game) => game.minMinutes))
-  const minuteMaximums = values(
-    games.map((game) => game.maxMinutes ?? game.minMinutes)
-  )
-  const complexities = values(games.map((game) => game.complexityRating))
-  return {
-    players:
-      games.length === 0
-        ? defaultPlayerBounds
-        : {
-            min: Math.min(...playerMinimums),
-            max: Math.max(...playerMaximums),
-            step: 1
-          },
-    minutes:
-      minuteMinimums.length === 0
-        ? defaultMinuteBounds
-        : {
-            min: Math.min(...minuteMinimums),
-            max: Math.max(...minuteMaximums),
-            step: 5
-          },
-    complexity:
-      complexities.length === 0
-        ? defaultComplexityBounds
-        : {
-            min: Math.min(...complexities),
-            max: Math.max(...complexities),
-            step: 0.1
-          }
-  }
-}
-
 function categoryViews(
   options: string[],
   selected: string[]
 ): CategoryView[] {
   const selectedSet = new Set(selected)
   return options.map((name) => ({ name, selected: selectedSet.has(name) }))
+}
+
+function visibleCategories(options: string[], query: string): string[] {
+  const normalized = query.trim().toLocaleLowerCase('zh-CN')
+  if (!normalized) return options.slice(0, COMMON_CATEGORY_LIMIT)
+  return options
+    .filter((category) =>
+      category.toLocaleLowerCase('zh-CN').includes(normalized)
+    )
+    .slice(0, 30)
+}
+
+function discoveredCategories(games: BoardGameCardView[]): string[] {
+  const counts = new Map<string, number>()
+  for (const game of games) {
+    for (const category of new Set(game.categories)) {
+      counts.set(category, (counts.get(category) ?? 0) + 1)
+    }
+  }
+  return [...counts]
+    .sort(
+      ([left, leftCount], [right, rightCount]) =>
+        rightCount - leftCount || left.localeCompare(right, 'zh-CN')
+    )
+    .map(([category]) => category)
+}
+
+function decodedCategory(value: string | undefined): string {
+  if (!value) return ''
+  try {
+    return decodeURIComponent(value).trim()
+  } catch {
+    return value.trim()
+  }
 }
 
 function chips(filters: PublicBoardGameFilters): FilterChip[] {
@@ -132,12 +125,18 @@ Page({
     resultCount: 0,
     sourceAttribution: null as BoardGameSourceAttribution | null,
     loading: true,
+    loadingMore: false,
+    hasMore: true,
     loadFailed: false,
     filterOpen: false,
+    activeFilter: 'category' as FilterKind,
+    filterTitle: '按分类筛选',
     appliedFilters: {} as PublicBoardGameFilters,
     selectedChips: [] as FilterChip[],
+    allCategoryOptions: [] as string[],
     categoryOptions: [] as string[],
     categoryViews: [] as CategoryView[],
+    categoryQuery: '',
     draftCategories: [] as string[],
     playerBounds: defaultPlayerBounds,
     minuteBounds: defaultMinuteBounds,
@@ -153,18 +152,27 @@ Page({
     draftComplexity: {
       lower: defaultComplexityBounds.min,
       upper: defaultComplexityBounds.max
-    } as RangeValue,
-    previewCount: 0,
-    previewLoading: false
+    } as RangeValue
   },
 
-  onShow() {
-    void this.loadGames()
+  onLoad(options: { category?: string }) {
+    const category = decodedCategory(options.category)
+    const appliedFilters: PublicBoardGameFilters = category
+      ? { categories: [category] }
+      : {}
+    this.setData({
+      appliedFilters,
+      selectedChips: chips(appliedFilters),
+      draftCategories: appliedFilters.categories ?? []
+    })
+    void this.loadGames(appliedFilters)
+    if (this.data.allCategoryOptions.length === 0) {
+      void this.loadFilterOptions()
+    }
   },
 
-  onUnload() {
-    if (previewTimer) clearTimeout(previewTimer)
-    previewTimer = null
+  onReachBottom() {
+    void this.loadMore()
   },
 
   requestFilters(): PublicBoardGameFilters {
@@ -203,25 +211,63 @@ Page({
     return cleanBoardGameFilters(filters)
   },
 
-  async loadGames(filters?: PublicBoardGameFilters) {
+  async loadFilterOptions() {
+    try {
+      const options = await getMiniappClient().getGameFilterOptions()
+      const categoryOptions = visibleCategories(options.categories, '')
+      const selectedCategories = this.data.appliedFilters.categories ?? []
+      const playerBounds = { ...options.playerBounds, step: 1 }
+      const minuteBounds = { ...options.minuteBounds, step: 5 }
+      const complexityBounds = { ...options.complexityBounds, step: 0.1 }
+      this.setData({
+        allCategoryOptions: options.categories,
+        categoryOptions,
+        categoryViews: categoryViews(categoryOptions, selectedCategories),
+        playerBounds,
+        minuteBounds,
+        complexityBounds,
+        draftPlayers: {
+          lower: playerBounds.min,
+          upper: playerBounds.max
+        },
+        draftMinutes: {
+          lower: minuteBounds.min,
+          upper: minuteBounds.max
+        },
+        draftComplexity: {
+          lower: complexityBounds.min,
+          upper: complexityBounds.max
+        }
+      })
+    } catch {
+      wx.showToast({ title: '筛选项加载失败，请重试', icon: 'none' })
+    }
+  },
+
+  async loadGames(filters?: PublicBoardGameFilters, append = false) {
     const sequence = ++loadSequence
-    this.setData({ loading: true })
+    const previousCards = this.data.games.flatMap((game) => [
+      game,
+      ...game.expansions
+    ])
+    const offset = append ? previousCards.length : 0
+    this.setData(append ? { loadingMore: true } : { loading: true })
     try {
       const result = await getMiniappClient().listGames(
-        filters ?? this.requestFilters()
+        cleanBoardGameFilters({
+          ...(filters ?? this.requestFilters()),
+          limit: PAGE_SIZE,
+          offset
+        })
       )
       if (sequence !== loadSequence) return
-      const previousCards = this.data.games.flatMap((game) => [
-        game,
-        ...game.expansions
-      ])
       const existing = new Map(previousCards.map((game) => [game.id, game]))
       const expandedBaseGameIds = new Set(
         this.data.games
           .filter((game) => game.expansionsExpanded)
           .map((game) => game.id)
       )
-      const cards = result.map((game) => {
+      const nextCards = result.map((game) => {
         const previous = existing.get(game.id)
         return toBoardGameCardView(game, {
           expanded: previous?.expanded ?? false,
@@ -229,52 +275,63 @@ Page({
           imageFailed: previous?.imageFailed ?? false
         })
       })
+      const cards = append
+        ? [
+            ...new Map(
+              [...previousCards, ...nextCards].map((game) => [game.id, game])
+            ).values()
+          ]
+        : nextCards
       const games = groupBoardGames(cards, expandedBaseGameIds)
-      const patch: Record<string, unknown> = {
+      const fallbackCategories =
+        this.data.allCategoryOptions.length === 0
+          ? discoveredCategories(cards)
+          : this.data.allCategoryOptions
+      const fallbackCategoryOptions = visibleCategories(
+        fallbackCategories,
+        this.data.categoryQuery
+      )
+      this.setData({
         games,
-        resultCount: result.length,
+        resultCount: games.length,
+        hasMore: result.length === PAGE_SIZE,
         sourceAttribution:
-          result.find((game) => game.sourceAttribution !== null)
+          cards.find((game) => game.sourceAttribution !== null)
             ?.sourceAttribution ?? null,
         loadFailed: false,
-        previewCount: result.length
-      }
-      if (this.data.categoryOptions.length === 0 && result.length > 0) {
-        const rangeBounds = bounds(result)
-        const categoryOptions = [
-          ...new Set(result.flatMap((game) => game.categories))
-        ].sort((left, right) => left.localeCompare(right, 'zh-CN'))
-        Object.assign(patch, {
-          categoryOptions,
-          categoryViews: categoryViews(categoryOptions, []),
-          playerBounds: rangeBounds.players,
-          minuteBounds: rangeBounds.minutes,
-          complexityBounds: rangeBounds.complexity,
-          draftPlayers: {
-            lower: rangeBounds.players.min,
-            upper: rangeBounds.players.max
-          },
-          draftMinutes: {
-            lower: rangeBounds.minutes.min,
-            upper: rangeBounds.minutes.max
-          },
-          draftComplexity: {
-            lower: rangeBounds.complexity.min,
-            upper: rangeBounds.complexity.max
-          }
-        })
-      }
-      this.setData(patch)
+        ...(this.data.allCategoryOptions.length === 0
+          ? {
+              allCategoryOptions: fallbackCategories,
+              categoryOptions: fallbackCategoryOptions,
+              categoryViews: categoryViews(
+                fallbackCategoryOptions,
+                this.data.draftCategories
+              )
+            }
+          : {})
+      })
     } catch (error) {
       if (sequence !== loadSequence) return
-      this.setData({ loadFailed: true })
+      if (!append) this.setData({ loadFailed: true })
       wx.showToast({
-        title: error instanceof Error ? error.message : '桌游加载失败',
+        title:
+          error instanceof Error
+            ? error.message
+            : append
+              ? '加载更多失败'
+              : '桌游加载失败',
         icon: 'none'
       })
     } finally {
-      if (sequence === loadSequence) this.setData({ loading: false })
+      if (sequence === loadSequence) {
+        this.setData(append ? { loadingMore: false } : { loading: false })
+      }
     }
+  },
+
+  loadMore() {
+    if (this.data.loading || this.data.loadingMore || !this.data.hasMore) return
+    return this.loadGames(this.requestFilters(), true)
   },
 
   onQueryInput(event: { detail: { value: string } }) {
@@ -289,13 +346,25 @@ Page({
     void this.loadGames()
   },
 
-  openFilter() {
+  openFilter(event: FilterEvent) {
+    const activeFilter = event.currentTarget.dataset.filterKind ?? 'category'
+    const filterTitles: Record<FilterKind, string> = {
+      category: '按分类筛选',
+      players: '按人数筛选',
+      minutes: '按时长筛选',
+      complexity: '按复杂度筛选'
+    }
     const filters = this.data.appliedFilters
     const draftCategories = [...(filters.categories ?? [])]
+    const categoryOptions = visibleCategories(this.data.allCategoryOptions, '')
     this.setData({
       filterOpen: true,
+      activeFilter,
+      filterTitle: filterTitles[activeFilter],
       draftCategories,
-      categoryViews: categoryViews(this.data.categoryOptions, draftCategories),
+      categoryQuery: '',
+      categoryOptions,
+      categoryViews: categoryViews(categoryOptions, draftCategories),
       draftPlayers: {
         lower: filters.minPlayers ?? this.data.playerBounds.min,
         upper: filters.maxPlayers ?? this.data.playerBounds.max
@@ -309,7 +378,6 @@ Page({
         upper: filters.maxComplexity ?? this.data.complexityBounds.max
       }
     })
-    this.schedulePreview()
   },
 
   closeFilter() {
@@ -319,55 +387,51 @@ Page({
   noop() {},
 
   changeCategories(event: CategoryEvent) {
-    const draftCategories = event.detail.value
+    const visible = new Set(this.data.categoryOptions)
+    const hiddenSelections = this.data.draftCategories.filter(
+      (category) => !visible.has(category)
+    )
+    const draftCategories = [
+      ...new Set([...hiddenSelections, ...event.detail.value])
+    ]
     this.setData({
       draftCategories,
       categoryViews: categoryViews(this.data.categoryOptions, draftCategories)
     })
-    this.schedulePreview()
+  },
+
+  onCategoryQueryInput(event: { detail: { value: string } }) {
+    const categoryQuery = event.detail.value
+    const categoryOptions = visibleCategories(
+      this.data.allCategoryOptions,
+      categoryQuery
+    )
+    this.setData({
+      categoryQuery,
+      categoryOptions,
+      categoryViews: categoryViews(categoryOptions, this.data.draftCategories)
+    })
   },
 
   changePlayers(event: RangeEvent) {
     this.setData({ draftPlayers: event.detail })
-    this.schedulePreview()
   },
 
   changeMinutes(event: RangeEvent) {
     this.setData({ draftMinutes: event.detail })
-    this.schedulePreview()
   },
 
   changeComplexity(event: RangeEvent) {
     this.setData({ draftComplexity: event.detail })
-    this.schedulePreview()
-  },
-
-  schedulePreview() {
-    if (previewTimer) clearTimeout(previewTimer)
-    this.setData({ previewLoading: true })
-    previewTimer = setTimeout(() => void this.loadPreview(), 200)
-  },
-
-  async loadPreview() {
-    const sequence = ++previewSequence
-    try {
-      const result = await getMiniappClient().listGames(this.draftFilters())
-      if (sequence === previewSequence) {
-        this.setData({ previewCount: result.length })
-      }
-    } catch {
-      if (sequence === previewSequence) {
-        wx.showToast({ title: '筛选预览失败，请重试', icon: 'none' })
-      }
-    } finally {
-      if (sequence === previewSequence) this.setData({ previewLoading: false })
-    }
   },
 
   clearDraft() {
+    const categoryOptions = visibleCategories(this.data.allCategoryOptions, '')
     this.setData({
       draftCategories: [],
-      categoryViews: categoryViews(this.data.categoryOptions, []),
+      categoryQuery: '',
+      categoryOptions,
+      categoryViews: categoryViews(categoryOptions, []),
       draftPlayers: {
         lower: this.data.playerBounds.min,
         upper: this.data.playerBounds.max
@@ -381,7 +445,6 @@ Page({
         upper: this.data.complexityBounds.max
       }
     })
-    this.schedulePreview()
   },
 
   applyFilters() {
@@ -447,33 +510,26 @@ Page({
     const gameId = event.detail.gameId
     this.setData({
       games: this.data.games.map((game) =>
-        game.id === gameId && game.expansionCount > 0
-          ? { ...game, expansionsExpanded: !game.expansionsExpanded }
-          : game.id === gameId
-            ? { ...game, expanded: !game.expanded }
-            : {
-                ...game,
-                expansions: game.expansions.map((expansion) =>
-                  expansion.id === gameId
-                    ? { ...expansion, expanded: !expansion.expanded }
-                    : expansion
-                )
-              }
+        game.id === gameId
+          ? { ...game, expanded: !game.expanded }
+          : {
+              ...game,
+              expansions: game.expansions.map((expansion) =>
+                expansion.id === gameId
+                  ? { ...expansion, expanded: !expansion.expanded }
+                  : expansion
+              )
+            }
       )
     })
   },
 
-  toggleExpansions(event: {
-    currentTarget: { dataset: { gameId?: string } }
-  }) {
-    const gameId = event.currentTarget.dataset.gameId
-    if (!gameId) return
-    this.setData({
-      games: this.data.games.map((game) =>
-        game.id === gameId
-          ? { ...game, expansionsExpanded: !game.expansionsExpanded }
-          : game
-      )
+  goExpansions(event: ExpansionEvent) {
+    const { gameId, gameName } = event.detail
+    wx.navigateTo({
+      url:
+        `/pages/game-expansions/index?baseGameId=${encodeURIComponent(gameId)}` +
+        `&baseGameName=${encodeURIComponent(gameName)}`
     })
   },
 

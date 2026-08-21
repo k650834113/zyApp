@@ -6,7 +6,7 @@ import {
   statSync
 } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { extname, join, resolve } from 'node:path'
+import { basename, extname, join, resolve } from 'node:path'
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   '.gif': 'image/gif',
@@ -50,6 +50,16 @@ export function readManagedBoardGameImage(
   managedPath: string,
   dataRoot: string
 ): string | null {
+  const file = readManagedBoardGameImageFile(managedPath, dataRoot)
+  return file
+    ? `data:${file.contentType};base64,${file.buffer.toString('base64')}`
+    : null
+}
+
+export function readManagedBoardGameImageFile(
+  managedPath: string,
+  dataRoot: string
+): { buffer: Buffer; contentType: string; fileName: string } | null {
   const root = resolve(dataRoot, 'assets', 'board-games')
   const target = resolve(managedPath)
   if (
@@ -60,5 +70,9 @@ export function readManagedBoardGameImage(
   }
   if (!existsSync(target)) return null
   const { mime } = requireSupportedImage(target)
-  return `data:${mime};base64,${readFileSync(target).toString('base64')}`
+  return {
+    buffer: readFileSync(target),
+    contentType: mime,
+    fileName: basename(target)
+  }
 }

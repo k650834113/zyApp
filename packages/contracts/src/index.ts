@@ -813,6 +813,13 @@ export type CacheBoardGameCoverResult = {
   sha256: string
 }
 
+export type UploadBoardGameCoverResult = {
+  source: 'local'
+  cachedUrl: string
+  contentType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+  sha256: string
+}
+
 export type BoardGameMissingPart = {
   id: Identifier
   name: string
@@ -1254,6 +1261,7 @@ export type BoardGameSourceAttribution = {
 export type PublicBoardGameSummary = {
   id: Identifier
   baseGameId: Identifier | null
+  expansionCount?: number
   name: string
   introduction: string
   categories: string[]
@@ -1271,6 +1279,7 @@ export type PublicBoardGameSummary = {
 
 export type PublicBoardGameFilters = {
   query?: string
+  baseGameId?: Identifier
   categories?: string[]
   minPlayers?: number
   maxPlayers?: number
@@ -1278,6 +1287,15 @@ export type PublicBoardGameFilters = {
   maxMinutes?: number
   minComplexity?: number
   maxComplexity?: number
+  limit?: number
+  offset?: number
+}
+
+export type PublicBoardGameFilterOptions = {
+  categories: string[]
+  playerBounds: { min: number; max: number }
+  minuteBounds: { min: number; max: number }
+  complexityBounds: { min: number; max: number }
 }
 
 export type SetBoardGameLikeRequest = {

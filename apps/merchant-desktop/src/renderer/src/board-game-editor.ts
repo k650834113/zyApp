@@ -7,6 +7,7 @@ import type {
 
 export type BoardGameEditor = {
   current: BoardGameSummary | null
+  gameKind: 'base' | 'expansion'
   baseGameId: string
   name: string
   introduction: string
@@ -81,6 +82,7 @@ export function findBoardGameByBggId<
 export function defaultBoardGameEditor(): BoardGameEditor {
   return {
     current: null,
+    gameKind: 'base',
     baseGameId: '',
     name: '',
     introduction: '',
@@ -132,6 +134,7 @@ export function boardGameEditorFor(
 ): BoardGameEditor {
   return {
     current: game,
+    gameKind: game.baseGameId === null ? 'base' : 'expansion',
     baseGameId: game.baseGameId ?? '',
     name: game.name,
     introduction: game.introduction,
@@ -177,7 +180,9 @@ export function applyMetadataDetails(
   return {
     ...editor,
     name,
-    categories: details.categories.join('、'),
+    // BGG labels are not part of ZyApp's public tag vocabulary. Keep the
+    // manager-reviewed Gstone tags when refreshing other BGG metadata.
+    categories: editor.categories,
     minPlayers: String(details.minPlayers),
     maxPlayers: String(details.maxPlayers),
     minMinutes:
@@ -253,12 +258,17 @@ export function boardGameRequest(
   if (!editor.private && editor.available && quantity > 0 && complexityRating === undefined) {
     throw new Error('公开且可用的桌游必须填写复杂度')
   }
+  if (editor.gameKind === 'expansion' && !editor.baseGameId) {
+    throw new Error('扩展必须选择所属基础游戏')
+  }
   const hasImportedMetadata =
     bggId !== undefined &&
     editor.metadataSource === 'bgg' &&
     Number.isFinite(Date.parse(editor.metadataImportedAt))
   return {
-    ...(editor.baseGameId ? { baseGameId: editor.baseGameId } : {}),
+    ...(editor.gameKind === 'expansion'
+      ? { baseGameId: editor.baseGameId }
+      : {}),
     name: editor.name,
     introduction: editor.introduction,
     categories: editor.categories

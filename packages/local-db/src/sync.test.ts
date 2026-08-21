@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   applySyncPullResult,
   applySyncPushResult,
+  autoResolveNonCriticalOutboundConflicts,
   bootstrapStore,
+  createAnnouncement,
   createMember,
   findEmployeeRecordById,
   getLocalSyncStatus,
@@ -24,6 +26,77 @@ afterEach(() => {
 })
 
 describe('local sync outbox', () => {
+  it('automatically accepts cloud for board-game and announcement upload conflicts', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-content-conflict-'))
+    temporaryDirectories.push(directory)
+    const local = openLocalDatabase(join(directory, 'zyapp.db'))
+    const bootstrap = bootstrapStore(local.connection, {
+      storeName: 'Sync Store',
+      managerUsername: 'manager',
+      managerPasswordHash: 'scrypt$test',
+      managerDisplayName: 'Manager',
+      deviceName: 'Cashier'
+    })
+    const context = getStoreContext(local.connection)
+    if (!context) throw new Error('Missing store')
+    const actor = findEmployeeRecordById(
+      local.connection,
+      context.tenantId,
+      bootstrap.managerId
+    )
+    if (!actor) throw new Error('Missing manager')
+    const announcement = createAnnouncement(
+      local.connection,
+      { ...context, actor },
+      {
+        title: 'Local notice',
+        content: 'Local content',
+        pinned: false,
+        visibleFrom: '2026-08-20T00:00:00.000Z'
+      }
+    )
+    const operation = local.connection.prepare(
+      `SELECT operation_id FROM outbox_operation
+       WHERE aggregate_id = ? AND operation_type LIKE 'announcement.%'`
+    ).get(announcement.id) as { operation_id: string }
+    const receipt = {
+      operationId: operation.operation_id,
+      status: 'conflict' as const,
+      conflictType: 'unknown' as const,
+      serverPayloadJson: '{"serverVersion":2,"fields":["title"]}'
+    }
+    applySyncPushResult(local.connection, context, {
+      protocolVersion: 1,
+      deviceId: context.deviceId,
+      serverTime: '2026-08-20T00:01:00.000Z',
+      receipts: [receipt]
+    })
+
+    expect(autoResolveNonCriticalOutboundConflicts(
+      local.connection,
+      context,
+      '2026-08-20T00:02:00.000Z'
+    )).toEqual({ resolved: 1 })
+    expect(getLocalSyncStatus(local.connection, context)).toMatchObject({
+      conflictedOperations: 0,
+      pendingConflicts: 0
+    })
+    applySyncPushResult(local.connection, context, {
+      protocolVersion: 1,
+      deviceId: context.deviceId,
+      serverTime: '2026-08-20T00:03:00.000Z',
+      receipts: [receipt]
+    })
+    expect(getLocalSyncStatus(local.connection, context).pendingConflicts).toBe(0)
+    expect(local.connection.prepare(
+      `SELECT action FROM audit_log
+       WHERE aggregate_id = ? AND action = 'sync.outbound.auto_cloud_wins'`
+    ).get(announcement.id)).toEqual({
+      action: 'sync.outbound.auto_cloud_wins'
+    })
+    local.close()
+  })
+
   it('builds pending batches and records confirmations and conflicts', () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-sync-'))
     temporaryDirectories.push(directory)
@@ -115,6 +188,10 @@ describe('local sync outbox', () => {
       conflict_type: 'member_phone_duplicate',
       status: 'pending'
     })
+    expect(
+      autoResolveNonCriticalOutboundConflicts(local.connection, context)
+    ).toEqual({ resolved: 0 })
+    expect(getLocalSyncStatus(local.connection, context).pendingConflicts).toBe(1)
 
     const resolved = applySyncPushResult(local.connection, context, {
       protocolVersion: 1,

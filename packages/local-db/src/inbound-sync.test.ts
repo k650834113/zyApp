@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   applyPendingInboundEvents,
   applySyncPullResult,
+  autoResolveNonCriticalInboundConflicts,
   bootstrapStore,
   cashRecharge,
   createAnnouncement,
@@ -718,6 +719,76 @@ describe('safe inbound event application', () => {
     local.close()
   })
 
+  it('automatically applies cloud after a non-critical local conflict clears', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-auto-content-conflict-'))
+    temporaryDirectories.push(directory)
+    const local = openLocalDatabase(join(directory, 'zyapp.db'))
+    const bootstrap = bootstrapStore(local.connection, {
+      storeName: 'Store',
+      managerUsername: 'manager',
+      managerPasswordHash: 'scrypt$test',
+      managerDisplayName: 'Manager',
+      deviceName: 'Cashier'
+    })
+    const context = getStoreContext(local.connection)
+    if (!context) throw new Error('Missing store')
+    const actor = findEmployeeRecordById(
+      local.connection,
+      context.tenantId,
+      bootstrap.managerId
+    )
+    if (!actor) throw new Error('Missing manager')
+    const localAnnouncement = createAnnouncement(
+      local.connection,
+      { ...context, actor },
+      {
+        title: 'Local title',
+        content: 'Local content',
+        pinned: false,
+        visibleFrom: '2026-08-20T00:00:00.000Z'
+      }
+    )
+    applySyncPullResult(local.connection, context, {
+      protocolVersion: 1,
+      deviceId: context.deviceId,
+      afterCursor: null,
+      nextCursor: '1',
+      hasMore: false,
+      events: [{
+        sequence: '1',
+        eventId: 'cloud-announcement',
+        tenantId: context.tenantId,
+        storeId: context.storeId,
+        originDeviceId: 'other-device',
+        aggregateType: 'announcement',
+        aggregateId: localAnnouncement.id,
+        eventType: 'announcement.updated',
+        payloadJson: payload({
+          ...localAnnouncement,
+          title: 'Cloud title',
+          updatedAt: '2026-08-20T01:00:00.000Z'
+        }),
+        occurredAt: '2026-08-20T01:00:00.000Z'
+      }],
+      serverTime: '2026-08-20T01:00:00.000Z'
+    })
+    expect(applyPendingInboundEvents(local.connection, context).conflicts).toBe(1)
+    local.connection.prepare(
+      `UPDATE outbox_operation SET sync_status = 'confirmed'
+       WHERE aggregate_id = ?`
+    ).run(localAnnouncement.id)
+
+    expect(autoResolveNonCriticalInboundConflicts(
+      local.connection,
+      context
+    )).toEqual({ applied: 1, skippedSuperseded: 0 })
+    expect(listAnnouncements(local.connection, context)[0]?.title).toBe(
+      'Cloud title'
+    )
+    expect(listInboundSyncConflicts(local.connection, context)).toHaveLength(0)
+    local.close()
+  })
+
   it('requires local pending changes to clear before a manager applies cloud data', () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-inbound-resolve-'))
     temporaryDirectories.push(directory)
@@ -897,6 +968,10 @@ describe('safe inbound event application', () => {
       aggregateType: 'member',
       aggregateId: 'another-member-id'
     })
+    expect(autoResolveNonCriticalInboundConflicts(
+      local.connection,
+      context
+    )).toEqual({ applied: 0, skippedSuperseded: 0 })
     expect(
       searchMembers(local.connection, context.tenantId, '13800138000', 10)
     ).toHaveLength(1)

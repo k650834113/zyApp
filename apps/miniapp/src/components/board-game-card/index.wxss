@@ -12,7 +12,8 @@
 .game-card-body {
   display: flex;
   gap: 22rpx;
-  padding: 24rpx 92rpx 24rpx 24rpx;
+  align-items: flex-start;
+  padding: 24rpx 142rpx 24rpx 24rpx;
 }
 
 .game-cover {
@@ -39,7 +40,6 @@
 
 .game-name,
 .game-meta,
-.expand-hint,
 .game-introduction,
 .collapse-hint {
   display: block;
@@ -47,15 +47,17 @@
 
 .game-name {
   padding-right: 6rpx;
-  font-size: 31rpx;
-  font-weight: 800;
+  color: #172b22;
+  font-size: 34rpx;
+  font-weight: 850;
+  line-height: 1.35;
 }
 
 .category-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8rpx;
-  margin-top: 16rpx;
+  margin-top: 12rpx;
 }
 
 .category-tag {
@@ -63,13 +65,34 @@
   padding: 6rpx 13rpx;
   color: #456354;
   background: #edf2ec;
-  font-size: 20rpx;
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.category-preview {
+  overflow: hidden;
+  flex-wrap: nowrap;
+}
+
+.category-preview .category-tag {
+  overflow: hidden;
+  max-width: 126rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-more {
+  color: #789084;
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .game-meta {
-  margin-top: 16rpx;
-  color: #58625c;
-  font-size: 22rpx;
+  margin-top: 14rpx;
+  color: #3e5549;
+  font-size: 24rpx;
+  font-weight: 600;
   line-height: 1.6;
 }
 
@@ -83,36 +106,60 @@
   font-size: 19rpx;
 }
 
-.expand-hint,
 .collapse-hint {
   margin-top: 14rpx;
   color: #9a7c50;
-  font-size: 20rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.card-actions {
+  position: absolute;
+  z-index: 3;
+  top: 18rpx;
+  right: 18rpx;
+  bottom: 18rpx;
+  display: flex;
+  width: 118rpx;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
 }
 
 .game-introduction {
-  margin-top: 16rpx;
+  margin-top: 20rpx;
   color: #4f554f;
-  font-size: 23rpx;
+  font-size: 25rpx;
   line-height: 1.75;
 }
 
+.detail-label {
+  display: block;
+  color: #253c31;
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
+.introduction-label {
+  margin-top: 22rpx;
+  margin-bottom: 8rpx;
+}
+
 .like-button {
-  position: absolute;
-  z-index: 2;
-  right: 20rpx;
-  top: 18rpx;
   display: flex;
-  width: 66rpx;
-  min-width: 66rpx;
-  height: 72rpx;
-  flex-direction: column;
+  box-sizing: border-box;
+  width: 92rpx;
+  min-width: 92rpx;
+  height: 62rpx;
+  flex-direction: row;
+  gap: 6rpx;
   align-items: center;
   justify-content: center;
   margin: 0;
-  padding: 0;
-  color: #7c817c;
-  background: transparent;
+  border-radius: 999rpx;
+  padding: 0 10rpx;
+  color: #657269;
+  background: #f1f4ef;
   line-height: 1;
 }
 
@@ -121,10 +168,25 @@
 }
 
 .heart {
-  font-size: 38rpx;
+  font-size: 34rpx;
 }
 
 .like-count {
-  margin-top: 5rpx;
-  font-size: 19rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.expansion-link {
+  box-sizing: border-box;
+  width: 118rpx;
+  min-width: 118rpx;
+  margin: 0;
+  border-radius: 999rpx;
+  padding: 0 6rpx;
+  color: #365949;
+  background: #e8f0e9;
+  font-size: 20rpx;
+  font-weight: 750;
+  line-height: 50rpx;
+  white-space: nowrap;
 }

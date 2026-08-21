@@ -2,6 +2,7 @@
   "pages": [
     "pages/home/index",
     "pages/games/index",
+    "pages/game-expansions/index",
     "pages/history/index",
     "pages/member/index",
     "pages/favorites/index"

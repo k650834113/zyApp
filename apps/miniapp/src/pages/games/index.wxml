@@ -7,7 +7,7 @@
   <view class="search-row">
     <input
       class="form-input search-input"
-      placeholder="搜索桌游名称或分类"
+      placeholder="搜索桌游名称"
       value="{{query}}"
       bindinput="onQueryInput"
       confirm-type="search"
@@ -17,10 +17,10 @@
   </view>
 
   <view class="quick-filters">
-    <button class="filter-pill" bindtap="openFilter">分类</button>
-    <button class="filter-pill" bindtap="openFilter">人数</button>
-    <button class="filter-pill" bindtap="openFilter">时长</button>
-    <button class="filter-pill" bindtap="openFilter">复杂度</button>
+    <button class="filter-pill" data-filter-kind="category" bindtap="openFilter">分类</button>
+    <button class="filter-pill" data-filter-kind="players" bindtap="openFilter">人数</button>
+    <button class="filter-pill" data-filter-kind="minutes" bindtap="openFilter">时长</button>
+    <button class="filter-pill" data-filter-kind="complexity" bindtap="openFilter">复杂度</button>
   </view>
 
   <view wx:if="{{selectedChips.length}}" class="selected-row">
@@ -36,7 +36,7 @@
   </view>
 
   <view class="result-head">
-    <text>{{resultCount}} 款桌游</text>
+    <text>已展示 {{resultCount}} 款桌游</text>
   </view>
 
   <view wx:if="{{loadFailed}}" class="load-error" bindtap="retry">
@@ -46,26 +46,14 @@
 
   <view wx:for="{{games}}" wx:key="id" class="game-family">
     <board-game-card
+      id="game-card-{{index}}"
       game="{{item}}"
+      show-expansion-action="{{true}}"
       bindtoggle="toggleGame"
       bindlike="likeGame"
+      bindviewexpansions="goExpansions"
       bindimageerror="imageError"
     />
-    <view wx:if="{{item.expansionCount}}" class="expansion-summary" bindtap="toggleExpansions" data-game-id="{{item.id}}">
-      <text>{{item.expansionsExpanded ? '收起' : '展开'}} {{item.expansionCount}} 个扩展</text>
-      <text>{{item.expansionsExpanded ? '⌃' : '⌄'}}</text>
-    </view>
-    <view wx:if="{{item.expansionsExpanded}}" class="expansion-list">
-      <board-game-card
-        wx:for="{{item.expansions}}"
-        wx:for-item="expansion"
-        wx:key="id"
-        game="{{expansion}}"
-        bindtoggle="toggleGame"
-        bindlike="likeGame"
-        bindimageerror="imageError"
-      />
-    </view>
   </view>
 
   <view wx:if="{{loading && !games.length}}" class="empty-state">正在加载桌游…</view>
@@ -73,6 +61,10 @@
     <text>没有找到符合条件的桌游</text>
     <button class="secondary-button" bindtap="clearAll">清空筛选</button>
   </view>
+
+  <view wx:if="{{loadingMore}}" class="load-more-state">正在加载更多桌游…</view>
+  <view wx:elif="{{hasMore && games.length}}" class="load-more-state">继续下滑加载更多</view>
+  <view wx:elif="{{games.length}}" class="load-more-state finished">已加载全部桌游</view>
 
   <view wx:if="{{sourceAttribution}}" class="source-attribution" bindtap="copyBggSource">
     <text>Powered by BGG</text>
@@ -91,12 +83,23 @@
     <view class="filter-sheet" catchtap="noop">
       <view class="sheet-handle"></view>
       <view class="sheet-head">
-        <text class="sheet-title">筛选桌游</text>
+        <text class="sheet-title">{{filterTitle}}</text>
         <text class="sheet-close" bindtap="closeFilter">关闭</text>
       </view>
       <scroll-view class="filter-scroll" scroll-y>
-        <view class="filter-section">
-          <text class="filter-title">分类（可多选）</text>
+        <view wx:if="{{activeFilter === 'category'}}" class="filter-section">
+          <text class="filter-title">常用标签（可多选）</text>
+          <text class="filter-helper">默认显示最常用的 12 个标签，也可搜索全部标签</text>
+          <input
+            class="form-input category-search-input"
+            placeholder="搜索标签"
+            value="{{categoryQuery}}"
+            bindinput="onCategoryQueryInput"
+          />
+          <text wx:if="{{categoryQuery && categoryOptions.length}}" class="category-match-count">
+            匹配到 {{categoryOptions.length}} 个标签，请选择
+          </text>
+          <text wx:elif="{{categoryQuery}}" class="category-empty-result">没有匹配的标签</text>
           <checkbox-group class="category-options" bindchange="changeCategories">
             <label wx:for="{{categoryViews}}" wx:key="name" class="category-option">
               <checkbox value="{{item.name}}" checked="{{item.selected}}" color="#174f3b" />
@@ -105,7 +108,7 @@
           </checkbox-group>
         </view>
 
-        <view class="filter-section">
+        <view wx:if="{{activeFilter === 'players'}}" class="filter-section">
           <text class="filter-title">适合人数</text>
           <range-slider
             min="{{playerBounds.min}}"
@@ -118,7 +121,7 @@
           />
         </view>
 
-        <view class="filter-section">
+        <view wx:if="{{activeFilter === 'minutes'}}" class="filter-section">
           <text class="filter-title">游戏时长</text>
           <range-slider
             min="{{minuteBounds.min}}"
@@ -131,7 +134,7 @@
           />
         </view>
 
-        <view class="filter-section">
+        <view wx:if="{{activeFilter === 'complexity'}}" class="filter-section">
           <text class="filter-title">复杂度</text>
           <range-slider
             min="{{complexityBounds.min}}"
@@ -147,10 +150,7 @@
 
       <view class="sheet-actions">
         <button class="clear-button" bindtap="clearDraft">清空</button>
-        <button class="apply-button" bindtap="applyFilters" disabled="{{previewLoading}}">
-          <text wx:if="{{previewLoading}}">正在计算…</text>
-          <text wx:else>查看 {{previewCount}} 款桌游</text>
-        </button>
+        <button class="apply-button" bindtap="applyFilters">应用筛选</button>
       </view>
     </view>
   </view>

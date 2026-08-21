@@ -8,6 +8,8 @@ export type BoardGameCardView = PublicBoardGameSummary & {
   playersText: string
   durationText: string
   complexityText: string
+  previewCategories: string[]
+  hasMoreCategories: boolean
   expanded: boolean
   likeBusy: boolean
   imageFailed: boolean
@@ -29,6 +31,7 @@ export function cleanBoardGameFilters(
     .filter(Boolean)
   return {
     ...(query ? { query } : {}),
+    ...(filters.baseGameId ? { baseGameId: filters.baseGameId } : {}),
     ...(categories?.length ? { categories: [...new Set(categories)] } : {}),
     ...(filters.minPlayers === undefined
       ? {}
@@ -47,7 +50,9 @@ export function cleanBoardGameFilters(
       : { minComplexity: filters.minComplexity }),
     ...(filters.maxComplexity === undefined
       ? {}
-      : { maxComplexity: filters.maxComplexity })
+      : { maxComplexity: filters.maxComplexity }),
+    ...(filters.limit === undefined ? {} : { limit: filters.limit }),
+    ...(filters.offset === undefined ? {} : { offset: filters.offset })
   }
 }
 
@@ -59,10 +64,7 @@ export function matchesBoardGameFilters(
   const query = filters.query?.toLowerCase()
   if (
     query &&
-    !game.name.toLowerCase().includes(query) &&
-    !game.categories.some((category) =>
-      category.toLowerCase().includes(query)
-    )
+    !game.name.toLowerCase().includes(query)
   ) {
     return false
   }
@@ -142,11 +144,13 @@ export function toBoardGameCardView(
       game.complexityRating === null
         ? '复杂度待补充'
         : `复杂度 ${game.complexityRating.toFixed(1)}/5`,
+    previewCategories: game.categories.slice(0, 3),
+    hasMoreCategories: game.categories.length > 3,
     expanded: state.expanded ?? false,
     likeBusy: state.likeBusy ?? false,
     imageFailed: state.imageFailed ?? false,
     isExpansion: game.baseGameId !== null,
-    expansionCount: 0
+    expansionCount: game.expansionCount ?? 0
   }
 }
 
@@ -170,7 +174,7 @@ export function groupBoardGames(
       const expansions = children.get(game.id) ?? []
       return {
         ...game,
-        expansionCount: expansions.length,
+        expansionCount: game.expansionCount || expansions.length,
         expansions,
         expansionsExpanded: expandedBaseGameIds.has(game.id)
       }

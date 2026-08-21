@@ -87,8 +87,8 @@ function validateFields(fields: SaveBoardGameFields): void {
     throw new Error('Board-game introduction must contain 2-5000 characters')
   }
   const categories = normalizeCategories(fields.categories)
-  if (categories.length === 0 || categories.length > 20) {
-    throw new Error('Board games require 1-20 categories')
+  if (categories.length === 0 || categories.length > 30) {
+    throw new Error('Board games require 1-30 categories')
   }
   if (categories.some((value) => value.length > 40)) {
     throw new Error('Board-game categories must not exceed 40 characters')
@@ -645,6 +645,53 @@ export function updateBoardGame(
       action: 'board_game.updated',
       boardGameId,
       reason,
+      before,
+      after,
+      timestamp
+    })
+    database.exec('COMMIT')
+    return after
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
+}
+
+export function cacheBoardGameCoverUrl(
+  database: DatabaseSync,
+  context: BoardGameContext,
+  boardGameId: string,
+  cachedUrl: string
+): BoardGameSummary {
+  const normalizedUrl = cachedUrl.trim()
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(normalizedUrl)
+  } catch {
+    throw new Error('Board-game cached cover URL is invalid')
+  }
+  if (
+    parsedUrl.protocol !== 'https:' ||
+    !/\/v1\/public\/board-game-covers\/[0-9a-f]{64}\.(jpg|png|webp|gif)$/.test(
+      parsedUrl.pathname
+    )
+  ) {
+    throw new Error('Board-game cached cover URL is not trusted')
+  }
+  const before = findBoardGame(database, context, boardGameId)
+  if (before.imageUrl === normalizedUrl) return before
+  const timestamp = new Date().toISOString()
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    database.prepare(
+      `UPDATE board_game SET image_url = ?, updated_at = ?
+       WHERE tenant_id = ? AND id = ?`
+    ).run(normalizedUrl, timestamp, context.tenantId, boardGameId)
+    const after = findBoardGame(database, context, boardGameId)
+    appendAuditAndOutbox(database, context, {
+      action: 'board_game.cover.cached',
+      boardGameId,
+      reason: '本地封面自动缓存到云端',
       before,
       after,
       timestamp

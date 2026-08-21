@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "相关扩展",
+  "onReachBottomDistance": 180,
+  "usingComponents": {
+    "board-game-card": "/components/board-game-card/index"
+  }
+}

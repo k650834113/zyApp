@@ -16,7 +16,8 @@ import {
   pushCloudSyncBatch,
   searchCloudBoardGameMetadata,
   streamCloudEventHints,
-  submitCloudSyncCommand
+  submitCloudSyncCommand,
+  uploadCloudBoardGameCover
 } from './cloud-sync-client'
 
 const connection = {
@@ -109,6 +110,34 @@ describe('desktop cloud sync client', () => {
         fetchMock
       )
     ).rejects.toMatchObject({ status: 503 })
+  })
+
+  it('uploads a local board-game cover as authenticated multipart data', async () => {
+    const actorId = '44444444-4444-4444-8444-444444444444'
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({
+        source: 'local',
+        cachedUrl:
+          `https://judian.icu/test/v1/public/board-game-covers/${'b'.repeat(64)}.png`,
+        contentType: 'image/png',
+        sha256: 'b'.repeat(64)
+      }), { status: 200 })
+    )
+
+    await uploadCloudBoardGameCover(connection, actorId, {
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      fileName: 'cover.png',
+      contentType: 'image/png'
+    }, fetchMock)
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `${connection.baseUrl}/v1/board-game-metadata/covers/local?actorId=${actorId}`
+    )
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBeInstanceOf(FormData)
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual({
+      authorization: 'Bearer secret-token',
+      'x-zyapp-device-id': 'device-1'
+    })
   })
 
   it('submits and resolves protocol v2 operations by id', async () => {

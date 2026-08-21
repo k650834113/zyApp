@@ -58,7 +58,14 @@ function service(options: {
             `https://judian.icu/test/v1/public/board-game-covers/${'a'.repeat(64)}.jpg`,
           contentType: 'image/jpeg',
           sha256: 'a'.repeat(64)
-        })
+        }),
+    cacheLocal: vi.fn().mockResolvedValue({
+      source: 'local',
+      cachedUrl:
+        `https://judian.icu/test/v1/public/board-game-covers/${'b'.repeat(64)}.png`,
+      contentType: 'image/png',
+      sha256: 'b'.repeat(64)
+    })
   }
   return {
     query,
@@ -90,6 +97,21 @@ describe('board-game metadata service', () => {
     await expect(fixture.instance.status(principal, actorId)).rejects.toMatchObject({
       status: 403
     })
+  })
+
+  it('authorizes and stores a local PC cover without calling BGG', async () => {
+    const fixture = service()
+    const file = {
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      originalname: 'cover.png',
+      mimetype: 'image/png',
+      size: 4
+    }
+
+    await expect(
+      fixture.instance.uploadLocalCover(principal, actorId, file)
+    ).resolves.toMatchObject({ source: 'local' })
+    expect(fixture.covers.cacheLocal).toHaveBeenCalledWith(file)
   })
 
   it('normalizes searches, caps results and caches for 24 hours', async () => {

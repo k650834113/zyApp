@@ -126,12 +126,15 @@ import {
   bootstrapStore as bootstrapLocalStore,
   adjustMemberTier,
   applyPendingInboundEvents,
+  autoResolveNonCriticalInboundConflicts,
+  autoResolveNonCriticalOutboundConflicts,
   applyCloudMirrorPage,
   applySyncPullResult,
   applySyncPushResult,
   approveFinancialRefund,
   approveRefund,
   cashRecharge,
+  cacheBoardGameCoverUrl,
   cacheCloudMirrorPage,
   cacheOfflineFinancialLease,
   correctMemberBirthday,
@@ -319,6 +322,7 @@ import {
   searchCloudBoardGameMetadata,
   streamCloudEventHints,
   submitCloudSyncCommand,
+  uploadCloudBoardGameCover,
   renewOfflineFinancialLease,
   setEmployeeStoreAccess as setCloudEmployeeStoreAccess,
   saveBusinessTemplate as saveCloudBusinessTemplate,
@@ -346,12 +350,14 @@ import {
 } from './application-update'
 import {
   importBoardGameImage,
-  readManagedBoardGameImage
+  readManagedBoardGameImage,
+  readManagedBoardGameImageFile
 } from './board-game-image'
 import {
   isBggCdnImageUrl,
   persistBoardGameWithResolvedCover
 } from './board-game-cover-save'
+import { optionalBoardGameBaseGameId } from './board-game-relation'
 
 let mainWindow: BrowserWindow | null = null
 let localDatabase: LocalDatabase | null = null
@@ -1207,6 +1213,24 @@ async function runCloudSyncOnce(
     if (repairedLegacyImports.created > 0) {
       logger?.write('info', 'legacy_import_cloud_sync_repaired', repairedLegacyImports)
     }
+    const resolvedExistingContentConflicts =
+      autoResolveNonCriticalOutboundConflicts(
+        localDatabase.connection,
+        context
+      )
+    if (resolvedExistingContentConflicts.resolved > 0) {
+      logger?.write('info', 'noncritical_outbound_conflicts_auto_resolved',
+        resolvedExistingContentConflicts)
+    }
+    const cachedLocalCovers = await cacheExistingLocalBoardGameCovers(
+      cloudConnection,
+      context
+    )
+    if (cachedLocalCovers > 0) {
+      logger?.write('info', 'board_game_local_covers_cached', {
+        count: cachedLocalCovers
+      })
+    }
     const before = getLocalSyncStatus(localDatabase.connection, context)
     updateCloudRuntime(
       before.pendingOperations > 0 ? 'reconciling' : 'connecting'
@@ -1219,6 +1243,14 @@ async function runCloudSyncOnce(
     )
     if (completed.receipts.length > 0) {
       applySyncPushResult(localDatabase.connection, context, completed)
+    }
+    const resolvedContentConflicts = autoResolveNonCriticalOutboundConflicts(
+      localDatabase.connection,
+      context
+    )
+    if (resolvedContentConflicts.resolved > 0) {
+      logger?.write('info', 'noncritical_outbound_conflicts_auto_resolved',
+        resolvedContentConflicts)
     }
     let pullCursor = getSyncPullCursor(
       localDatabase.connection,
@@ -1257,6 +1289,18 @@ async function runCloudSyncOnce(
       )
     }
     applyPendingInboundEvents(localDatabase.connection, context)
+    const resolvedInboundContentConflicts =
+      autoResolveNonCriticalInboundConflicts(
+        localDatabase.connection,
+        context
+      )
+    if (
+      resolvedInboundContentConflicts.applied > 0 ||
+      resolvedInboundContentConflicts.skippedSuperseded > 0
+    ) {
+      logger?.write('info', 'noncritical_inbound_conflicts_auto_resolved',
+        resolvedInboundContentConflicts)
+    }
     await processCloudCashierCommands(cloudConnection, context)
     await processCloudEmployeeFinancialCommands(
       cloudConnection,
@@ -1974,8 +2018,8 @@ function requireBoardGameOperations(
 function requireBoardGameFields(
   request: CreateBoardGameRequest | UpdateBoardGameRequest
 ): CreateBoardGameRequest {
-  if (!Array.isArray(request?.categories) || request.categories.length > 20) {
-    throw new RangeError('桌游分类数量应为 1-20 个')
+  if (!Array.isArray(request?.categories) || request.categories.length > 30) {
+    throw new RangeError('桌游分类数量应为 1-30 个')
   }
   const categories = [
     ...new Set(
@@ -2049,7 +2093,9 @@ function requireBoardGameFields(
     '寄存人昵称',
     100
   )
+  const baseGameId = optionalBoardGameBaseGameId(request?.baseGameId)
   return {
+    ...(baseGameId === undefined ? {} : { baseGameId }),
     name: requireText(request?.name, '桌游名称', { min: 1, max: 120 }),
     introduction: requireText(request?.introduction, '桌游简介', {
       min: 2,
@@ -2262,6 +2308,92 @@ function requireMemberWriteContext(session: SessionUser): {
     throw new Error('当前员工账号不可用，请重新登录')
   }
   return { ...context, actor }
+}
+
+async function uploadManagedBoardGameCover(
+  session: SessionUser,
+  managedPath: string
+) {
+  if (!cloudConnection) return null
+  const file = readManagedBoardGameImageFile(managedPath, baseDataRoot)
+  if (!file) return null
+  try {
+    return await uploadCloudBoardGameCover(
+      cloudConnection,
+      session.id,
+      file
+    )
+  } catch (error) {
+    logger?.write('error', 'board_game_local_cover_upload_deferred', {
+      message: error instanceof Error ? error.message : String(error)
+    })
+    return null
+  }
+}
+
+function isCachedBoardGameCoverUrl(value: string | null): boolean {
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' &&
+      /\/v1\/public\/board-game-covers\/[0-9a-f]{64}\.(jpg|png|webp|gif)$/.test(
+        url.pathname
+      )
+  } catch {
+    return false
+  }
+}
+
+async function cacheExistingLocalBoardGameCovers(
+  connection: CloudConnection,
+  context: StoreContext
+): Promise<number> {
+  const managerSession = [...sessions.values()].find((session) =>
+    session.permissions.includes(PERMISSIONS.contentManage)
+  )
+  if (!managerSession) return 0
+  let writeContext: ReturnType<typeof requireMemberWriteContext>
+  try {
+    writeContext = requireMemberWriteContext(managerSession)
+  } catch (error) {
+    logger?.write('error', 'board_game_local_cover_backfill_deferred', {
+      message: error instanceof Error ? error.message : String(error)
+    })
+    return 0
+  }
+  const games = listBoardGames(requireDatabase().connection, context)
+    .filter((game) =>
+      Boolean(game.localImagePath) && !isCachedBoardGameCoverUrl(game.imageUrl)
+    )
+    .slice(0, 20)
+  let cached = 0
+  for (const game of games) {
+    try {
+      const file = readManagedBoardGameImageFile(
+        game.localImagePath ?? '',
+        baseDataRoot
+      )
+      if (!file) continue
+      const uploaded = await uploadCloudBoardGameCover(
+        connection,
+        managerSession.id,
+        file
+      )
+      cacheBoardGameCoverUrl(
+        requireDatabase().connection,
+        writeContext,
+        game.id,
+        uploaded.cachedUrl
+      )
+      cached += 1
+    } catch (error) {
+      logger?.write('error', 'board_game_local_cover_backfill_failed', {
+        boardGameId: game.id,
+        message: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+  return cached
 }
 
 function clearEmployeeSessions(employeeId: string, exceptSenderId?: number): void {
@@ -4451,7 +4583,8 @@ function registerIpcHandlers(): void {
           database.connection,
           requireMemberWriteContext(session),
           requireBoardGameFields(prepared)
-        )
+        ),
+        (managedPath) => uploadManagedBoardGameCover(session, managedPath)
       )
     }
   )
@@ -4481,7 +4614,8 @@ function registerIpcHandlers(): void {
           }),
           requireBoardGameFields(prepared),
           requireText(prepared?.reason, '修改原因', { min: 2, max: 200 })
-        )
+        ),
+        (managedPath) => uploadManagedBoardGameCover(session, managedPath)
       )
     }
   )

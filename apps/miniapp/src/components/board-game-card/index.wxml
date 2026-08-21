@@ -11,33 +11,53 @@
 
     <view class="game-content">
       <text class="game-name">{{game.name}}</text>
-      <view class="category-row">
+      <text class="game-meta">{{game.playersText}} · {{game.durationText}} · {{game.complexityText}}</text>
+      <view wx:if="{{!game.expanded && game.previewCategories.length}}" class="category-row category-preview">
         <text
-          wx:for="{{game.categories}}"
+          wx:for="{{game.previewCategories}}"
           wx:key="*this"
           class="category-tag"
+          data-category="{{item}}"
+          catchtap="selectCategory"
         >{{item}}</text>
+        <text wx:if="{{game.hasMoreCategories}}" class="category-more">…</text>
       </view>
-      <text class="game-meta">{{game.playersText}} · {{game.durationText}} · {{game.complexityText}}</text>
       <text wx:if="{{game.isExpansion}}" class="expansion-badge">扩展</text>
-      <text wx:if="{{!game.expanded}}" class="expand-hint">
-        {{game.expansionCount ? '点击展开扩展' : '点击展开简介'}}
-      </text>
       <view wx:if="{{game.expanded}}" class="game-introduction">
+        <text class="detail-label">标签</text>
+        <view class="category-row">
+          <text
+            wx:for="{{game.categories}}"
+            wx:key="*this"
+            class="category-tag"
+            data-category="{{item}}"
+            catchtap="selectCategory"
+          >{{item}}</text>
+        </view>
+        <text class="detail-label introduction-label">简介</text>
         <text>{{game.introduction}}</text>
         <text class="collapse-hint">再次点击收起</text>
       </view>
     </view>
-  </view>
 
-  <button
-    class="like-button {{game.likedByViewer ? 'liked' : ''}}"
-    loading="{{game.likeBusy}}"
-    disabled="{{game.likeBusy}}"
-    catchtap="like"
-    aria-label="{{game.likedByViewer ? '取消点赞' : '点赞'}}"
-  >
-    <text class="heart">{{game.likedByViewer ? '♥' : '♡'}}</text>
-    <text class="like-count">{{game.likeCount}}</text>
-  </button>
+    <view class="card-actions">
+      <view
+        class="like-button {{game.likedByViewer ? 'liked' : ''}}"
+        catchtap="like"
+        role="button"
+        aria-label="{{game.likedByViewer ? '取消点赞' : '点赞'}}"
+        aria-disabled="{{game.likeBusy}}"
+      >
+        <text class="heart">{{game.likeBusy ? '…' : (game.likedByViewer ? '♥' : '♡')}}</text>
+        <text wx:if="{{!game.likeBusy}}" class="like-count">{{game.likeCount}}</text>
+      </view>
+      <view
+        wx:if="{{showExpansionAction && game.expansionCount && !game.isExpansion}}"
+        class="expansion-link"
+        catchtap="viewExpansions"
+        role="button"
+        aria-label="查看 {{game.expansionCount}} 个扩展"
+      >+{{game.expansionCount}}个扩展</view>
+    </view>
+  </view>
 </view>

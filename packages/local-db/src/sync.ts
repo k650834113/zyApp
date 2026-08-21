@@ -109,6 +109,100 @@ export function getSyncPullCursor(
   return state?.pull_cursor ?? null
 }
 
+export function autoResolveNonCriticalOutboundConflicts(
+  database: DatabaseSync,
+  context: StoreContext,
+  now = new Date().toISOString()
+): { resolved: number } {
+  const conflicts = database.prepare(
+    `SELECT conflict.operation_id, conflict.conflict_type,
+            operation.operation_type, operation.aggregate_id,
+            operation.actor_id, operation.payload_json
+     FROM sync_conflict conflict
+     JOIN outbox_operation operation
+       ON operation.operation_id = conflict.operation_id
+     WHERE conflict.tenant_id = ? AND conflict.store_id = ?
+       AND conflict.device_id = ? AND conflict.status = 'pending'
+       AND operation.sync_status = 'conflict'
+       AND (
+         operation.operation_type LIKE 'board_game.%'
+         OR operation.operation_type LIKE 'announcement.%'
+       )`
+  ).all(
+    context.tenantId,
+    context.storeId,
+    context.deviceId
+  ) as Array<{
+    operation_id: string
+    conflict_type: string
+    operation_type: string
+    aggregate_id: string
+    actor_id: string | null
+    payload_json: string
+  }>
+  if (conflicts.length === 0) return { resolved: 0 }
+
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    for (const conflict of conflicts) {
+      const aggregateType = conflict.operation_type.startsWith('board_game.')
+        ? 'board_game'
+        : 'announcement'
+      database.prepare(
+        `UPDATE outbox_operation SET sync_status = 'confirmed'
+         WHERE operation_id = ? AND sync_status = 'conflict'`
+      ).run(conflict.operation_id)
+      database.prepare(
+        `UPDATE sync_conflict
+         SET status = 'resolved', resolved_by = NULL, resolved_at = ?,
+             resolution_json = ?
+         WHERE operation_id = ? AND status = 'pending'`
+      ).run(
+        now,
+        JSON.stringify({
+          resolution: 'accept_cloud',
+          source: 'automatic_noncritical_policy',
+          conflictType: conflict.conflict_type,
+          operationType: conflict.operation_type
+        }),
+        conflict.operation_id
+      )
+      database.prepare(
+        `INSERT INTO audit_log
+         (id, tenant_id, store_id, device_id, actor_id, action,
+          aggregate_type, aggregate_id, reason, before_json, after_json,
+          occurred_at)
+         VALUES (?, ?, ?, ?, ?, 'sync.outbound.auto_cloud_wins', ?, ?, ?, ?, NULL, ?)`
+      ).run(
+        randomUUID(),
+        context.tenantId,
+        context.storeId,
+        context.deviceId,
+        conflict.actor_id,
+        aggregateType,
+        conflict.aggregate_id,
+        '非核心资料并发冲突自动接受云端版本',
+        conflict.payload_json,
+        now
+      )
+    }
+    const lastConfirmedDeviceSeq = contiguousConfirmedSequence(
+      database,
+      context.deviceId
+    )
+    database.prepare(
+      `UPDATE sync_state
+       SET last_confirmed_device_seq = ?, updated_at = ?
+       WHERE device_id = ?`
+    ).run(lastConfirmedDeviceSeq, now, context.deviceId)
+    database.exec('COMMIT')
+    return { resolved: conflicts.length }
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
+}
+
 export function recordSyncBatchAccepted(
   database: DatabaseSync,
   context: StoreContext,
@@ -240,6 +334,22 @@ export function applySyncPushResult(
         | undefined
       if (!operation) {
         throw new Error('Sync result references an unknown local operation')
+      }
+      if (
+        receipt.status === 'conflict' &&
+        operation.sync_status === 'confirmed'
+      ) {
+        const resolution = database.prepare(
+          `SELECT resolution_json FROM sync_conflict
+           WHERE operation_id = ? AND status = 'resolved'`
+        ).get(receipt.operationId) as
+          | { resolution_json: string | null }
+          | undefined
+        if (resolution?.resolution_json?.includes(
+          'automatic_noncritical_policy'
+        )) {
+          continue
+        }
       }
       if (receipt.status === 'confirmed') {
         database

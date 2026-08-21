@@ -30,6 +30,32 @@ function stateLabel(status: CloudConnectionStatus): string {
   return '连接中'
 }
 
+const aggregateLabels: Record<string, string> = {
+  activity: '活动资料',
+  announcement: '公告',
+  board_game: '桌游资料',
+  catalog: '收费项目',
+  employee: '员工资料',
+  employee_pc_credential: '员工 PC 登录凭据',
+  employee_mobile_access: '员工移动端权限',
+  member: '会员资料',
+  store: '门店资料'
+}
+
+function conflictTitle(conflict: InboundSyncConflictSummary): string {
+  return `${aggregateLabels[conflict.aggregateType] ?? '业务资料'}需要人工合并`
+}
+
+function conflictDescription(conflict: InboundSyncConflictSummary): string {
+  if (conflict.errorMessage === 'Local pending changes exist for the same aggregate') {
+    return '本机和云端同时修改了这条资料。请先完成本机上传，再选择保留本机或采用云端。'
+  }
+  if (conflict.errorMessage.startsWith('Automatic cloud apply failed:')) {
+    return `云端资料未能安全写入本机：${conflict.errorMessage.slice(29)}`
+  }
+  return `云端资料未能安全写入本机：${conflict.errorMessage}`
+}
+
 type Props = {
   dataEnvironment: DataEnvironment
 }
@@ -164,10 +190,13 @@ export function CloudConnectionPage({
     try {
       const next = await getDesktopApi().syncCloudNow()
       setStatus(next)
+      const manualConflicts = next.pendingConflicts + next.inboundConflicts
       setNotice(
-        next.pendingOperations > 0
-          ? `已上传并查询回执，尚有 ${next.pendingOperations} 条等待处理`
-          : '同步完成，本机没有待上传操作'
+        manualConflicts > 0
+          ? `同步已完成；普通内容冲突已自动处理，仍有 ${manualConflicts} 条重大或异常冲突，请在下方状态卡和资料合并区核对`
+          : next.pendingOperations > 0
+            ? `已上传并查询回执，尚有 ${next.pendingOperations} 条等待处理`
+            : '同步完成，本机没有待上传操作或待合并冲突'
       )
     } catch (reason) {
       setError(readableError(reason))
@@ -474,9 +503,9 @@ export function CloudConnectionPage({
           <small>已在本地事务安全保存，可继续离线营业</small>
         </article>
         <article className="panel cloud-status-card">
-          <span>同步冲突</span>
+          <span>上传需人工核对</span>
           <strong>{status?.pendingConflicts ?? 0}</strong>
-          <small>冲突不会静默覆盖余额、订单或会员资料</small>
+          <small>云端已拒绝这些本机操作，再次点击同步不会自动覆盖</small>
         </article>
         <article className="panel cloud-status-card">
           <span>连续确认序号</span>
@@ -513,9 +542,9 @@ export function CloudConnectionPage({
           <small>来自其他设备的事件已安全落库，等待明确的业务合并规则</small>
         </article>
         <article className="panel cloud-status-card">
-          <span>下行应用冲突</span>
+          <span>云端资料待合并</span>
           <strong>{status?.inboundConflicts ?? 0}</strong>
-          <small>本地有待上传修改或云端事件内容异常时不会覆盖</small>
+          <small>桌游与公告的小冲突自动采用云端；这里仅保留重大或异常项</small>
         </article>
         <article className="panel cloud-status-card">
           <span>云端拉取游标</span>
@@ -841,26 +870,26 @@ export function CloudConnectionPage({
       <section className="panel inbound-conflict-panel">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">非财务资料人工决策</p>
-            <h2>下行冲突中心</h2>
-            <p>处理会员资料、收费目录、公告、活动、桌游和门店资料；余额、订单和退款不在此处覆盖。</p>
+            <p className="eyebrow">仅保留需要人工判断的冲突</p>
+            <h2>云端资料合并</h2>
+            <p>桌游与公告的普通并发修改默认采用云端版本；会员、收费项目、活动、门店资料或内容异常仍要求店长确认。余额、月卡、订单和退款绝不会在此静默覆盖。</p>
           </div>
         </div>
         {inboundConflicts.length === 0 ? (
-          <div className="empty-state">当前没有待处理的下行冲突。</div>
+          <div className="empty-state">当前没有需要人工合并的云端资料。</div>
         ) : (
           <div className="inbound-conflict-list">
             {inboundConflicts.map((conflict) => (
               <article key={conflict.sequence}>
                 <div>
-                  <strong>{conflict.eventType}</strong>
+                  <strong>{conflictTitle(conflict)}</strong>
                   <span>
-                    {conflict.aggregateType} · {conflict.aggregateId}
+                    云端操作：{conflict.eventType}
                   </span>
                   <small>
-                    云端时间 {formatTime(conflict.occurredAt)} · 序号 {conflict.sequence}
+                    云端时间 {formatTime(conflict.occurredAt)} · 资料编号 {conflict.aggregateId}
                   </small>
-                  <p>{conflict.errorMessage}</p>
+                  <p>{conflictDescription(conflict)}</p>
                 </div>
                 <div className="cloud-actions">
                   <button
@@ -871,7 +900,7 @@ export function CloudConnectionPage({
                       void resolveInbound(conflict, 'keep_local')
                     }
                   >
-                    保留本地
+                    保留本机版本
                   </button>
                   <button
                     className="primary-button"
@@ -881,7 +910,7 @@ export function CloudConnectionPage({
                       void resolveInbound(conflict, 'apply_cloud')
                     }
                   >
-                    应用云端
+                    采用云端版本
                   </button>
                 </div>
               </article>

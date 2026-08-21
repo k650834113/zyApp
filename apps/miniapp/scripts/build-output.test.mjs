@@ -53,6 +53,7 @@ test('customer release output stays isolated from the shared dist directory', ()
 
     assert.deepEqual(pageDirectories, [
       'favorites',
+      'game-expansions',
       'games',
       'history',
       'home',

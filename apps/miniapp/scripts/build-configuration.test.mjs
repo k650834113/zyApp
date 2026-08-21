@@ -193,6 +193,7 @@ test('keeps only the approved member pages in the customer app manifest', () => 
       pages: [
         'pages/home/index',
         'pages/games/index',
+        'pages/game-expansions/index',
         'pages/history/index',
         'pages/member/index',
         'pages/favorites/index',
@@ -206,6 +207,7 @@ test('keeps only the approved member pages in the customer app manifest', () => 
       pages: [
         'pages/home/index',
         'pages/games/index',
+        'pages/game-expansions/index',
         'pages/history/index',
         'pages/member/index',
         'pages/favorites/index'
@@ -224,6 +226,7 @@ test('source app manifest exposes only approved customer pages', async () => {
   assert.deepEqual(app.pages, [
     'pages/home/index',
     'pages/games/index',
+    'pages/game-expansions/index',
     'pages/history/index',
     'pages/member/index',
     'pages/favorites/index'

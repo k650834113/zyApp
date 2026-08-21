@@ -25,7 +25,9 @@ describe('board-game library query validation', () => {
       minMinutes: 30,
       maxMinutes: 120,
       minComplexity: 1.2,
-      maxComplexity: 3.5
+      maxComplexity: 3.5,
+      limit: 24,
+      offset: 0
     })
   })
 
@@ -34,7 +36,9 @@ describe('board-game library query validation', () => {
     [{ minMinutes: '120', maxMinutes: '30' }, '时长范围'],
     [{ minComplexity: '3.5', maxComplexity: '1.2' }, '复杂度范围'],
     [{ minComplexity: '2.35' }, '复杂度'],
-    [{ categories: Array.from({ length: 11 }, (_, index) => `分类${index}`) }, '分类']
+    [{ categories: Array.from({ length: 11 }, (_, index) => `分类${index}`) }, '分类'],
+    [{ limit: '51' }, '每页数量'],
+    [{ offset: '-1' }, '分页偏移']
   ])('rejects invalid filter input %#', (input, message) => {
     expect(() => normalizePublicBoardGameFilters(input)).toThrow(String(message))
   })
