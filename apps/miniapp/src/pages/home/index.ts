@@ -8,11 +8,10 @@ import type {
 } from '@zyapp/contracts'
 import {
   getMiniappClient,
-  isRealWechatPaymentBuild,
-  isTestVirtualPhoneLoginEnabled,
-  testVirtualPhoneCode
+  isRealWechatPaymentBuild
 } from '../../services/client'
 import { loadMemberHomeDetails } from '../../services/member-home'
+import { createShareAppMessage } from '../../services/share'
 import {
   monthlyCardDisplay,
   type MonthlyCardDisplay
@@ -160,6 +159,10 @@ function rechargeOrderView(
 }
 
 Page({
+  onShareAppMessage() {
+    return createShareAppMessage('会员中心')
+  },
+
   data: {
     loading: true,
     busy: false,
@@ -181,7 +184,6 @@ Page({
     loginChallengeId: null as string | null,
     loginHint: '',
     verificationBusy: false,
-    testVirtualPhoneLoginEnabled: isTestVirtualPhoneLoginEnabled(),
     rechargeEnabled: isRealWechatPaymentBuild(),
     monthlyCardEnabled: isRealWechatPaymentBuild(),
     quickRechargeAmounts: rechargeAmountViews(null),
@@ -269,11 +271,6 @@ Page({
       return
     }
     await this.loginWithPhoneCode(phoneCode)
-  },
-
-  async loginWithVirtualPhone() {
-    if (this.data.busy) return
-    await this.loginWithPhoneCode(testVirtualPhoneCode())
   },
 
   async loginWithPhoneCode(phoneCode: string) {
@@ -551,6 +548,10 @@ Page({
 
   goGames() {
     wx.reLaunch({ url: '/pages/games/index' })
+  },
+
+  goTools() {
+    wx.reLaunch({ url: '/pages/tools/index' })
   },
 
   goHome() {}

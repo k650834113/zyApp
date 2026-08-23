@@ -38,6 +38,7 @@
   <view class="bottom-nav">
     <view class="nav-item" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
     <view class="nav-item" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>
+    <view class="nav-item" bindtap="goTools"><text class="nav-icon">◈</text><text>工具</text></view>
     <view class="nav-item active" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
     <view class="nav-item" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
   </view>

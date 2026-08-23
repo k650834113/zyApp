@@ -31,10 +31,10 @@ test('customer release output stays isolated from the shared dist directory', ()
         encoding: 'utf8',
         env: {
           ...process.env,
-          ZYAPP_MINIAPP_MODE: 'production-test-wechat',
-          ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'false',
-          ZYAPP_MINIAPP_API_BASE_URL: 'https://judian.icu/test',
-          ZYAPP_MINIAPP_STORE_ID: '0f990a69-9783-4830-869f-8a2edc7601c0'
+          ZYAPP_MINIAPP_MODE: 'production-wechat',
+          ZYAPP_MINIAPP_PRODUCTION_API_BASE_URL: 'https://judian.icu',
+          ZYAPP_MINIAPP_PRODUCTION_STORE_ID:
+            '22222222-2222-4222-8222-222222222222'
         }
       }
     )
@@ -57,7 +57,13 @@ test('customer release output stays isolated from the shared dist directory', ()
       'games',
       'history',
       'home',
-      'member'
+      'member',
+      'tool-coin',
+      'tool-dice',
+      'tool-first-player',
+      'tool-score',
+      'tool-teams',
+      'tools'
     ])
     assert.equal(
       existsSync(sharedClientPath) ? readFileSync(sharedClientPath, 'utf8') : null,

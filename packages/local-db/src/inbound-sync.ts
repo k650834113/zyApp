@@ -943,7 +943,7 @@ function applyMember(
   )
   const existing = database
     .prepare(
-      `SELECT m.id,
+      `SELECT m.id, m.store_id, m.source,
               COUNT(CASE WHEN g.id IS NOT NULL AND g.revoked_at IS NULL
                          THEN 1 END) advanced_grants
        FROM member m
@@ -953,8 +953,22 @@ function applyMember(
        GROUP BY m.id`
     )
     .get(context.tenantId, event.aggregate_id) as
-    | { id: string; advanced_grants: number }
+    | { id: string; store_id: string; source: string; advanced_grants: number }
     | undefined
+  const updatedAt = timestamp(after.updatedAt, 'member.updatedAt')
+  if (event.event_type === 'member.tier.reconciled') {
+    if (!existing) {
+      throw new Error('Member is missing for tier reconciliation')
+    }
+    reconcileProjectedMemberTier(database, context, {
+      memberId: event.aggregate_id,
+      sourceStoreId: existing.store_id,
+      tier,
+      source: existing.source,
+      occurredAt: updatedAt
+    })
+    return
+  }
   const localTier =
     existing && Number(existing.advanced_grants) > 0
       ? 'advanced'
@@ -1005,7 +1019,6 @@ function applyMember(
     ['desktop', 'miniapp', 'legacy'] as const,
     'member.source'
   )
-  const updatedAt = timestamp(after.updatedAt, 'member.updatedAt')
   database
     .prepare(
       `INSERT INTO member

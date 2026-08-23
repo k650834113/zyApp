@@ -1,0 +1,39 @@
+<view class="dice-page page-shell">
+  <view class="dice-stage {{rolling ? 'rolling' : ''}}" bindtap="roll" hover-class="dice-stage-pressed" hover-stay-time="80">
+    <view class="stage-topline">
+      <text>{{rolled ? '本轮点数' : '等待投掷'}}</text>
+      <text class="expression">{{expression}}</text>
+    </view>
+    <view class="dice-grid">
+      <view wx:for="{{results}}" wx:key="id" class="die-wrap die-wrap-{{index}}">
+        <view class="die d{{item.sides}}">
+          <text class="die-value">{{item.value}}</text>
+          <text class="die-sides">D{{item.sides}}</text>
+        </view>
+        <view class="die-shadow"></view>
+      </view>
+    </view>
+    <view class="total-line">合计 <text>{{total}}</text></view>
+    <text class="roll-hint">{{rolling ? '骰子滚动中…' : '点击结果区投掷'}}</text>
+  </view>
+
+  <view class="dice-controls card">
+    <view class="control-title">
+      <text>选择骰子</text>
+      <view class="control-actions">
+        <text class="dice-summary">共 {{results.length}} / {{maxDiceCount}} 枚</text>
+        <button class="clear-all" bindtap="clearAll" disabled="{{results.length === 0}}">清除全部</button>
+      </view>
+    </view>
+    <view class="dice-count-list">
+      <view wx:for="{{groups}}" wx:key="id" wx:for-item="group" class="dice-count-row {{group.count > 0 ? 'active' : ''}}">
+        <text class="dice-kind">D{{group.sides}}</text>
+        <view class="count-stepper">
+          <button class="count-button minus" data-sides="{{group.sides}}" data-delta="-1" bindtap="adjustCount" disabled="{{group.count <= 0}}">−</button>
+          <text class="dice-count">{{group.count}}</text>
+          <button class="count-button plus" data-sides="{{group.sides}}" data-delta="1" bindtap="adjustCount" disabled="{{results.length >= maxDiceCount}}">+</button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

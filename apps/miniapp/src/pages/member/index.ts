@@ -2,6 +2,7 @@ import type { MemberSelfServiceSummary } from '@zyapp/contracts'
 import { getMiniappClient } from '../../services/client'
 import { normalizeMemberNickname } from '../../services/member-login'
 import { saveOptionalAvatarProfile } from '../../services/member-profile'
+import { createShareAppMessage } from '../../services/share'
 
 type ProfileMode = 'complete' | 'edit'
 
@@ -18,6 +19,10 @@ type InputEvent = {
 }
 
 Page({
+  onShareAppMessage() {
+    return createShareAppMessage('我的资料')
+  },
+
   data: {
     loading: true,
     saving: false,
@@ -154,6 +159,10 @@ Page({
 
   goGames() {
     wx.reLaunch({ url: '/pages/games/index' })
+  },
+
+  goTools() {
+    wx.reLaunch({ url: '/pages/tools/index' })
   },
 
   goFavorites() {

@@ -60,6 +60,16 @@ function categories(value: unknown): string[] | undefined {
   return normalized.length > 0 ? normalized : undefined
 }
 
+function boardGameSort(
+  value: unknown
+): PublicBoardGameFilters['sort'] | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (value !== 'recent' && value !== 'mostLiked') {
+    throw new BadRequestException('桌游排序方式无效')
+  }
+  return value
+}
+
 function assertRange(
   minimum: number | undefined,
   maximum: number | undefined,
@@ -79,6 +89,7 @@ export function normalizePublicBoardGameFilters(
     raw.baseGameId === undefined || raw.baseGameId === ''
       ? undefined
       : normalizeBoardGameId(raw.baseGameId)
+  const sort = boardGameSort(raw.sort)
   const selectedCategories = categories(raw.categories)
   const minPlayers = optionalInteger(raw.minPlayers, '最少人数', 1, 100)
   const maxPlayers = optionalInteger(raw.maxPlayers, '最多人数', 1, 100)
@@ -96,6 +107,7 @@ export function normalizePublicBoardGameFilters(
   return {
     ...(query ? { query } : {}),
     ...(baseGameId ? { baseGameId } : {}),
+    ...(sort ? { sort } : {}),
     ...(selectedCategories ? { categories: selectedCategories } : {}),
     ...(minPlayers === undefined ? {} : { minPlayers }),
     ...(maxPlayers === undefined ? {} : { maxPlayers }),

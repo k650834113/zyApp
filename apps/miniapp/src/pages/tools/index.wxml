@@ -1,0 +1,44 @@
+<view class="page-shell tools-page">
+  <view class="tools-hero">
+    <text class="tools-eyebrow">桌游开局助手</text>
+    <text class="tools-title">少一点准备，多一点开玩</text>
+    <text class="tools-subtitle">无需登录、无需网络，常用工具随开随用。</text>
+    <view class="hero-dots"><text></text><text></text><text></text></view>
+  </view>
+
+  <view class="section-head tools-section-head">
+    <text class="section-title">常用工具</text>
+    <text class="section-link">5 项</text>
+  </view>
+
+  <view class="tool-grid">
+    <view
+      wx:for="{{tools}}"
+      wx:key="path"
+      class="tool-card {{item.tone}}"
+      data-path="{{item.path}}"
+      bindtap="openTool"
+      hover-class="tool-card-pressed"
+      hover-stay-time="80"
+    >
+      <view class="tool-icon">
+        <view wx:if="{{item.glyph === 'first'}}" class="glyph glyph-first"><view></view><view></view><view></view></view>
+        <view wx:if="{{item.glyph === 'teams'}}" class="glyph glyph-teams"><view></view><view></view><view></view><view></view></view>
+        <view wx:if="{{item.glyph === 'dice'}}" class="glyph glyph-dice"><view></view><view></view><view></view><view></view><view></view></view>
+        <view wx:if="{{item.glyph === 'coin'}}" class="glyph glyph-coin"><view></view></view>
+        <view wx:if="{{item.glyph === 'score'}}" class="glyph glyph-score"><view></view><view></view><view></view></view>
+      </view>
+      <text class="tool-title">{{item.title}}</text>
+    </view>
+  </view>
+
+  <view class="privacy-note">所有随机结果仅在本机生成，不上传玩家与对局数据。</view>
+
+  <view class="bottom-nav">
+    <view class="nav-item" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
+    <view class="nav-item" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>
+    <view class="nav-item active" bindtap="goTools"><text class="nav-icon">◈</text><text>工具</text></view>
+    <view class="nav-item" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
+    <view class="nav-item" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
+  </view>
+</view>

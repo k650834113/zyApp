@@ -5,6 +5,7 @@ import {
   type BoardGameCardView
 } from '../../services/board-game-library'
 import { getMiniappClient } from '../../services/client'
+import { createShareAppMessage } from '../../services/share'
 
 type GameEvent = { detail: { gameId: string } }
 
@@ -25,6 +26,10 @@ function decodedPageOption(value: string | undefined, fallback: string): string 
 }
 
 Page({
+  onShareAppMessage() {
+    return createShareAppMessage('桌游扩展')
+  },
+
   data: {
     baseGameId: '',
     baseGameName: '基础游戏',

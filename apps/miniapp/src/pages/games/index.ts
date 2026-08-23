@@ -11,6 +11,7 @@ import {
   type BoardGameListView
 } from '../../services/board-game-library'
 import { getMiniappClient } from '../../services/client'
+import { createShareAppMessage } from '../../services/share'
 
 type RangeValue = { lower: number; upper: number }
 type RangeBounds = { min: number; max: number; step: number }
@@ -20,6 +21,8 @@ type GameEvent = { detail: { gameId: string } }
 type ExpansionEvent = { detail: { gameId: string; gameName: string } }
 type FilterKind = 'category' | 'players' | 'minutes' | 'complexity'
 type FilterEvent = { currentTarget: { dataset: { filterKind?: FilterKind } } }
+type SortValue = NonNullable<PublicBoardGameFilters['sort']>
+type SortEvent = { currentTarget: { dataset: { sort?: SortValue } } }
 
 type CategoryView = { name: string; selected: boolean }
 type FilterChip = {
@@ -119,10 +122,16 @@ function chips(filters: PublicBoardGameFilters): FilterChip[] {
 }
 
 Page({
+  onShareAppMessage() {
+    return createShareAppMessage('桌游库')
+  },
+
   data: {
     query: '',
     games: [] as BoardGameListView[],
-    resultCount: 0,
+    sort: 'recent' as SortValue,
+    sortLabel: '最近更新',
+    sortOpen: false,
     sourceAttribution: null as BoardGameSourceAttribution | null,
     loading: true,
     loadingMore: false,
@@ -256,6 +265,7 @@ Page({
       const result = await getMiniappClient().listGames(
         cleanBoardGameFilters({
           ...(filters ?? this.requestFilters()),
+          sort: this.data.sort,
           limit: PAGE_SIZE,
           offset
         })
@@ -293,7 +303,6 @@ Page({
       )
       this.setData({
         games,
-        resultCount: games.length,
         hasMore: result.length === PAGE_SIZE,
         sourceAttribution:
           cards.find((game) => game.sourceAttribution !== null)
@@ -342,6 +351,39 @@ Page({
     void this.loadGames()
   },
 
+  toggleSort() {
+    this.setData({ sortOpen: !this.data.sortOpen })
+  },
+
+  closeSort() {
+    this.setData({ sortOpen: false })
+  },
+
+  changeSort(event: SortEvent) {
+    const sort = event.currentTarget.dataset.sort
+    if (!sort) return
+    if (sort === this.data.sort) {
+      this.closeSort()
+      return
+    }
+    this.setData(
+      {
+        sort,
+        sortLabel: sort === 'recent' ? '最近更新' : '最多喜爱',
+        sortOpen: false,
+        games: [],
+        hasMore: true,
+        loadFailed: false,
+        loadingMore: false,
+        sourceAttribution: null
+      },
+      () => {
+        wx.pageScrollTo({ scrollTop: 0, duration: 0 })
+        void this.loadGames(this.requestFilters())
+      }
+    )
+  },
+
   retry() {
     void this.loadGames()
   },
@@ -359,6 +401,7 @@ Page({
     const categoryOptions = visibleCategories(this.data.allCategoryOptions, '')
     this.setData({
       filterOpen: true,
+      sortOpen: false,
       activeFilter,
       filterTitle: filterTitles[activeFilter],
       draftCategories,
@@ -604,6 +647,9 @@ Page({
     wx.reLaunch({ url: '/pages/home/index' })
   },
   goGames() {},
+  goTools() {
+    wx.reLaunch({ url: '/pages/tools/index' })
+  },
   goHistory() {
     wx.reLaunch({ url: '/pages/history/index' })
   },

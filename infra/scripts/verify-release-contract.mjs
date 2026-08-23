@@ -50,9 +50,9 @@ const acceptance = readWorkspaceFile(
 )
 
 requireEqual(rootPackage.version, '0.24.0', 'root package version')
-requireEqual(desktopPackage.version, '0.24.2', 'desktop package version')
+requireEqual(desktopPackage.version, '0.24.3', 'desktop package version')
 requireEqual(
-  releaseNotes.startsWith('# 0.24.2\n'),
+  releaseNotes.startsWith('# 0.24.3\n'),
   true,
   'release notes heading'
 )

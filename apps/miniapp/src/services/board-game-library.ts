@@ -32,6 +32,7 @@ export function cleanBoardGameFilters(
   return {
     ...(query ? { query } : {}),
     ...(filters.baseGameId ? { baseGameId: filters.baseGameId } : {}),
+    ...(filters.sort ? { sort: filters.sort } : {}),
     ...(categories?.length ? { categories: [...new Set(categories)] } : {}),
     ...(filters.minPlayers === undefined
       ? {}

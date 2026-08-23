@@ -8,6 +8,7 @@ function source(relativePath) {
 
 test('board-game library exposes the approved search and filter controls', () => {
   const wxml = source('../src/pages/games/index.wxml')
+  const page = source('../src/pages/games/index.ts')
 
   assert.match(wxml, /placeholder="搜索桌游名称"/)
   assert.match(wxml, /placeholder="搜索标签"/)
@@ -32,7 +33,16 @@ test('board-game library exposes the approved search and filter controls', () =>
   assert.match(wxml, /id="game-card-{{index}}"/)
   assert.match(wxml, /没有找到符合条件的桌游/)
   assert.match(wxml, /加载失败，点击重试/)
-  assert.doesNotMatch(wxml, /class="result-order"/)
+  assert.doesNotMatch(wxml, /已展示 \{\{resultCount\}\} 款桌游/)
+  assert.match(wxml, /class="sort-trigger[^>]+bindtap="toggleSort"/)
+  assert.match(wxml, /class="sort-scrim" bindtap="closeSort"/)
+  assert.match(wxml, /data-sort="recent"[^>]+bindtap="changeSort"[^>]*>最近更新<\/view>/)
+  assert.match(wxml, /data-sort="mostLiked"[^>]+bindtap="changeSort"[^>]*>最多喜爱<\/view>/)
+  assert.doesNotMatch(wxml, /年份|出版时间/)
+  assert.match(
+    page,
+    /changeSort\([\s\S]+games:\s*\[\][\s\S]+wx\.pageScrollTo\(\{ scrollTop: 0, duration: 0 \}\)[\s\S]+loadGames\(this\.requestFilters\(\)\)/
+  )
   assert.match(wxml, /Powered by BGG/)
   assert.match(wxml, /bindtap="copyBggSource"/)
   assert.equal((wxml.match(/Powered by BGG/g) ?? []).length, 1)
@@ -127,9 +137,9 @@ test('category search exposes fuzzy selectable matches', () => {
   assert.match(page, /discoveredCategories\(cards\)/)
 })
 
-test('board-game library renders four first-level navigation choices', () => {
+test('board-game library renders five first-level navigation choices', () => {
   const wxml = source('../src/pages/games/index.wxml')
-  const labels = ['首页', '桌游库', '明细', '我的']
+  const labels = ['首页', '桌游库', '工具', '明细', '我的']
   let position = -1
   for (const label of labels) {
     const next = wxml.indexOf(`>${label}</text>`, position + 1)
@@ -139,17 +149,18 @@ test('board-game library renders four first-level navigation choices', () => {
   }
 })
 
-test('every first-level customer page uses the same four-choice navigation order', () => {
+test('every first-level customer page uses the same five-choice navigation order', () => {
   const pages = [
     '../src/pages/home/index.wxml',
     '../src/pages/games/index.wxml',
+    '../src/pages/tools/index.wxml',
     '../src/pages/history/index.wxml',
     '../src/pages/member/index.wxml'
   ]
   for (const page of pages) {
     const wxml = source(page)
     let position = -1
-    for (const label of ['首页', '桌游库', '明细', '我的']) {
+    for (const label of ['首页', '桌游库', '工具', '明细', '我的']) {
       const next = wxml.indexOf(`>${label}</text>`, position + 1)
       assert.notEqual(next, -1, `${page} missing ${label}`)
       assert.ok(next > position, `${page} has ${label} out of order`)

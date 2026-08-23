@@ -24,24 +24,19 @@ corepack pnpm miniapp:dev
 - 员工：移动登录、会员管理、在线 PC 执行型收银与财务命令。
 - 店长：活动、公告、营业状态和经营摘要。
 - 内容：桌游运营状态维护。
+- 工具：游客可直接使用多点触控先手与分队、自定义组合骰子、带正反统计的抛硬币和表格式多人计分器；结果与本局记录仅在本机生成，不依赖后端。
 
-仓库未填写本机端点配置时，默认构建生成纯前端 Mock 包，不访问网络。连接真实测试 API 前，需复制并填写 `config/public-endpoints.local.json`；该文件已被 Git 忽略。真实微信登录要求测试 API 配置对应 AppID/AppSecret，并完成合法请求域名与隐私设置。
+常规 `miniapp:build` 默认生成纯前端 Mock 包，只用于本地开发。小程序不再提供 `test-wechat` 或 `production-test-wechat` 发布通道，任何要上传的代码都必须使用正式构建命令。
 
-测试构建与 PC 测试端应在本机配置中填写同一个测试门店；登录会话按 API 地址和门店分别保存，切换门店后不会误用旧门店的会员身份。
+## 正式版
 
-## 正式测试版
-
-正式测试版使用真实微信登录、真实手机号授权和真实微信支付，但会员、余额、月卡和历史数据只写入隔离测试库。充值界面与正式版一致，提供 100、300、500、1000 元快捷金额和最低 0.01 元的自定义金额；测试者自行输入 0.01 元时，资金会真实进入商户号，测试钱包只增加本金 1 分。
-
-构建前在被 Git 忽略的 `config/public-endpoints.local.json` 中配置测试门店 ID，API 地址必须是 `https://judian.icu/test`。也可以通过环境变量构建：
+正式版使用真实微信登录、真实手机号授权、真实微信支付和生产数据。构建前在被 Git 忽略的 `config/public-endpoints.local.json` 中配置 `miniappProductionApiBaseUrl` 和 `miniappProductionStoreId`，API 必须严格为 `https://judian.icu`。
 
 ```powershell
-$env:ZYAPP_MINIAPP_MODE='production-test-wechat'
-$env:ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED='false'
-$env:ZYAPP_MINIAPP_API_BASE_URL='https://judian.icu/test'
-$env:ZYAPP_MINIAPP_STORE_ID='替换为测试门店 UUID'
-corepack pnpm miniapp:build
+corepack pnpm miniapp:build:production
 ```
+
+该命令会强制 `production-wechat`，清除当前 shell 中遗留的通用 API、门店和认证覆盖项，并拒绝 HTTP、IP 地址、`/test`、Mock 支付、开发登录和非正式门店。
 
 微信公众平台“小程序后台 → 开发管理 → 开发设置 → 服务器域名”需要保存以下配置：
 
@@ -62,37 +57,25 @@ socket 合法域名：留空
 - 确认小程序 AppID、隐私保护指引和手机号能力；
 - 确认商户平台微信支付公钥切换已完成；
 - 使用体验版完成手机号授权和 0.01 元真实支付；
-- 在商户平台核对交易，并确认测试钱包只入账一次；
+- 在商户平台和正式钱包核对交易只入账一次；
 - 最终提交微信审核和发布。
 
-APIv3 密钥必须保存在本机单行文件中，部署时只提供文件绝对路径，禁止粘贴到聊天、环境变量、代码、日志或截图中。商户私钥和微信支付公钥同样只通过只读密钥目录挂载到 API。当前生产 API 在正式发布前继续保持支付开关关闭，但正式小程序构建保留完整充值界面。
+APIv3 密钥必须保存在本机单行文件中，部署时只提供文件绝对路径，禁止粘贴到聊天、环境变量、代码、日志或截图中。商户私钥和微信支付公钥同样只通过只读密钥目录挂载到 API，小程序包内不包含任何长期密钥。
 
-## 正式版与开发版隔离
+## 正式版与本地开发隔离
 
-同一 AppID 的微信开发版、体验版和线上版本可以并存，但构建产物必须使用明确模式：
+同一 AppID 的微信开发版、体验版和线上版本可以并存，但三者上传的都是同一份正式通道产物：
 
 | 用途 | 构建模式 | API | 数据与功能 |
 | --- | --- | --- | --- |
-| 本地开发 | `mock` 或 `test-wechat` | Mock 或 `https://judian.icu/test` | 开发调试 |
-| 体验版验收 | `production-test-wechat` | 固定 `https://judian.icu/test` | 隔离测试库、完整真实微信支付 |
-| 正式线上版 | `production-wechat` | 固定 `https://judian.icu` | 生产库、相同充值界面与支付流程 |
+| 本地开发 | `mock` 或 `development-http` | Mock 或本机 API | 不可上传 |
+| 开发版 / 体验版 / 正式版 | `production-wechat` | 固定 `https://judian.icu` | 生产库、真实登录与支付 |
 
-正式版还需在被 Git 忽略的 `config/public-endpoints.local.json` 中设置
-`miniappProductionApiBaseUrl` 和 `miniappProductionStoreId`。构建器会拒绝正式版使用 HTTP、IP 地址或 `/test`，也会拒绝体验版绕过 `/test`。登录令牌按 API 地址和门店隔离，因此体验版不会复用正式版会话。
-
-生成正式线上版时使用专用命令，避免普通 `miniapp:build` 根据本机测试端点生成测试包：
-
-```powershell
-corepack pnpm miniapp:build:production
-```
-
-该命令会清除当前 shell 中可能遗留的 API、门店和认证覆盖项，并强制使用
-`production-wechat`。桌游库随后通过正式门店的
-`GET /v1/public/games` 读取云端真实数据；Mock 和测试 API 不会进入正式产物。
+桌游库通过正式门店的 `GET /v1/public/games` 读取云端真实数据；Mock、本地 API 和测试 API 不会进入可上传产物。
 
 充值金额统一按整数分提交。四个快捷金额与自定义金额使用同一个
 `POST /v1/member/recharge-orders` 接口，赠送余额按门店当前生效的充值规则计算；
-体验版不再有自动锁定 0.01 元的专用流程。
+正式版不存在自动锁定 0.01 元的专用流程。
 
 月卡在会员首页以独立醒目卡片展示。未开通会员可直接使用微信支付开通；
 已有生效月卡可续费并从当前到期时间顺延。月卡支付与储值充值使用不同订单，
@@ -104,7 +87,7 @@ corepack pnpm miniapp:build:production
 消费和 0.01 元微信充值在最近明细中各只显示一次；显示去重不会删除原始账本记录。
 完整步骤见 [0.23.2 月卡与账务一致性验收](../../docs/0.23.2月卡与账务一致性验收.md)。
 
-测试 API 发布脚本只迁移并重建 `api-test`，不重启生产 `api` 或共享 Caddy；发布后还会确认两个生产容器 ID 未变化、生产和测试健康检查均为 200，并确认资料保存路由返回 401 而不是 404。小程序代码先生成体验版并完成真机验收，验收通过后再合并和推送 Git。
+小程序的开发版、体验版、审核版和正式版均使用同一份 `production-wechat` 产物，不再生成或上传任何 `/test` 路径的小程序包。
 
 ## 文档入口
 

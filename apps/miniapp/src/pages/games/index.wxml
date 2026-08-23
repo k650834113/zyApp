@@ -35,8 +35,16 @@
     <text class="clear-all" bindtap="clearAll">清空全部</text>
   </view>
 
-  <view class="result-head">
-    <text>已展示 {{resultCount}} 款桌游</text>
+  <view class="sort-control">
+    <view class="sort-trigger {{sortOpen ? 'open' : ''}}" bindtap="toggleSort" aria-role="button" aria-label="选择桌游排序方式">
+      <text>{{sortLabel}}</text>
+      <text class="sort-caret">{{sortOpen ? '▲' : '▼'}}</text>
+    </view>
+    <view wx:if="{{sortOpen}}" class="sort-scrim" bindtap="closeSort"></view>
+    <view wx:if="{{sortOpen}}" class="sort-menu" catchtap="noop">
+      <view class="sort-menu-item {{sort === 'recent' ? 'active' : ''}}" data-sort="recent" bindtap="changeSort">最近更新</view>
+      <view class="sort-menu-item {{sort === 'mostLiked' ? 'active' : ''}}" data-sort="mostLiked" bindtap="changeSort">最多喜爱</view>
+    </view>
   </view>
 
   <view wx:if="{{loadFailed}}" class="load-error" bindtap="retry">
@@ -74,6 +82,7 @@
   <view class="bottom-nav">
     <view class="nav-item" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
     <view class="nav-item active" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>
+    <view class="nav-item" bindtap="goTools"><text class="nav-icon">◈</text><text>工具</text></view>
     <view class="nav-item" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
     <view class="nav-item" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
   </view>

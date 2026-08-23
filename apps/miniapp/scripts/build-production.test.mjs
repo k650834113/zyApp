@@ -12,7 +12,6 @@ test('production build ignores stale test endpoint and auth overrides', () => {
   }
 
   assert.deepEqual(configureProductionBuildEnvironment(environment), {
-    ZYAPP_MINIAPP_MODE: 'production-wechat',
-    ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'false'
+    ZYAPP_MINIAPP_MODE: 'production-wechat'
   })
 })

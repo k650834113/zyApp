@@ -1,0 +1,34 @@
+page { height: 100%; overflow: hidden; background: #102d26; }
+.teams-page { position: relative; min-height: 100vh; overflow: hidden; color: #fff; background: radial-gradient(circle at 50% 38%, rgba(75,181,139,.17), transparent 34%), #102d26; }
+.team-touch-layer { position: absolute; z-index: 1; inset: 0; }
+.team-guide { position: absolute; z-index: 2; top: 29%; right: 36rpx; left: 36rpx; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.guide-cluster { display: flex; width: 160rpx; height: 160rpx; flex-direction: column; align-items: center; justify-content: center; border: 4rpx dashed rgba(213,236,224,.45); border-radius: 50%; }
+.guide-count { color: #e4f455; font-size: 56rpx; font-weight: 950; line-height: 1; }
+.guide-unit { margin-top: 7rpx; color: #b7d0c3; font-size: 18rpx; }
+.team-status, .team-helper { display: block; text-align: center; }
+.team-status { margin-top: 34rpx; font-size: 34rpx; font-weight: 850; }
+.team-helper { margin-top: 14rpx; color: #abc9ba; font-size: 22rpx; }
+.team-marker { position: fixed; z-index: 6; display: flex; width: 68px; height: 68px; align-items: center; justify-content: center; box-sizing: border-box; border: 4px solid rgba(255,255,255,.88); border-radius: 50%; color: #102d26; background: #50d8ef; box-shadow: 0 0 0 10px rgba(80,216,239,.17), 0 10px 30px rgba(0,0,0,.3); font-size: 20px; font-weight: 900; transform: scale(.8); transition: background 220ms ease, box-shadow 220ms ease, transform 220ms ease; }
+.team-marker.lime { background: #d9ef52; box-shadow: 0 0 0 10px rgba(217,239,82,.17), 0 10px 30px rgba(0,0,0,.3); }
+.team-marker.amber { background: #ffb547; box-shadow: 0 0 0 10px rgba(255,181,71,.17), 0 10px 30px rgba(0,0,0,.3); }
+.team-marker.rose { background: #ff718d; box-shadow: 0 0 0 10px rgba(255,113,141,.17), 0 10px 30px rgba(0,0,0,.3); }
+.team-marker.violet { background: #ae8cff; box-shadow: 0 0 0 10px rgba(174,140,255,.17), 0 10px 30px rgba(0,0,0,.3); }
+.team-marker.blue { background: #6ca8ff; box-shadow: 0 0 0 10px rgba(108,168,255,.17), 0 10px 30px rgba(0,0,0,.3); }
+.team-marker.coral { background: #ff876b; }.team-marker.mint { background: #60e2b3; }.team-marker.gold { background: #f4d34f; }.team-marker.sky { background: #75d1ff; }
+.team-marker.team-green, .legend-chip.team-green .legend-dot { background: #4be0a4; }
+.team-marker.team-amber, .legend-chip.team-amber .legend-dot { background: #ffc34f; }
+.team-marker.team-blue, .legend-chip.team-blue .legend-dot { background: #5ca9ff; }
+.team-marker.team-rose, .legend-chip.team-rose .legend-dot { background: #ff718d; }
+.team-marker.team-purple, .legend-chip.team-purple .legend-dot { background: #ae8cff; }
+.team-marker.team-cyan, .legend-chip.team-cyan .legend-dot { background: #50d8ef; }
+.has-result .team-marker { transform: scale(1.03); }
+.team-legends { position: fixed; z-index: 9; top: 34rpx; right: 26rpx; left: 26rpx; display: flex; flex-wrap: wrap; justify-content: center; gap: 10rpx; pointer-events: none; }
+.legend-chip { display: flex; align-items: center; border: 1rpx solid rgba(255,255,255,.12); border-radius: 999rpx; padding: 12rpx 18rpx; color: #d8e9e0; background: rgba(0,0,0,.2); font-size: 20rpx; }
+.legend-dot { width: 15rpx; height: 15rpx; margin-right: 9rpx; border-radius: 50%; }
+.team-controls { position: fixed; z-index: 12; right: 26rpx; bottom: calc(26rpx + env(safe-area-inset-bottom)); left: 26rpx; display: flex; gap: 14rpx; }
+.team-count-control { display: flex; min-width: 0; flex: 1; align-items: center; border: 1rpx solid rgba(255,255,255,.13); border-radius: 26rpx; padding: 12rpx 16rpx; background: rgba(255,255,255,.1); backdrop-filter: blur(12rpx); }
+.control-label { flex: 1; color: #d6e7de; font-size: 22rpx; font-weight: 750; }
+.team-count-control button { width: 62rpx; min-width: 62rpx; height: 62rpx; margin: 0; border-radius: 18rpx; padding: 0; color: #173d31; background: #e4f455; font-size: 31rpx; line-height: 62rpx; }
+.team-count-control button[disabled] { color: #789087; background: #365348; }
+.team-count { width: 58rpx; font-size: 31rpx; font-weight: 900; text-align: center; }
+.again-button { width: auto; min-width: 184rpx; margin: 0; border-radius: 26rpx; padding: 0 24rpx; color: #173d31; background: #e4f455; font-size: 24rpx; font-weight: 850; line-height: 88rpx; }

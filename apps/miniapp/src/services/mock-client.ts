@@ -644,7 +644,18 @@ export class MockMiniappClient implements MiniappClient {
           ? game.baseGameId === filters.baseGameId
           : game.baseGameId === null)
     )
-    return matching.slice(filters.offset ?? 0, (filters.offset ?? 0) + (filters.limit ?? matching.length))
+    const sorted =
+      filters.sort === 'mostLiked'
+        ? [...matching].sort(
+            (left, right) =>
+              right.likeCount - left.likeCount ||
+              left.name.localeCompare(right.name, 'zh-CN')
+          )
+        : matching
+    return sorted.slice(
+      filters.offset ?? 0,
+      (filters.offset ?? 0) + (filters.limit ?? sorted.length)
+    )
   }
 
   async getGameFilterOptions(): Promise<PublicBoardGameFilterOptions> {

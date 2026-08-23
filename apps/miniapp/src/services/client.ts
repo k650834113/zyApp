@@ -4,7 +4,6 @@ import { accessTokenStorageKey } from './session-storage'
 import type { MiniappClient } from './types'
 
 const configuration = __ZYAPP_MINIAPP_BUILD_CONFIG__
-const TEST_VIRTUAL_PHONE_CODE = ['test', 'virtual', 'phone'].join('-')
 const LEGACY_ACCESS_TOKEN_KEY = 'zyapp_access_token'
 
 let client: MiniappClient | null = null
@@ -36,21 +35,10 @@ export function isMockMiniappBuild(): boolean {
   return configuration.useMock
 }
 
-export function isTestVirtualPhoneLoginEnabled(): boolean {
-  return configuration.testVirtualPhoneEnabled
-}
-
 export function isCustomerOnlyBuild(): boolean {
   return configuration.customerOnly
 }
 
 export function isRealWechatPaymentBuild(): boolean {
   return configuration.realWechatPayment
-}
-
-export function testVirtualPhoneCode(): string {
-  if (!configuration.testVirtualPhoneEnabled) {
-    throw new Error('测试虚拟号码登录未启用')
-  }
-  return TEST_VIRTUAL_PHONE_CODE
 }

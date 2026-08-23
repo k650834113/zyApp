@@ -9,6 +9,7 @@ describe('board-game library query validation', () => {
     expect(
       normalizePublicBoardGameFilters({
         query: ' 策略 ',
+        sort: 'mostLiked',
         categories: ['德式', '策略', '德式'],
         minPlayers: '3',
         maxPlayers: '6',
@@ -19,6 +20,7 @@ describe('board-game library query validation', () => {
       })
     ).toEqual({
       query: '策略',
+      sort: 'mostLiked',
       categories: ['德式', '策略'],
       minPlayers: 3,
       maxPlayers: 6,
@@ -37,6 +39,7 @@ describe('board-game library query validation', () => {
     [{ minComplexity: '3.5', maxComplexity: '1.2' }, '复杂度范围'],
     [{ minComplexity: '2.35' }, '复杂度'],
     [{ categories: Array.from({ length: 11 }, (_, index) => `分类${index}`) }, '分类'],
+    [{ sort: 'oldest' }, '排序'],
     [{ limit: '51' }, '每页数量'],
     [{ offset: '-1' }, '分页偏移']
   ])('rejects invalid filter input %#', (input, message) => {

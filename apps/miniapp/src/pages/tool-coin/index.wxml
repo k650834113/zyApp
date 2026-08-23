@@ -1,0 +1,29 @@
+<view class="coin-page">
+  <view class="coin-copy">
+    <text class="coin-kicker">二选一</text>
+    <text class="coin-title">交给运气决定</text>
+    <text class="coin-subtitle">点击硬币或下方按钮开始翻面</text>
+  </view>
+
+  <view class="coin-stage" bindtap="flip">
+    <view class="coin-shadow {{flipping ? 'active' : ''}}"></view>
+    <view class="coin {{flipping ? 'flipping' : ''}} {{result === '正面' ? 'front' : 'back'}}">
+      <view class="coin-ring">
+        <text class="coin-symbol">{{result === '正面' ? '桌' : '游'}}</text>
+        <text class="coin-face-label">{{result}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="coin-result">
+    <text>{{flipping ? '翻面中…' : headsCount + tailsCount === 0 ? '准备好了' : '结果：' + result}}</text>
+  </view>
+
+  <view class="coin-stats">
+    <view class="stat-card heads"><text>正面</text><text>{{headsCount}}</text></view>
+    <view class="stat-card tails"><text>反面</text><text>{{tailsCount}}</text></view>
+  </view>
+
+  <button class="flip-button" bindtap="flip" disabled="{{flipping}}">{{flipping ? '正在翻面' : '抛硬币'}}</button>
+  <button wx:if="{{headsCount + tailsCount > 0}}" class="reset-counts" bindtap="resetCounts">清空统计</button>
+</view>

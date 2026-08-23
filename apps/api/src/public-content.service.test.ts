@@ -145,6 +145,33 @@ describe('public content service', () => {
     ])
   })
 
+  it.each([
+    [
+      'recent',
+      `ORDER BY GREATEST(game.updated_at,
+                    COALESCE(config.updated_at, game.updated_at)) DESC,
+           game.id`
+    ],
+    [
+      'mostLiked',
+      `ORDER BY COALESCE(likes.like_count, 0) DESC,
+             GREATEST(game.updated_at,
+                      COALESCE(config.updated_at, game.updated_at)) DESC,
+             game.id`
+    ]
+  ] as const)('sorts public games by %s before pagination', async (sort, orderBy) => {
+    const pool = {
+      query: async (sql: string) => {
+        expect(sql).toContain(orderBy)
+        return { rows: [] }
+      }
+    } as unknown as Pool
+
+    await expect(
+      new PublicContentService(pool).listGames(storeId, { sort })
+    ).resolves.toEqual([])
+  })
+
   it('returns frequent playable tags and range bounds without loading game cards', async () => {
     const pool = {
       query: async (sql: string) =>

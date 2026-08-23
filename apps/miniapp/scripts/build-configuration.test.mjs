@@ -5,77 +5,34 @@ import {
   readBuildConfiguration
 } from './build-configuration.mjs'
 
-const configuredEndpoints = {
-  miniappTestApiBaseUrl: 'https://test-api.example.com',
-  miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
+const productionEndpoints = {
+  miniappProductionApiBaseUrl: 'https://judian.icu',
+  miniappProductionStoreId: '22222222-2222-4222-8222-222222222222'
 }
 
-test('defaults to offline Mock mode when no local endpoint file is configured', () => {
-  const result = readBuildConfiguration({}, {})
+test('defaults to offline Mock mode even when production endpoints are configured', () => {
+  const result = readBuildConfiguration({}, productionEndpoints)
 
   assert.equal(result.mode, 'mock')
-  assert.equal(result.configuration.useMock, true)
-  assert.equal(result.configuration.apiBaseUrl, '')
-  assert.equal(result.configuration.storeId, '')
-})
-
-test('uses the configured WeChat test environment', () => {
-  const result = readBuildConfiguration({}, configuredEndpoints)
-
-  assert.equal(result.mode, 'test-wechat')
   assert.deepEqual(result.configuration, {
-    useMock: false,
-    testVirtualPhoneEnabled: true,
-    authMode: 'wechat',
-    apiBaseUrl: configuredEndpoints.miniappTestApiBaseUrl,
-    storeId: configuredEndpoints.miniappTestStoreId,
+    useMock: true,
+    authMode: 'development',
+    apiBaseUrl: '',
+    storeId: '',
     developmentProviderSubject: 'local-miniapp-user',
     customerOnly: false,
     realWechatPayment: false
   })
 })
 
-test('builds the customer-only production test against judian.icu', () => {
-  const result = readBuildConfiguration(
-    {
-      ZYAPP_MINIAPP_MODE: 'production-test-wechat',
-      ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'false'
-    },
-    {
-      miniappTestApiBaseUrl: 'https://judian.icu/test',
-      miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
-    }
-  )
-
-  assert.deepEqual(result.configuration, {
-    useMock: false,
-    testVirtualPhoneEnabled: false,
-    authMode: 'wechat',
-    apiBaseUrl: 'https://judian.icu/test',
-    storeId: '11111111-1111-4111-8111-111111111111',
-    developmentProviderSubject: '',
-    customerOnly: true,
-    realWechatPayment: true
-  })
-})
-
 test('builds the released customer app only against the production API', () => {
   const result = readBuildConfiguration(
-    {
-      ZYAPP_MINIAPP_MODE: 'production-wechat',
-      ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'false'
-    },
-    {
-      miniappProductionApiBaseUrl: 'https://judian.icu',
-      miniappProductionStoreId: '22222222-2222-4222-8222-222222222222',
-      miniappTestApiBaseUrl: 'https://judian.icu/test',
-      miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
-    }
+    { ZYAPP_MINIAPP_MODE: 'production-wechat' },
+    productionEndpoints
   )
 
   assert.deepEqual(result.configuration, {
     useMock: false,
-    testVirtualPhoneEnabled: false,
     authMode: 'wechat',
     apiBaseUrl: 'https://judian.icu',
     storeId: '22222222-2222-4222-8222-222222222222',
@@ -85,28 +42,52 @@ test('builds the released customer app only against the production API', () => {
   })
 })
 
-test('keeps customer features identical between test and production releases', () => {
-  const endpoints = {
-    miniappProductionApiBaseUrl: 'https://judian.icu',
-    miniappProductionStoreId: '22222222-2222-4222-8222-222222222222',
-    miniappTestApiBaseUrl: 'https://judian.icu/test',
-    miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
-  }
-  const production = readBuildConfiguration(
-    { ZYAPP_MINIAPP_MODE: 'production-wechat' },
-    endpoints
-  ).configuration
-  const productionTest = readBuildConfiguration(
-    { ZYAPP_MINIAPP_MODE: 'production-test-wechat' },
-    endpoints
-  ).configuration
-  const normalize = ({ apiBaseUrl, storeId, ...configuration }) =>
-    configuration
+test('accepts explicit production-only endpoint variables', () => {
+  const result = readBuildConfiguration({
+    ZYAPP_MINIAPP_MODE: 'production-wechat',
+    ZYAPP_MINIAPP_PRODUCTION_API_BASE_URL: 'https://judian.icu',
+    ZYAPP_MINIAPP_PRODUCTION_STORE_ID:
+      '22222222-2222-4222-8222-222222222222'
+  })
 
-  assert.deepEqual(normalize(production), normalize(productionTest))
+  assert.equal(result.configuration.apiBaseUrl, 'https://judian.icu')
+  assert.equal(
+    result.configuration.storeId,
+    '22222222-2222-4222-8222-222222222222'
+  )
 })
 
-test('rejects a test store override in the released production build', () => {
+for (const retiredMode of ['test-wechat', 'production-test-wechat']) {
+  test(`rejects retired miniapp release mode ${retiredMode}`, () => {
+    assert.throws(
+      () => readBuildConfiguration({ ZYAPP_MINIAPP_MODE: retiredMode }),
+      /must be mock, development-http, or production-wechat/
+    )
+  })
+}
+
+test('rejects retired miniapp test endpoint configuration', () => {
+  assert.throws(
+    () =>
+      readBuildConfiguration({}, {
+        miniappTestApiBaseUrl: 'https://judian.icu/test',
+        miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
+      }),
+    /test release channel has been removed/
+  )
+})
+
+test('rejects the retired virtual phone build switch', () => {
+  assert.throws(
+    () =>
+      readBuildConfiguration({
+        ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'false'
+      }),
+    /test release channel has been removed/
+  )
+})
+
+test('rejects a non-production store override in the released build', () => {
   assert.throws(
     () =>
       readBuildConfiguration(
@@ -115,11 +96,7 @@ test('rejects a test store override in the released production build', () => {
           ZYAPP_MINIAPP_STORE_ID:
             '11111111-1111-4111-8111-111111111111'
         },
-        {
-          miniappProductionApiBaseUrl: 'https://judian.icu',
-          miniappProductionStoreId:
-            '22222222-2222-4222-8222-222222222222'
-        }
+        productionEndpoints
       ),
     /production-wechat store must match miniappProductionStoreId/
   )
@@ -136,55 +113,26 @@ for (const invalidUrl of [
         readBuildConfiguration(
           {
             ZYAPP_MINIAPP_MODE: 'production-wechat',
-            ZYAPP_MINIAPP_API_BASE_URL: invalidUrl,
-            ZYAPP_MINIAPP_STORE_ID:
-              '22222222-2222-4222-8222-222222222222'
+            ZYAPP_MINIAPP_API_BASE_URL: invalidUrl
           },
-          {}
+          productionEndpoints
         ),
       /production-wechat must use https:\/\/judian\.icu/
     )
   })
 }
 
-for (const invalidUrl of [
-  'http://judian.icu/test',
-  'https://124.220.69.209/test',
-  'https://judian.icu'
-]) {
-  test(`rejects production-test endpoint ${invalidUrl}`, () => {
-    assert.throws(
-      () =>
-        readBuildConfiguration(
-          {
-            ZYAPP_MINIAPP_MODE: 'production-test-wechat',
-            ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'false'
-          },
-          {
-            miniappTestApiBaseUrl: invalidUrl,
-            miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
-          }
-        ),
-      /https:\/\/judian\.icu\/test/
-    )
+test('keeps local HTTP development available without creating a release channel', () => {
+  const result = readBuildConfiguration({
+    ZYAPP_MINIAPP_MODE: 'development-http',
+    ZYAPP_MINIAPP_AUTH_MODE: 'development',
+    ZYAPP_MINIAPP_API_BASE_URL: 'http://127.0.0.1:3100',
+    ZYAPP_MINIAPP_STORE_ID: '22222222-2222-4222-8222-222222222222'
   })
-}
 
-test('rejects virtual phone login in the production test build', () => {
-  assert.throws(
-    () =>
-      readBuildConfiguration(
-        {
-          ZYAPP_MINIAPP_MODE: 'production-test-wechat',
-          ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'true'
-        },
-        {
-          miniappTestApiBaseUrl: 'https://judian.icu/test',
-          miniappTestStoreId: '11111111-1111-4111-8111-111111111111'
-        }
-      ),
-    /forbids virtual phone login/
-  )
+  assert.equal(result.configuration.customerOnly, false)
+  assert.equal(result.configuration.realWechatPayment, false)
+  assert.equal(result.configuration.authMode, 'development')
 })
 
 test('keeps only the approved member pages in the customer app manifest', () => {
@@ -194,6 +142,12 @@ test('keeps only the approved member pages in the customer app manifest', () => 
         'pages/home/index',
         'pages/games/index',
         'pages/game-expansions/index',
+        'pages/tools/index',
+        'pages/tool-first-player/index',
+        'pages/tool-teams/index',
+        'pages/tool-dice/index',
+        'pages/tool-coin/index',
+        'pages/tool-score/index',
         'pages/history/index',
         'pages/member/index',
         'pages/favorites/index',
@@ -208,6 +162,12 @@ test('keeps only the approved member pages in the customer app manifest', () => 
         'pages/home/index',
         'pages/games/index',
         'pages/game-expansions/index',
+        'pages/tools/index',
+        'pages/tool-first-player/index',
+        'pages/tool-teams/index',
+        'pages/tool-dice/index',
+        'pages/tool-coin/index',
+        'pages/tool-score/index',
         'pages/history/index',
         'pages/member/index',
         'pages/favorites/index'
@@ -227,6 +187,12 @@ test('source app manifest exposes only approved customer pages', async () => {
     'pages/home/index',
     'pages/games/index',
     'pages/game-expansions/index',
+    'pages/tools/index',
+    'pages/tool-first-player/index',
+    'pages/tool-teams/index',
+    'pages/tool-dice/index',
+    'pages/tool-coin/index',
+    'pages/tool-score/index',
     'pages/history/index',
     'pages/member/index',
     'pages/favorites/index'
@@ -236,41 +202,13 @@ test('source app manifest exposes only approved customer pages', async () => {
   assert.equal(JSON.stringify(app).includes('activities'), false)
 })
 
-test('keeps Mock mode available only when explicitly selected', () => {
-  const result = readBuildConfiguration({ ZYAPP_MINIAPP_MODE: 'mock' })
-
-  assert.equal(result.mode, 'mock')
-  assert.equal(result.configuration.useMock, true)
-  assert.equal(result.configuration.testVirtualPhoneEnabled, false)
-})
-
-test('does not allow the test build to downgrade to development auth', () => {
+test('requires explicit production configuration for a released build', () => {
   assert.throws(
     () =>
       readBuildConfiguration({
-        ZYAPP_MINIAPP_MODE: 'test-wechat',
-        ZYAPP_MINIAPP_AUTH_MODE: 'development'
-      }, configuredEndpoints),
-    /must use WeChat authentication/
-  )
-})
-
-test('allows the temporary virtual phone switch to be disabled', () => {
-  const result = readBuildConfiguration(
-    { ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'false' },
-    configuredEndpoints
-  )
-
-  assert.equal(result.configuration.testVirtualPhoneEnabled, false)
-})
-
-test('does not allow virtual phone login outside test-wechat mode', () => {
-  assert.throws(
-    () =>
-      readBuildConfiguration({
-        ZYAPP_MINIAPP_MODE: 'development-http',
-        ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED: 'true'
+        ZYAPP_MINIAPP_MODE: 'production-wechat',
+        ZYAPP_MINIAPP_PRODUCTION_API_BASE_URL: 'https://judian.icu'
       }),
-    /only allowed in test-wechat mode/
+    /requires miniappProductionStoreId/
   )
 })

@@ -1,10 +1,3 @@
-function booleanValue(value, defaultValue, name) {
-  if (value === undefined || value.trim() === '') return defaultValue
-  if (value === 'true') return true
-  if (value === 'false') return false
-  throw new Error(`${name} must be true or false`)
-}
-
 const employeePages = new Set([
   'pages/staff/index',
   'pages/manager/index',
@@ -22,40 +15,41 @@ export function readBuildConfiguration(
   environment = process.env,
   publicEndpoints = {}
 ) {
-  const configuredTestEnvironment = Boolean(
-    publicEndpoints.miniappTestApiBaseUrl?.trim() &&
-      publicEndpoints.miniappTestStoreId?.trim()
-  )
-  const mode =
-    environment.ZYAPP_MINIAPP_MODE?.trim() ||
-    (configuredTestEnvironment ? 'test-wechat' : 'mock')
+  const retiredTestConfiguration = [
+    environment.ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED,
+    publicEndpoints.miniappTestApiBaseUrl,
+    publicEndpoints.miniappTestStoreId
+  ].some((value) => value?.trim())
+  if (retiredTestConfiguration) {
+    throw new Error(
+      'The miniapp test release channel has been removed; use production-wechat for uploads'
+    )
+  }
+
+  const mode = environment.ZYAPP_MINIAPP_MODE?.trim() || 'mock'
   if (
     ![
       'mock',
       'development-http',
-      'test-wechat',
-      'production-test-wechat',
       'production-wechat'
     ].includes(mode)
   ) {
     throw new Error(
-      'ZYAPP_MINIAPP_MODE must be mock, development-http, test-wechat, production-test-wechat, or production-wechat'
+      'ZYAPP_MINIAPP_MODE must be mock, development-http, or production-wechat'
     )
   }
-  const productionTest = mode === 'production-test-wechat'
   const production = mode === 'production-wechat'
-  const customerRelease = productionTest || production
+  const customerRelease = production
 
   const defaultApiBaseUrl =
     production
-      ? publicEndpoints.miniappProductionApiBaseUrl?.trim() || ''
-      : mode === 'test-wechat' || productionTest
-        ? publicEndpoints.miniappTestApiBaseUrl?.trim() || ''
-        : ''
+      ? environment.ZYAPP_MINIAPP_PRODUCTION_API_BASE_URL?.trim() ||
+        publicEndpoints.miniappProductionApiBaseUrl?.trim() ||
+        ''
+      : ''
   const apiBaseUrl =
     environment.ZYAPP_MINIAPP_API_BASE_URL?.trim() || defaultApiBaseUrl
   const defaultAuthMode =
-    mode === 'test-wechat' ||
     customerRelease ||
     (mode === 'development-http' && apiBaseUrl.startsWith('https://'))
       ? 'wechat'
@@ -67,29 +61,8 @@ export function readBuildConfiguration(
       'ZYAPP_MINIAPP_AUTH_MODE must be development or wechat'
     )
   }
-  if (
-    (mode === 'test-wechat' || customerRelease) &&
-    authMode !== 'wechat'
-  ) {
+  if (customerRelease && authMode !== 'wechat') {
     throw new Error(`${mode} mode must use WeChat authentication`)
-  }
-  const testVirtualPhoneEnabled = booleanValue(
-    environment.ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED,
-    mode === 'test-wechat',
-    'ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED'
-  )
-  if (testVirtualPhoneEnabled && mode !== 'test-wechat') {
-    if (customerRelease) {
-      throw new Error(`${mode} forbids virtual phone login`)
-    }
-    throw new Error(
-      'ZYAPP_MINIAPP_TEST_VIRTUAL_PHONE_ENABLED is only allowed in test-wechat mode'
-    )
-  }
-  if (productionTest && apiBaseUrl !== 'https://judian.icu/test') {
-    throw new Error(
-      'production-test-wechat must use https://judian.icu/test'
-    )
   }
   if (production && apiBaseUrl !== 'https://judian.icu') {
     throw new Error(
@@ -97,7 +70,9 @@ export function readBuildConfiguration(
     )
   }
   const productionStoreId =
-    publicEndpoints.miniappProductionStoreId?.trim() || ''
+    environment.ZYAPP_MINIAPP_PRODUCTION_STORE_ID?.trim() ||
+    publicEndpoints.miniappProductionStoreId?.trim() ||
+    ''
   const environmentStoreId =
     environment.ZYAPP_MINIAPP_STORE_ID?.trim() || ''
   if (production && !productionStoreId) {
@@ -117,14 +92,11 @@ export function readBuildConfiguration(
 
   const configuration = {
     useMock: mode === 'mock',
-    testVirtualPhoneEnabled,
     authMode,
     apiBaseUrl,
     storeId: production
       ? productionStoreId
-      : environmentStoreId ||
-        publicEndpoints.miniappTestStoreId?.trim() ||
-        '',
+      : environmentStoreId,
     developmentProviderSubject:
       customerRelease
         ? ''

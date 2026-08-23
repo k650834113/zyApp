@@ -3480,6 +3480,22 @@ footer {
   line-height: 1.7;
 }
 
+.cloud-conflict-resolution-dialog {
+  display: grid;
+  gap: 20px;
+  width: min(560px, 100%);
+}
+
+.cloud-conflict-resolution-dialog > div:first-child > p:last-child {
+  margin: 8px 0 0;
+  color: #5f5548;
+}
+
+.cloud-conflict-resolution-dialog label {
+  display: grid;
+  gap: 8px;
+}
+
 footer {
   margin-top: 28px;
   color: #938674;

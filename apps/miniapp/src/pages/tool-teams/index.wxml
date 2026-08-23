@@ -1,0 +1,43 @@
+<view class="teams-page {{assigned ? 'has-result' : ''}}">
+  <view
+    class="team-touch-layer"
+    catchtouchstart="handleTouchStart"
+    catchtouchmove="handleTouchMove"
+    catchtouchend="handleTouchEnd"
+    catchtouchcancel="handleTouchEnd"
+  ></view>
+
+  <view class="team-guide">
+    <view class="guide-cluster">
+      <text class="guide-count">{{markers.length}}</text>
+      <text class="guide-unit">个触点</text>
+    </view>
+    <text class="team-status">{{statusText}}</text>
+    <text class="team-helper">{{helperText}}</text>
+  </view>
+
+  <view wx:if="{{assigned}}" class="team-legends">
+    <view wx:for="{{legends}}" wx:key="name" class="legend-chip {{item.tone}}">
+      <text class="legend-dot"></text><text>{{item.name}} · {{item.count}} 人</text>
+    </view>
+  </view>
+
+  <view
+    wx:for="{{markers}}"
+    wx:key="id"
+    class="team-marker {{item.tone}}"
+    style="left: {{item.left}}px; top: {{item.top}}px;"
+  >
+    <text>{{assigned ? item.teamLabel : item.label}}</text>
+  </view>
+
+  <view class="team-controls">
+    <view class="team-count-control">
+      <text class="control-label">队伍数</text>
+      <button data-delta="-1" bindtap="adjustTeams" disabled="{{teamCount <= 2}}">−</button>
+      <text class="team-count">{{teamCount}}</text>
+      <button data-delta="1" bindtap="adjustTeams" disabled="{{teamCount >= 6}}">＋</button>
+    </view>
+    <button wx:if="{{assigned}}" class="again-button" bindtap="reset">重新分队</button>
+  </view>
+</view>

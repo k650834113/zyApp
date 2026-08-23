@@ -159,13 +159,7 @@
       open-type="getPhoneNumber"
       bindgetphonenumber="loginWithWechat"
       loading="{{busy}}"
-    >微信会员登录</button>
-    <button
-      wx:if="{{testVirtualPhoneLoginEnabled}}"
-      class="secondary-button"
-      bindtap="loginWithVirtualPhone"
-    >测试环境真实微信登录</button>
-
+    >手机号快捷登录</button>
     <view wx:if="{{loginFallbackVisible}}" class="fallback-card card">
       <text class="fallback-title">手机号验证码登录</text>
       <input class="form-input" type="number" maxlength="11" placeholder="手机号" bindinput="inputPhone" />
@@ -181,6 +175,7 @@
   <view class="bottom-nav">
     <view class="nav-item active" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
     <view class="nav-item" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>
+    <view class="nav-item" bindtap="goTools"><text class="nav-icon">◈</text><text>工具</text></view>
     <view class="nav-item" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
     <view class="nav-item" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
   </view>

@@ -22,6 +22,91 @@ afterEach(() => {
 })
 
 describe('cloud mirror materialization', () => {
+  it('ignores monthly-card projection snapshots instead of writing them to the event ledger', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-monthly-snapshot-mirror-'))
+    directories.push(directory)
+    const local = openLocalDatabase(join(directory, 'mirror.db'))
+    try {
+      bootstrapStore(local.connection, {
+        storeName: 'Mirror Store',
+        managerUsername: 'manager',
+        managerPasswordHash: 'scrypt$test',
+        managerDisplayName: 'Manager',
+        deviceName: 'Second Device'
+      })
+      const context = getStoreContext(local.connection)
+      if (!context) throw new Error('Missing context')
+      const now = '2026-08-21T10:00:00.000Z'
+      const memberId = '11111111-1111-4111-8111-111111111111'
+      const cardId = '22222222-2222-4222-8222-222222222222'
+      applyCloudMirrorPage(local.connection, context, {
+        resource: 'members',
+        rows: [{ id: memberId, payload: {
+          id: memberId,
+          member_number: 'M0001',
+          phone: '13800138000',
+          nickname: 'Cloud Member',
+          status: 'active',
+          birthday_month: null,
+          birthday_day: null,
+          birthday_source: null,
+          tier: 'ordinary',
+          age_gate_status: 'confirmed_at_least_14',
+          note: null,
+          source: 'miniapp',
+          created_at: now,
+          updated_at: now
+        }}],
+        nextCursor: null,
+        eventCursor: '1',
+        serverTime: now
+      })
+      applyCloudMirrorPage(local.connection, context, {
+        resource: 'monthly_cards',
+        rows: [{ id: cardId, payload: {
+          id: cardId,
+          store_id: context.storeId,
+          member_id: memberId,
+          plan_name: '30 天月卡',
+          price_fen: 20_000,
+          payment_method: 'cash',
+          status: 'active',
+          purchased_at: now,
+          starts_at: now,
+          expires_at: '2026-09-20T10:00:00.000Z',
+          paused_at: null,
+          updated_at: now,
+          scope_type: 'store'
+        }}],
+        nextCursor: null,
+        eventCursor: '2',
+        serverTime: now
+      })
+
+      expect(() => applyCloudMirrorPage(local.connection, context, {
+        resource: 'monthly_card_events',
+        rows: [{ id: 'snapshot-operation', payload: {
+          operation_id: 'snapshot-operation',
+          store_id: context.storeId,
+          card_id: cardId,
+          member_id: memberId,
+          event_type: 'snapshot',
+          reason: 'Projection repair',
+          payload_json: {},
+          occurred_at: now
+        }}],
+        nextCursor: null,
+        eventCursor: '3',
+        serverTime: now
+      })).not.toThrow()
+      expect(local.connection.prepare(
+        `SELECT COUNT(*) count FROM monthly_card_event`
+      ).get()).toEqual({ count: 0 })
+    } finally {
+      local.close()
+    }
+  })
+
   it('stores board-game complexity as validated integer tenths with provenance', () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-board-game-mirror-'))
     directories.push(directory)

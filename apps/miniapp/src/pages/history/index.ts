@@ -3,6 +3,7 @@ import type {
   MemberSelfServiceHistory
 } from '@zyapp/contracts'
 import { getMiniappClient } from '../../services/client'
+import { createShareAppMessage } from '../../services/share'
 
 type HistoryFilter = 'all' | 'consumption' | 'recharge' | 'monthly_card'
 
@@ -101,6 +102,10 @@ function groups(
 }
 
 Page({
+  onShareAppMessage() {
+    return createShareAppMessage('全部明细')
+  },
+
   data: {
     loading: true,
     filter: 'all' as HistoryFilter,
@@ -155,6 +160,10 @@ Page({
 
   goGames() {
     wx.reLaunch({ url: '/pages/games/index' })
+  },
+
+  goTools() {
+    wx.reLaunch({ url: '/pages/tools/index' })
   },
 
   goProfile() {

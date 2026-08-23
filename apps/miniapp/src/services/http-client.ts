@@ -93,6 +93,7 @@ function boardGameQuery(
   }
   append('query', filters.query?.trim() || undefined)
   append('baseGameId', filters.baseGameId)
+  append('sort', filters.sort)
   for (const category of filters.categories ?? []) {
     append('categories', category)
   }

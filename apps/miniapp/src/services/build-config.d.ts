@@ -1,6 +1,5 @@
 type ZyAppMiniappBuildConfig = {
   useMock: boolean
-  testVirtualPhoneEnabled: boolean
   authMode: 'development' | 'wechat'
   apiBaseUrl: string
   storeId: string

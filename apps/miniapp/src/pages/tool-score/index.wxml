@@ -1,0 +1,51 @@
+<view class="score-page">
+  <view class="score-head">
+    <view>
+      <text class="score-kicker">表格计分</text>
+      <text class="score-title">逐轮记录，自动合计</text>
+    </view>
+    <button class="reset" bindtap="resetScores">清空</button>
+  </view>
+
+  <scroll-view class="score-scroll" scroll-x enhanced show-scrollbar="{{false}}">
+    <view class="score-table" style="width: {{tableWidth}}rpx;">
+      <view class="table-row header-row">
+        <view class="row-label"><text>记录</text></view>
+        <view wx:for="{{players}}" wx:key="id" class="player-column player-header">
+          <input maxlength="10" value="{{item.name}}" data-index="{{index}}" bindinput="inputName" />
+          <button wx:if="{{players.length > 1}}" data-index="{{index}}" bindtap="removePlayer">×</button>
+        </view>
+      </view>
+
+      <view wx:for="{{rows}}" wx:key="id" wx:for-item="row" wx:for-index="rowIndex" class="table-row score-row">
+        <view class="row-label row-number">
+          <text>{{rowIndex + 1}}</text>
+          <button wx:if="{{rows.length > 1}}" data-index="{{rowIndex}}" bindtap="removeRow">×</button>
+        </view>
+        <view wx:for="{{players}}" wx:key="id" wx:for-item="player" wx:for-index="playerIndex" class="player-column score-cell">
+          <input
+            type="text"
+            value="{{row.values[playerIndex]}}"
+            placeholder="0"
+            cursor-spacing="24"
+            confirm-type="done"
+            data-row-index="{{rowIndex}}"
+            data-player-index="{{playerIndex}}"
+            bindinput="inputScore"
+          />
+        </view>
+      </view>
+
+      <view class="table-row total-row">
+        <view class="row-label"><text>总分</text></view>
+        <view wx:for="{{players}}" wx:key="id" class="player-column total-cell">{{totals[index]}}</view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view class="score-actions">
+    <button class="add-row" bindtap="addRow">＋ 新增分值行</button>
+    <button class="add-player" bindtap="addPlayer" disabled="{{players.length >= 8}}">＋ 添加玩家</button>
+  </view>
+  <text class="score-footnote">支持正负数与最多 4 位小数，内容自动保存在当前设备。</text>
+</view>

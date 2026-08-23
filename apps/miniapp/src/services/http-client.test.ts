@@ -180,6 +180,7 @@ describe('HTTP miniapp client authentication', () => {
     await client.listGames({
       query: '宝石',
       baseGameId: 'base-game-1',
+      sort: 'mostLiked',
       categories: ['德式', '策略'],
       minPlayers: 3,
       maxPlayers: 6,
@@ -199,6 +200,7 @@ describe('HTTP miniapp client authentication', () => {
     expect(requests[0]?.url).toContain(`storeId=${storeId}`)
     expect(requests[0]?.url).toContain('query=%E5%AE%9D%E7%9F%B3')
     expect(requests[0]?.url).toContain('baseGameId=base-game-1')
+    expect(requests[0]?.url).toContain('sort=mostLiked')
     expect(requests[0]?.url).toContain('categories=%E5%BE%B7%E5%BC%8F')
     expect(requests[0]?.url).toContain('categories=%E7%AD%96%E7%95%A5')
     expect(requests[0]?.url).toContain('minPlayers=3')

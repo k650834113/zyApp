@@ -3,6 +3,12 @@
     "pages/home/index",
     "pages/games/index",
     "pages/game-expansions/index",
+    "pages/tools/index",
+    "pages/tool-first-player/index",
+    "pages/tool-teams/index",
+    "pages/tool-dice/index",
+    "pages/tool-coin/index",
+    "pages/tool-score/index",
     "pages/history/index",
     "pages/member/index",
     "pages/favorites/index"

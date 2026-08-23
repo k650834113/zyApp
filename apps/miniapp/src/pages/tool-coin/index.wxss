@@ -1,0 +1,26 @@
+.coin-page { box-sizing: border-box; min-height: 100vh; padding: 54rpx 38rpx calc(46rpx + env(safe-area-inset-bottom)); text-align: center; }
+.coin-kicker, .coin-title, .coin-subtitle, .coin-result text { display: block; }
+.coin-kicker { color: #a46b13; font-size: 21rpx; font-weight: 800; letter-spacing: 6rpx; }
+.coin-title { margin-top: 12rpx; color: #25332c; font-size: 45rpx; font-weight: 900; }
+.coin-subtitle { margin-top: 13rpx; color: #81847e; font-size: 23rpx; }
+.coin-stage { position: relative; display: flex; height: 530rpx; align-items: center; justify-content: center; }
+.coin { position: relative; z-index: 2; display: flex; box-sizing: border-box; width: 294rpx; height: 294rpx; align-items: center; justify-content: center; border: 18rpx solid #d39925; border-radius: 50%; color: #81530e; background: radial-gradient(circle at 36% 30%, #fff0a9, #e5af36 62%, #b77313); box-shadow: inset 0 0 0 8rpx rgba(255,255,255,.28), 0 34rpx 44rpx rgba(123, 82, 20, .22); }
+.coin.back { color: #174f3b; border-color: #ba8b2d; background: radial-gradient(circle at 36% 30%, #f2edc3, #c9b75a 62%, #967526); }
+.coin-ring { display: flex; width: 210rpx; height: 210rpx; flex-direction: column; align-items: center; justify-content: center; border: 5rpx dashed rgba(116, 75, 10, .46); border-radius: 50%; }
+.coin-symbol { font-size: 82rpx; font-weight: 950; line-height: 1; }
+.coin-face-label { margin-top: 10rpx; font-size: 24rpx; font-weight: 800; letter-spacing: 5rpx; }
+.coin.flipping { animation: coin-flip 620ms cubic-bezier(.2,.72,.18,1); }
+@keyframes coin-flip { 0% { transform: translateY(0) rotateY(0) scale(1); } 38% { transform: translateY(-150rpx) rotateY(540deg) scale(.84); } 78% { transform: translateY(0) rotateY(900deg) scale(1.04); } 100% { transform: translateY(0) rotateY(1080deg) scale(1); } }
+.coin-shadow { position: absolute; z-index: 1; bottom: 82rpx; width: 240rpx; height: 42rpx; border-radius: 50%; background: rgba(81, 61, 30, .17); filter: blur(4rpx); }
+.coin-shadow.active { animation: shadow-pulse 620ms ease; }
+@keyframes shadow-pulse { 0%,100% { transform: scale(1); opacity: 1; } 45% { transform: scale(.48); opacity: .35; } }
+.coin-result { min-height: 58rpx; margin-top: -22rpx; }
+.coin-result text:first-child { color: #25332c; font-size: 34rpx; font-weight: 900; }
+.coin-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16rpx; margin-top: 18rpx; }
+.stat-card { display: flex; align-items: center; justify-content: space-between; border: 1rpx solid #eadfcb; border-radius: 24rpx; padding: 20rpx 24rpx; background: #fffdf8; }
+.stat-card text:first-child { color: #7d7569; font-size: 22rpx; font-weight: 700; }
+.stat-card text:last-child { color: #a46b13; font-size: 36rpx; font-weight: 950; }
+.stat-card.tails text:last-child { color: #174f3b; }
+.flip-button { margin-top: 24rpx; border-radius: 26rpx; color: #fff; background: #174f3b; font-size: 29rpx; font-weight: 850; line-height: 94rpx; box-shadow: 0 16rpx 32rpx rgba(23,79,59,.2); }
+.flip-button[disabled] { color: #dbe4df; background: #71877b; }
+.reset-counts { width: auto; margin: 12rpx auto 0; padding: 0 24rpx; color: #8d8f89; background: transparent; font-size: 20rpx; line-height: 54rpx; }

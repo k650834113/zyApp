@@ -17,6 +17,17 @@ function nullableText(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
+function enumText<const T extends string>(
+  value: string,
+  allowed: readonly T[],
+  field: string
+): T {
+  if (!allowed.includes(value as T)) {
+    throw new Error(`Cloud mirror ${field} is invalid`)
+  }
+  return value as T
+}
+
 function integer(value: unknown, field: string): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isSafeInteger(parsed)) {
@@ -634,6 +645,26 @@ function applyMonthlyCardEvent(database: DatabaseSync, context: StoreContext, ro
   const operationId = text(row.operation_id, 'monthly_card_event.operation_id')
   const occurrenceStoreId = nullableText(row.store_id) ?? context.storeId
   if (database.prepare('SELECT 1 FROM monthly_card_event WHERE id = ?').get(operationId)) return
+  const rawEventType = text(
+    row.event_type,
+    'monthly_card_event.event_type'
+  ).replace('monthly_card.', '')
+  // Snapshot rows repair cloud projections; the monthly_cards resource already
+  // materializes their state. They are not append-only business ledger events.
+  if (rawEventType === 'snapshot') return
+  const eventType = enumText(
+    rawEventType,
+    [
+      'purchased',
+      'paused',
+      'resumed',
+      'used',
+      'refunded',
+      'expired',
+      'manual_extended'
+    ] as const,
+    'monthly_card_event.event_type'
+  )
   database.prepare(
     `INSERT INTO monthly_card_event
      (id, tenant_id, store_id, card_id, member_id, event_type, request_id,
@@ -643,7 +674,7 @@ function applyMonthlyCardEvent(database: DatabaseSync, context: StoreContext, ro
     operationId, context.tenantId, occurrenceStoreId,
     text(row.card_id, 'monthly_card_event.card_id'),
     text(row.member_id, 'monthly_card_event.member_id'),
-    text(row.event_type, 'monthly_card_event.event_type').replace('monthly_card.', ''),
+    eventType,
     `cloud:${operationId}`, context.deviceId,
     nullableText(row.reason) ?? '云端同步', json(row.payload_json, {}),
     text(row.occurred_at, 'monthly_card_event.occurred_at')

@@ -40,6 +40,77 @@ function payload(after: Record<string, unknown>): string {
 }
 
 describe('safe inbound event application', () => {
+  it('applies a partial tier-reconciliation event without overwriting member profile fields', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-inbound-tier-reconcile-'))
+    temporaryDirectories.push(directory)
+    const local = openLocalDatabase(join(directory, 'zyapp.db'))
+    const bootstrap = bootstrapStore(local.connection, {
+      storeName: 'Store',
+      managerUsername: 'manager',
+      managerPasswordHash: 'scrypt$test',
+      managerDisplayName: 'Manager',
+      deviceName: 'Cashier'
+    })
+    const context = getStoreContext(local.connection)
+    if (!context) throw new Error('Missing store')
+    const actor = findEmployeeRecordById(
+      local.connection,
+      context.tenantId,
+      bootstrap.managerId
+    )
+    if (!actor) throw new Error('Missing manager')
+    const member = createMember(
+      local.connection,
+      { ...context, actor },
+      {
+        phone: '13800138000',
+        nickname: 'Profile must survive',
+        confirmedAtLeast14: true
+      }
+    )
+    local.connection.prepare(
+      `UPDATE outbox_operation SET sync_status = 'confirmed'`
+    ).run()
+    applySyncPullResult(local.connection, context, {
+      protocolVersion: 1,
+      deviceId: context.deviceId,
+      afterCursor: null,
+      nextCursor: '1',
+      hasMore: false,
+      serverTime: '2026-08-21T10:28:09.299Z',
+      events: [{
+        sequence: '1',
+        eventId: 'tier-reconciliation-event',
+        tenantId: context.tenantId,
+        storeId: context.storeId,
+        originDeviceId: null,
+        aggregateType: 'member',
+        aggregateId: member.id,
+        eventType: 'member.tier.reconciled',
+        payloadJson: payload({
+          tier: 'advanced',
+          updatedAt: '2026-08-21T10:28:09.299Z'
+        }),
+        occurredAt: '2026-08-21T10:28:09.299Z'
+      }]
+    })
+
+    expect(applyPendingInboundEvents(local.connection, context)).toEqual({
+      applied: 1,
+      conflicts: 0,
+      skippedSuperseded: 0
+    })
+    expect(searchMembers(local.connection, context.tenantId, '13800138000', 10)[0])
+      .toMatchObject({
+        id: member.id,
+        nickname: 'Profile must survive',
+        birthdayMonth: null,
+        birthdayDay: null,
+        tier: 'advanced'
+      })
+    local.close()
+  })
+
   it('applies store-specific employee roles and invalidates older offline authorization', () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-inbound-access-'))
     temporaryDirectories.push(directory)

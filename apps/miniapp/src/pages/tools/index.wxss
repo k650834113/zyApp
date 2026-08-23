@@ -1,0 +1,34 @@
+.tools-page { padding-top: 24rpx; }
+.tools-hero { position: relative; overflow: hidden; border-radius: 34rpx; padding: 42rpx 36rpx 46rpx; color: #fff; background: radial-gradient(circle at 86% 8%, rgba(255,255,255,.16), transparent 30%), linear-gradient(145deg, #103e30, #25674d); box-shadow: 0 18rpx 44rpx rgba(23,79,59,.2); }
+.tools-eyebrow, .tools-title, .tools-subtitle, .tool-title { display: block; }
+.tools-eyebrow { color: #c9e3d5; font-size: 21rpx; font-weight: 700; letter-spacing: 5rpx; }
+.tools-title { max-width: 520rpx; margin-top: 14rpx; font-size: 44rpx; font-weight: 900; line-height: 1.28; }
+.tools-subtitle { margin-top: 16rpx; color: #d9e8e0; font-size: 23rpx; line-height: 1.6; }
+.hero-dots { position: absolute; right: 34rpx; bottom: 30rpx; display: flex; gap: 10rpx; }
+.hero-dots text { width: 16rpx; height: 16rpx; border: 4rpx solid rgba(255,255,255,.7); border-radius: 50%; }
+.tools-section-head { margin-top: 34rpx; }
+.tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18rpx; }
+.tool-card { display: flex; min-height: 224rpx; flex-direction: column; align-items: center; justify-content: center; border: 1rpx solid #e8e0d4; border-radius: 28rpx; background: #fffdf9; box-shadow: 0 10rpx 26rpx rgba(71,54,34,.07); transition: transform 80ms ease, opacity 80ms ease; }
+.tool-card:last-child { grid-column: 1 / -1; min-height: 190rpx; }
+.tool-card-pressed { opacity: .84; transform: scale(.98); }
+.tool-icon { display: flex; width: 104rpx; height: 104rpx; align-items: center; justify-content: center; border-radius: 30rpx; color: #174f3b; background: #d8eee3; }
+.tool-card.amber .tool-icon { color: #8b530b; background: #f6dfb6; }
+.tool-card.blue .tool-icon { color: #285a73; background: #dbeaf2; }
+.tool-card.gold .tool-icon { color: #8a6108; background: #f5e6a9; }
+.tool-card.rose .tool-icon { color: #8b4a43; background: #f2dcd7; }
+.tool-title { margin-top: 20rpx; color: #23332b; font-size: 28rpx; font-weight: 850; }
+.glyph { position: relative; width: 68rpx; height: 68rpx; }
+.glyph-first { border: 5rpx solid currentColor; border-radius: 50%; }
+.glyph-first::before { position: absolute; top: 23rpx; left: 23rpx; width: 22rpx; height: 22rpx; border-radius: 50%; content: ''; background: currentColor; }
+.glyph-first view { position: absolute; width: 13rpx; height: 13rpx; border-radius: 50%; background: currentColor; }
+.glyph-first view:nth-child(1) { top: -7rpx; left: 27rpx; }.glyph-first view:nth-child(2) { right: -7rpx; bottom: 7rpx; }.glyph-first view:nth-child(3) { bottom: 2rpx; left: -5rpx; }
+.glyph-teams view { position: absolute; width: 26rpx; height: 26rpx; border-radius: 50%; background: currentColor; }
+.glyph-teams view:nth-child(1) { top: 2rpx; left: 8rpx; }.glyph-teams view:nth-child(2) { top: 2rpx; right: 0; opacity: .58; }.glyph-teams view:nth-child(3) { bottom: 3rpx; left: 8rpx; opacity: .58; }.glyph-teams view:nth-child(4) { right: 0; bottom: 3rpx; }
+.glyph-dice { box-sizing: border-box; border: 5rpx solid currentColor; border-radius: 16rpx; transform: rotate(-7deg); }
+.glyph-dice view { position: absolute; width: 12rpx; height: 12rpx; border-radius: 50%; background: currentColor; }
+.glyph-dice view:nth-child(1) { top: 9rpx; left: 9rpx; }.glyph-dice view:nth-child(2) { top: 9rpx; right: 9rpx; }.glyph-dice view:nth-child(3) { top: 25rpx; left: 25rpx; }.glyph-dice view:nth-child(4) { right: 9rpx; bottom: 9rpx; }.glyph-dice view:nth-child(5) { bottom: 9rpx; left: 9rpx; }
+.glyph-coin { box-sizing: border-box; border: 6rpx solid currentColor; border-radius: 50%; box-shadow: inset 0 0 0 5rpx rgba(255,255,255,.42); }
+.glyph-coin::before { position: absolute; top: 13rpx; left: 13rpx; width: 30rpx; height: 30rpx; border: 4rpx dashed currentColor; border-radius: 50%; content: ''; }
+.glyph-score { display: flex; align-items: flex-end; justify-content: center; gap: 8rpx; }
+.glyph-score view { width: 15rpx; border-radius: 7rpx 7rpx 3rpx 3rpx; background: currentColor; }.glyph-score view:nth-child(1) { height: 34rpx; }.glyph-score view:nth-child(2) { height: 58rpx; }.glyph-score view:nth-child(3) { height: 45rpx; opacity: .65; }
+.privacy-note { margin-top: 28rpx; color: #91938e; font-size: 20rpx; text-align: center; }

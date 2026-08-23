@@ -1,0 +1,45 @@
+<view class="first-page">
+  <view
+    class="touch-arena {{selected ? 'has-result' : ''}}"
+  >
+    <view wx:if="{{singleMode}}" class="touch-layer single-touch-layer" bindtap="addSinglePlayer"></view>
+    <view
+      wx:else
+      class="touch-layer multi-touch-layer"
+      catchtouchstart="handleTouchStart"
+      catchtouchmove="handleTouchMove"
+      catchtouchend="handleTouchEnd"
+      catchtouchcancel="handleTouchEnd"
+    ></view>
+    <view class="arena-guide">
+      <view class="guide-ring"><text>{{selected ? '✓' : markers.length}}</text></view>
+      <text class="arena-status">{{statusText}}</text>
+      <text class="arena-helper">{{helperText}}</text>
+    </view>
+
+    <view
+      wx:for="{{markers}}"
+      wx:key="id"
+      class="finger-marker {{item.tone}} {{item.selected ? 'selected' : ''}}"
+      style="left: {{item.left}}px; top: {{item.top}}px;"
+    >{{item.label}}</view>
+  </view>
+
+  <view class="first-actions">
+    <button class="mode-button" bindtap="toggleSingleMode">
+      {{singleMode ? '切换为多人按住' : '切换为单指依次添加'}}
+    </button>
+    <button
+      wx:if="{{singleMode && !selected}}"
+      class="add-player-button"
+      bindtap="addSinglePlayerFromButton"
+    >＋ 添加玩家</button>
+    <button
+      wx:if="{{singleMode && !selected}}"
+      class="draw-button"
+      bindtap="selectFromMarkers"
+      disabled="{{markers.length < 2}}"
+    >抽取先手</button>
+    <button wx:if="{{selected}}" class="draw-button" bindtap="reset">再来一次</button>
+  </view>
+</view>

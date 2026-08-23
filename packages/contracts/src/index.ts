@@ -1277,9 +1277,12 @@ export type PublicBoardGameSummary = {
   likedByViewer: boolean
 }
 
+export type PublicBoardGameSort = 'recent' | 'mostLiked'
+
 export type PublicBoardGameFilters = {
   query?: string
   baseGameId?: Identifier
+  sort?: PublicBoardGameSort
   categories?: string[]
   minPlayers?: number
   maxPlayers?: number

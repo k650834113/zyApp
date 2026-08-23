@@ -312,6 +312,18 @@ export class PublicContentService {
     }
     const limit = filters.limit ?? 1000
     const offset = filters.offset ?? 0
+    const orderBy =
+      filters.sort === 'recent'
+        ? `GREATEST(game.updated_at,
+                    COALESCE(config.updated_at, game.updated_at)) DESC,
+           game.id`
+        : filters.sort === 'mostLiked'
+          ? `COALESCE(likes.like_count, 0) DESC,
+             GREATEST(game.updated_at,
+                      COALESCE(config.updated_at, game.updated_at)) DESC,
+             game.id`
+          : `COALESCE(game.base_game_id, game.id),
+                (game.base_game_id IS NOT NULL), game.name`
     const limitMarker = parameter(limit)
     const offsetMarker = parameter(offset)
     const result = await this.pool.query<{
@@ -372,8 +384,7 @@ export class PublicContentService {
        ) likes ON TRUE
        WHERE current_store.id = $1
          AND ${conditions.join('\n         AND ')}
-       ORDER BY COALESCE(game.base_game_id, game.id),
-                (game.base_game_id IS NOT NULL), game.name
+       ORDER BY ${orderBy}
        LIMIT ${limitMarker}
        OFFSET ${offsetMarker}`,
       values

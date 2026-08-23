@@ -1,0 +1,41 @@
+page { background: #eaf1ec; }
+.dice-page { padding-top: 24rpx; padding-bottom: calc(60rpx + env(safe-area-inset-bottom)); }
+.dice-stage { overflow: hidden; min-height: 390rpx; border-radius: 34rpx; padding: 28rpx 22rpx 24rpx; color: #fff; background: radial-gradient(circle at 50% 40%, #2a7254, #103e30 72%); text-align: center; box-shadow: 0 18rpx 44rpx rgba(23,79,59,.24); transition: transform 100ms ease, opacity 100ms ease; }
+.dice-stage-pressed { opacity: .94; transform: scale(.988); }
+.stage-topline { display: flex; align-items: center; justify-content: space-between; color: #c8dfd2; font-size: 21rpx; letter-spacing: 3rpx; }
+.expression { max-width: 66%; overflow: hidden; color: #e4f455; font-size: 24rpx; font-weight: 850; letter-spacing: 0; text-overflow: ellipsis; white-space: nowrap; }
+.dice-grid { display: flex; min-height: 220rpx; flex-wrap: wrap; align-content: center; justify-content: center; gap: 14rpx; margin-top: 8rpx; }
+.die-wrap { position: relative; width: 104rpx; height: 118rpx; }
+.die { position: relative; z-index: 2; display: flex; width: 104rpx; height: 104rpx; flex-direction: column; align-items: center; justify-content: center; border-radius: 22rpx; color: #174f3b; background: linear-gradient(145deg, #fffefa, #e3ede6); box-shadow: inset -8rpx -10rpx 16rpx rgba(23,79,59,.15), inset 7rpx 7rpx 11rpx rgba(255,255,255,.88); transform: rotate(-3deg); }
+.d4 { clip-path: polygon(50% 2%, 98% 94%, 2% 94%); padding-top: 19rpx; }
+.d8 { clip-path: polygon(50% 0, 96% 50%, 50% 100%, 4% 50%); }
+.d10 { clip-path: polygon(50% 0, 92% 30%, 82% 83%, 50% 100%, 18% 83%, 8% 30%); }
+.d12 { clip-path: polygon(50% 0, 88% 18%, 100% 58%, 72% 94%, 28% 94%, 0 58%, 12% 18%); }
+.d20 { clip-path: polygon(50% 0, 91% 21%, 100% 66%, 68% 100%, 22% 93%, 0 51%, 17% 13%); }
+.die-value { font-size: 44rpx; font-weight: 950; line-height: 1; }
+.die-sides { margin-top: 6rpx; color: #75877d; font-size: 17rpx; font-weight: 750; }
+.die-shadow { position: absolute; z-index: 1; right: 10rpx; bottom: 3rpx; left: 10rpx; height: 19rpx; border-radius: 50%; background: rgba(0,0,0,.25); filter: blur(4rpx); }
+.rolling .die-wrap { animation: dice-travel 390ms cubic-bezier(.22,.7,.28,1) infinite alternate; }
+.rolling .die { animation: dice-tumble 190ms linear infinite; }
+.rolling .die-wrap:nth-child(even) { animation-direction: alternate-reverse; animation-duration: 340ms; }
+@keyframes dice-travel { from { transform: translate(-16rpx, 10rpx); } to { transform: translate(19rpx, -15rpx); } }
+@keyframes dice-tumble { from { transform: rotate(-16deg) scale(.9); } to { transform: rotate(18deg) scale(1.05); } }
+.total-line { color: #d7e7de; font-size: 22rpx; }
+.total-line text { margin-left: 8rpx; color: #e4f455; font-size: 38rpx; font-weight: 900; }
+.roll-hint { display: block; margin-top: 2rpx; color: #99bdab; font-size: 19rpx; }
+.dice-controls { width: 100%; overflow: hidden; margin-top: 22rpx; padding: 24rpx; }
+.control-title { display: flex; align-items: center; justify-content: space-between; font-size: 27rpx; font-weight: 850; }
+.control-actions { display: flex; align-items: center; gap: 12rpx; }
+.dice-summary { color: #8d938e; font-size: 20rpx; font-weight: 500; }
+.clear-all { width: auto; min-width: 112rpx; height: 50rpx; margin: 0; border-radius: 13rpx; padding: 0 14rpx; color: #92594f; background: #efe1dd; font-size: 18rpx; font-weight: 650; line-height: 50rpx; }
+.clear-all[disabled] { color: #b1aeaa; background: #e9e7e2; }
+.dice-count-list { display: grid; gap: 10rpx; margin-top: 18rpx; }
+.dice-count-row { display: flex; box-sizing: border-box; width: 100%; min-height: 72rpx; align-items: center; justify-content: space-between; border: 2rpx solid transparent; border-radius: 20rpx; padding: 6rpx 9rpx 6rpx 20rpx; background: #f2f0e9; }
+.dice-count-row.active { border-color: #bfd2c5; background: #edf5ef; }
+.dice-kind { color: #28372f; font-size: 27rpx; font-weight: 900; }
+.count-stepper { display: flex; align-items: center; gap: 8rpx; }
+.count-button { box-sizing: border-box; width: 52rpx !important; min-width: 52rpx; max-width: 52rpx; height: 52rpx; flex: 0 0 52rpx; margin: 0; border-radius: 12rpx; padding: 0; font-size: 18rpx; font-weight: 600; line-height: 50rpx; }
+.count-button.minus { color: #86564e; background: #eee0dc; }
+.count-button.plus { color: #174f3b; background: #d9e9df; }
+.count-button[disabled] { color: #aeb3af; background: #e7e6e1; }
+.dice-count { min-width: 48rpx; color: #1f3027; font-size: 27rpx; font-weight: 900; text-align: center; }

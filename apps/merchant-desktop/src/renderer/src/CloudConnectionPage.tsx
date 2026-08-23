@@ -101,6 +101,11 @@ export function CloudConnectionPage({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [inboundResolution, setInboundResolution] = useState<{
+    conflict: InboundSyncConflictSummary
+    resolution: 'keep_local' | 'apply_cloud'
+  } | null>(null)
+  const [inboundResolutionReason, setInboundResolutionReason] = useState('')
 
   useEffect(() => {
     void refresh()
@@ -423,14 +428,10 @@ export function CloudConnectionPage({
 
   async function resolveInbound(
     conflict: InboundSyncConflictSummary,
-    resolution: 'keep_local' | 'apply_cloud'
+    resolution: 'keep_local' | 'apply_cloud',
+    reason: string
   ): Promise<void> {
-    const reason = window.prompt(
-      resolution === 'keep_local'
-        ? '请输入保留本地资料的原因'
-        : '请输入应用云端资料的原因'
-    )
-    if (!reason?.trim()) return
+    if (reason.trim().length < 2) return
     setLoading(true)
     setError(null)
     setNotice(null)
@@ -446,6 +447,8 @@ export function CloudConnectionPage({
           : '已应用云端资料并完成冲突审计'
       )
       await refresh(false)
+      setInboundResolution(null)
+      setInboundResolutionReason('')
     } catch (reasonValue) {
       setError(readableError(reasonValue))
     } finally {
@@ -896,9 +899,10 @@ export function CloudConnectionPage({
                     className="secondary-button"
                     disabled={loading}
                     type="button"
-                    onClick={() =>
-                      void resolveInbound(conflict, 'keep_local')
-                    }
+                    onClick={() => {
+                      setInboundResolution({ conflict, resolution: 'keep_local' })
+                      setInboundResolutionReason('')
+                    }}
                   >
                     保留本机版本
                   </button>
@@ -906,9 +910,10 @@ export function CloudConnectionPage({
                     className="primary-button"
                     disabled={loading}
                     type="button"
-                    onClick={() =>
-                      void resolveInbound(conflict, 'apply_cloud')
-                    }
+                    onClick={() => {
+                      setInboundResolution({ conflict, resolution: 'apply_cloud' })
+                      setInboundResolutionReason('')
+                    }}
                   >
                     采用云端版本
                   </button>
@@ -918,6 +923,63 @@ export function CloudConnectionPage({
           </div>
         )}
       </section>
+
+      {inboundResolution ? (
+        <div className="modal-backdrop" role="presentation">
+          <form
+            aria-labelledby="inbound-resolution-title"
+            aria-modal="true"
+            className="modal-card cloud-conflict-resolution-dialog"
+            role="dialog"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void resolveInbound(
+                inboundResolution.conflict,
+                inboundResolution.resolution,
+                inboundResolutionReason
+              )
+            }}
+          >
+            <div>
+              <p className="eyebrow">云端资料合并确认</p>
+              <h2 id="inbound-resolution-title">
+                {inboundResolution.resolution === 'apply_cloud'
+                  ? '采用云端版本'
+                  : '保留本机版本'}
+              </h2>
+              <p>{conflictTitle(inboundResolution.conflict)}</p>
+            </div>
+            <label>
+              <span>处理原因（2–200 字）</span>
+              <textarea
+                autoFocus
+                maxLength={200}
+                minLength={2}
+                required
+                rows={4}
+                value={inboundResolutionReason}
+                onChange={(event) => setInboundResolutionReason(event.currentTarget.value)}
+              />
+            </label>
+            <div className="modal-actions">
+              <button
+                className="secondary-button"
+                disabled={loading}
+                type="button"
+                onClick={() => {
+                  setInboundResolution(null)
+                  setInboundResolutionReason('')
+                }}
+              >
+                取消
+              </button>
+              <button className="primary-button" disabled={loading} type="submit">
+                {loading ? '处理中…' : '确认处理'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       <section className="panel application-update-panel">
         <div className="panel-heading">
