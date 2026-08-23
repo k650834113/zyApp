@@ -314,14 +314,10 @@ export class PublicContentService {
     const offset = filters.offset ?? 0
     const orderBy =
       filters.sort === 'recent'
-        ? `GREATEST(game.updated_at,
-                    COALESCE(config.updated_at, game.updated_at)) DESC,
-           game.id`
+        ? 'game.created_at DESC, game.id'
         : filters.sort === 'mostLiked'
           ? `COALESCE(likes.like_count, 0) DESC,
-             GREATEST(game.updated_at,
-                      COALESCE(config.updated_at, game.updated_at)) DESC,
-             game.id`
+             game.created_at DESC, game.id`
           : `COALESCE(game.base_game_id, game.id),
                 (game.base_game_id IS NOT NULL), game.name`
     const limitMarker = parameter(limit)

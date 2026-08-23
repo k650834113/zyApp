@@ -146,23 +146,17 @@ describe('public content service', () => {
   })
 
   it.each([
-    [
-      'recent',
-      `ORDER BY GREATEST(game.updated_at,
-                    COALESCE(config.updated_at, game.updated_at)) DESC,
-           game.id`
-    ],
+    ['recent', 'ORDER BY game.created_at DESC, game.id'],
     [
       'mostLiked',
       `ORDER BY COALESCE(likes.like_count, 0) DESC,
-             GREATEST(game.updated_at,
-                      COALESCE(config.updated_at, game.updated_at)) DESC,
-             game.id`
+             game.created_at DESC, game.id`
     ]
   ] as const)('sorts public games by %s before pagination', async (sort, orderBy) => {
     const pool = {
       query: async (sql: string) => {
         expect(sql).toContain(orderBy)
+        expect(sql).not.toContain('GREATEST(game.updated_at')
         return { rows: [] }
       }
     } as unknown as Pool
