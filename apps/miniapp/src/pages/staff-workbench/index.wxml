@@ -1,0 +1,13 @@
+<view class="page-shell workspace-page">
+<text class="heading">员工工作台</text><text wx:if="{{error}}" class="error">{{error}}</text>
+<view wx:if="{{!employee}}" class="card"><text class="section-title">员工登录</text><text class="muted">使用店长已开通移动权限的员工账号。会员注册不会获得员工权限。</text><input placeholder="员工账号" value="{{username}}" bindinput="inputUsername"/><input password placeholder="移动端密码" value="{{password}}" bindinput="inputPassword"/><button loading="{{busy}}" disabled="{{busy}}" bindtap="login">登录工作台</button></view>
+<block wx:else>
+<view class="card"><text class="section-title">{{identity.displayName}}</text><button bindtap="transactions">近期交易 · 消费 / 充值 / 月卡 / 退款</button><button wx:if="{{manager}}" bindtap="settings">通知模板配置</button><button class="secondary" bindtap="logout">退出员工身份</button></view>
+<view class="card"><text class="section-title">活动现场报名</text><text class="muted">先核验本批参与者的消费资格，再填写可报名人数。一码供同行者使用，默认30分钟内扫码有效。</text>
+<picker wx:if="{{activities.length}}" range="{{activities}}" range-key="title" value="{{activityIndex}}" bindchange="chooseActivity"><view class="picker">{{activities[activityIndex].title}} ›</view></picker><text wx:else class="muted">尚无已配置抽奖的活动，请先在PC端配置。</text>
+<input type="number" maxlength="3" placeholder="本批可报名人数（1至100）" value="{{capacity}}" bindinput="inputCapacity"/><button class="generate-batch" bindtap="generate" loading="{{busy}}" disabled="{{busy || !activities.length}}">生成报名码</button><text class="muted">再次生成会作废自己在此活动的旧码；不会取消已报名资格。</text></view>
+<view wx:for="{{batches}}" wx:key="id" wx:for-item="batch" class="card"><text class="section-title">已报名 {{batch.registered}} / {{batch.capacity}} 人</text><text class="muted">注册中 {{batch.reserved}} 人 · {{batch.revoked ? '已作废' : '有效至 ' + batch.timeText}}</text><button wx:if="{{!batch.revoked}}" data-id="{{batch.id}}" bindtap="showQr" disabled="{{busy}}">查看报名码</button><button wx:if="{{!batch.revoked}}" data-id="{{batch.id}}" bindtap="revoke" class="secondary">立即作废</button>
+<view wx:for="{{batch.entries}}" wx:key="id" class="entry"><view><text>{{item.name}} · {{item.memberNumber}}</text><text class="muted">{{item.active ? '已报名' : '已取消'}}</text></view><button wx:if="{{item.active}}" size="mini" data-batch="{{batch.id}}" data-entry="{{item.id}}" bindtap="cancel">取消报名</button></view></view>
+</block>
+<view wx:if="{{qrPath}}" class="qr-overlay"><text class="heading">{{qrBatch.title}}</text><image class="qr-image" src="{{qrPath}}" mode="aspectFit"/><text class="section-title">已报名 {{qrBatch.registered}} / {{qrBatch.capacity}} 人</text><text>注册中 {{qrBatch.reserved}} 人 · 剩余 {{countdown}}</text><text class="muted">请现场扫码，勿转发。注册中的名额预留10分钟。</text><button class="secondary" bindtap="closeQr">返回工作台</button></view>
+</view>

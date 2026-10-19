@@ -131,6 +131,24 @@ function avatarUploadError(message: string): Error {
 }
 
 export class HttpMiniappClient implements MiniappClient {
+  readonly workspace:import('@zyapp/contracts').WorkspaceClient={
+    activities:()=>this.request('/v1/workspace/activities'),
+    batches:activityId=>this.request('/v1/workspace/batches?activityId='+encodeURIComponent(activityId)),
+    batchCode:id=>this.request('/v1/workspace/batches/'+encodeURIComponent(id)+'/code'),
+    createBatch:input=>this.request('/v1/workspace/batches','POST',input),
+    revokeBatch:id=>this.request('/v1/workspace/batches/'+encodeURIComponent(id)+'/revoke','POST'),
+    cancelEntry:(id,entryId,reason)=>this.request('/v1/workspace/batches/'+encodeURIComponent(id)+'/cancel','POST',{entryId,reason}),
+    transactions:filters=>this.request('/v1/workspace/transactions?'+Object.entries(filters).filter(([,v])=>v!==undefined).map(([k,v])=>encodeURIComponent(k)+'='+encodeURIComponent(String(v))).join('&')),
+    admit:scene=>this.request('/v1/workspace/admissions/'+encodeURIComponent(scene),'POST'),
+    register:scene=>this.request('/v1/workspace/admissions/'+encodeURIComponent(scene)+'/confirm','POST'),
+    lotteryResult:id=>this.request('/v1/workspace/lotteries/'+encodeURIComponent(id)),
+    scenes:()=>this.request('/v1/workspace/notice-scenes'),
+    saveScene:scene=>this.request('/v1/workspace/notice-scenes','POST',scene),
+    prepareSubscription:(scene,businessId)=>this.request('/v1/workspace/subscriptions','POST',{scene,...(businessId?{businessId}:{})}),
+    recordSubscription:(id,result)=>this.request('/v1/workspace/subscriptions/'+encodeURIComponent(id),'POST',{result}),
+    notices:(offset=0)=>this.request('/v1/workspace/notices?offset='+offset),
+    readNotice:id=>this.request('/v1/workspace/notices/'+encodeURIComponent(id)+'/read','POST')
+  }
   readonly community:CommunityClient = {
     selfMember:()=>this.request('/v1/member/community/profile'),
     friends:()=>this.request('/v1/member/community/friends'),
@@ -529,6 +547,7 @@ export class HttpMiniappClient implements MiniappClient {
     username: string,
     password: string
   ): Promise<MiniappIdentity> {
+    this.resumeLogin()
     return this.request('/v1/employee/mobile-login', 'POST', {
       username,
       password

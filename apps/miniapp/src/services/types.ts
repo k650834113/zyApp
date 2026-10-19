@@ -57,6 +57,7 @@ export type WechatOneTapLoginInput = {
 }
 
 export interface MiniappClient {
+  workspace?:import('@zyapp/contracts').WorkspaceClient
   getPublicPricing():Promise<import('@zyapp/contracts').PublicPricing>
   logout():Promise<void>
   community?: CommunityClient

@@ -39,6 +39,7 @@ import type {
   StoreProfileSummary
 } from '@zyapp/contracts'
 import { matchesBoardGameFilters } from './board-game-library'
+import {createWorkspaceDemoClient} from './workspace-demo-client'
 import type {
   MemberRegistrationInput,
   WechatOneTapLoginInput,
@@ -590,6 +591,7 @@ function demoMemberHistory(): MemberSelfServiceHistory {
 }
 
 export class MockMiniappClient implements MiniappClient {
+  readonly workspace=createWorkspaceDemoClient(()=>identity)
   async getPublicPricing():Promise<import('@zyapp/contracts').PublicPricing> {
     return {rows:[],monthlyCard:{planName:'30天月卡',priceFen:20000,durationDays:30}}
   }

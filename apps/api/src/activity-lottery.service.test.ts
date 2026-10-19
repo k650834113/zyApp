@@ -14,6 +14,7 @@ function fixture(){
   function connection(){let staged:LotteryWorkspace|null=null,pending:any=null;const releases:(()=>void)[]=[]
     return {release(){},async query(sql:string,args:any[]=[]):Promise<any>{
       trace.push(sql)
+      if(sql.includes('INSERT INTO miniapp_notice'))return {rows:[]}
       if(sql==='BEGIN')return {rows:[]}
       if(sql.includes('pg_advisory_xact_lock')){
         const key=args[0],previous=locks.get(key)??Promise.resolve();let release!:()=>void

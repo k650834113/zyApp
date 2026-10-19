@@ -141,6 +141,7 @@ async function buildProject() {
       ''
     ), 'utf8')
     for (const [name, stub] of Object.entries({
+      'workspace-demo-client': 'exports.createWorkspaceDemoClient = () => { throw new Error("Mock unavailable in customer release") };',
       'community-demo-client': 'exports.createCommunityDemoClient = () => { throw new Error("Mock unavailable in customer release") };',
       'ui-demo': 'exports.getUiDemo = () => null; exports.getCommunityDemo = () => null;',
       'mock-client': 'exports.MockMiniappClient = class { constructor() { throw new Error("Mock unavailable in customer release") } };',

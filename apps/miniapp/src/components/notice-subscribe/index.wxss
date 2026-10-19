@@ -1,0 +1,2 @@
+button{background:#174f3b;color:#fff;border-radius:18rpx;font-size:28rpx}.hint{display:block;color:#696b62;font-size:24rpx;margin-top:16rpx;line-height:1.6}
+button{width:100%;min-height:84rpx;line-height:1.5;padding:20rpx 24rpx;box-sizing:border-box}

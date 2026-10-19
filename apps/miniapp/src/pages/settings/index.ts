@@ -17,6 +17,7 @@ Page({
     wx.showModal({title:'内容待发布',content:'门店尚未发布此内容，请联系门店。',showCancel:false})
   },
   closeDocument(){this.setData({selected:null})},
+  staffLogin(){wx.navigateTo({url:'/pages/staff-workbench/index'})},
   openPermissions(){wx.openSetting({fail:()=>wx.showToast({title:'暂时无法打开授权设置',icon:'none'})})},
   async logout(){
     try {await getMiniappClient().logout();this.setData({member:false});wx.reLaunch({url:'/pages/member/index'})}

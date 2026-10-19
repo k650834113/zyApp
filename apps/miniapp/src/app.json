@@ -1,6 +1,11 @@
 {
   "pages": [
     "pages/home/index",
+    "pages/staff-workbench/index",
+    "pages/staff-transactions/index",
+    "pages/lottery-register/index",
+    "pages/messages/index",
+    "pages/notice-settings/index",
     "pages/activities/index",
     "pages/games/index",
     "pages/game-detail/index",

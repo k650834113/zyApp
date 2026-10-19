@@ -1,0 +1,1 @@
+<button disabled="{{disabled || busy || !ready}}" loading="{{busy || !ready}}" bindtap="subscribe">{{label}}</button><text wx:if="{{hint}}" class="hint">{{hint}}</text>

@@ -51,6 +51,7 @@ import { BoardGameCoverCacheService } from './board-game-cover-cache.service'
 @Module({
   imports: [InfrastructureModule],
   controllers: [
+    StaffWorkspaceController,
     ActivityLotteryController,
     MiniappCommunityController,
     MiniappContentController,
@@ -72,6 +73,8 @@ import { BoardGameCoverCacheService } from './board-game-cover-cache.service'
     BoardGameCoverController
   ],
   providers: [
+    StaffWorkspaceService,
+    MiniappNoticeService,
     ActivityLotteryService,
     MiniappCommunityService,
     MiniappContentService,
@@ -103,3 +106,6 @@ import { BoardGameCoverCacheService } from './board-game-cover-cache.service'
   ]
 })
 export class AppModule {}
+import {StaffWorkspaceController} from './staff-workspace.controller'
+import {StaffWorkspaceService} from './staff-workspace.service'
+import {MiniappNoticeService} from './miniapp-notice.service'

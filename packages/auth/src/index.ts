@@ -1,6 +1,8 @@
 export * from './password'
 
 export const PERMISSIONS = {
+  activityRegistrationManage: 'activity.registration.manage',
+  transactionRead: 'transaction.read',
   employeeManage: 'identity.employee.manage',
   memberRead: 'member.profile.read',
   memberWrite: 'member.profile.write',
@@ -30,6 +32,8 @@ export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
 export type EmployeeRole = 'manager' | 'staff'
 
 const staffPermissions: Permission[] = [
+  PERMISSIONS.activityRegistrationManage,
+  PERMISSIONS.transactionRead,
   PERMISSIONS.memberRead,
   PERMISSIONS.memberWrite,
   PERMISSIONS.walletRechargeCash,

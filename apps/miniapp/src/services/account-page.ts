@@ -1,5 +1,6 @@
 declare const __ZYAPP_UI_DEMO_ENABLED__: boolean
 import { consumeMeetupReturn } from './meetup-return'
+import {scanRegistration} from './workspace'
 import type {
   MemberActivitySummary,
   MemberMonthlyCardConfiguration,
@@ -169,6 +170,7 @@ Page({
   },
 
   data: {
+    employee:false,
     surface,
     storeName: '',
     loading: true,
@@ -204,6 +206,7 @@ Page({
   },
 
   onShow() {
+    void getMiniappClient().getIdentity().then(identity=>this.setData({employee:identity.role==='staff'||identity.role==='manager'})).catch(()=>this.setData({employee:false}))
     void getMiniappClient().getHome().then(home => this.setData({storeName: home.store.name})).catch(() => {})
     void this.load()
   },
@@ -274,6 +277,9 @@ Page({
     }
   },
 
+  goStaffWorkbench(){wx.navigateTo({url:'/pages/staff-workbench/index'})},
+  goMessages(){wx.navigateTo({url:'/pages/messages/index'})},
+  scanRegistration(){scanRegistration()},
   showFallbackLogin() { this.setData({loginFallbackVisible: !this.data.loginFallbackVisible}) },
   toggleLoginAgreement() { this.setData({loginAgreementAccepted: !this.data.loginAgreementAccepted}) },
   checkLoginAgreement() { if (!this.data.loginAgreementAccepted) wx.showToast({title:'请先阅读并同意协议',icon:'none'}) },

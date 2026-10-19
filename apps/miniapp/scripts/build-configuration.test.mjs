@@ -189,6 +189,11 @@ test('source app manifest exposes only approved customer pages', async () => {
 
   assert.deepEqual(app.pages, [
     'pages/home/index',
+    'pages/staff-workbench/index',
+    'pages/staff-transactions/index',
+    'pages/lottery-register/index',
+    'pages/messages/index',
+    'pages/notice-settings/index',
     'pages/activities/index',
     'pages/games/index',
     'pages/game-detail/index',
@@ -223,7 +228,8 @@ test('source app manifest exposes only approved customer pages', async () => {
     'pages/recommendations/index',
     'pages/activity-detail/index'
   ])
-  assert.equal(JSON.stringify(app).includes('staff'), false)
+  assert.equal(app.pages.includes('pages/staff/index'), false)
+  assert.equal(app.pages.includes('pages/staff-workbench/index'), true)
   assert.equal(JSON.stringify(app).includes('manager'), false)
   assert.equal(app.pages.includes('pages/activities/index'), true)
 })

@@ -49,6 +49,13 @@ function respond(
 }
 
 describe('HTTP miniapp client authentication', () => {
+  it('resumes an explicitly signed-out account only when the user submits staff login',async()=>{
+    let signedOut=true
+    installWxMock(request=>{expect(request.url).toContain('/employee/mobile-login');respond(request,200,{role:'staff',employeeId:'staff',displayName:'员工',permissions:[]})})
+    const client=new HttpMiniappClient({baseUrl,storeId,authMode:'wechat',token:()=> 'existing-token',saveToken:()=>{},clearToken:()=>{},loggedOut:()=>signedOut,setLoggedOut:value=>{signedOut=value}})
+    expect(await client.getIdentity()).toEqual({role:'guest'})
+    expect((await client.enterStaffMode('staff','test-password')).role).toBe('staff');expect(signedOut).toBe(false)
+  })
   it('browses games without a login round trip and bounds request time',async()=>{
     installWxMock(request=>{expect(request.url).toContain('/v1/public/');expect(request.timeout).toBe(10000);respond(request,200,[])})
     const client=new HttpMiniappClient({baseUrl,storeId,authMode:'wechat',token:()=>null,saveToken:()=>{throw new Error('unexpected login')},clearToken:()=>{}})

@@ -66,6 +66,17 @@ export class ActivityLotteryService {
         else drawLottery(state,actorId,now)
       }catch(e){throw new BadRequestException(e instanceof Error?e.message:'抽奖操作失败')}
       state.revision=randomUUID()
+      const drawn=state.result as LotteryWorkspace['result']
+      if(action==='draw'&&drawn){
+        const recipients=[...new Set(drawn.entries.map(e=>e.memberId))].map(memberId=>{
+          const prizes=drawn.prizes.filter(prize=>prize.winners.some(w=>w.memberId===memberId)).map(prize=>prize.name)
+          const result=prizes.length?'恭喜中奖：'+prizes.join('、'):'本次未中奖，感谢参与'
+          return {id:randomUUID(),memberId,title:'开奖结果已公布',body:result+'。请进入活动结果页查看，中奖者请联系门店领取。',data:{title:'开奖结果已公布',result:result.slice(0,20),body:result,time:new Date(now+8*3600000).toISOString().replace('T',' ').slice(0,19)}}
+        })
+        await db.query(`INSERT INTO miniapp_notice(id,tenant_id,store_id,member_id,scene,event_key,business_id,title,body,data_json)
+          SELECT (r->>'id')::uuid,$1,$2,(r->>'memberId')::uuid,'lottery.result',$3,$4,r->>'title',r->>'body',r->'data'
+          FROM jsonb_array_elements($5::jsonb) r ON CONFLICT(tenant_id,store_id,member_id,event_key) DO NOTHING`,[p.tenantId,p.storeId,'lottery.result:'+activityId,activityId,JSON.stringify(recipients)])
+      }
       await db.query(`INSERT INTO activity_lottery(activity_id,tenant_id,store_id,state_json) VALUES($1,$2,$3,$4::jsonb)
         ON CONFLICT(activity_id) DO UPDATE SET state_json=EXCLUDED.state_json,updated_at=clock_timestamp()`,[activityId,p.tenantId,p.storeId,JSON.stringify(state)])
       await db.query(`INSERT INTO activity_lottery_event(id,tenant_id,store_id,activity_id,actor_id,device_id,request_id,request_hash,action,result_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)`,[randomUUID(),p.tenantId,p.storeId,activityId,actorId,p.deviceId,v.requestId,hash,action,JSON.stringify({revision:state.revision,command:v})])

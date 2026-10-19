@@ -19,6 +19,9 @@
   </view>
 
   <view class="account-menu">
+    <view wx:if="{{employee}}" bindtap="goStaffWorkbench"><image src="/assets/icons/store-green.svg"/><text>员工工作台</text><text class="menu-arrow">›</text></view>
+    <view wx:if="{{member}}" bindtap="goMessages"><image src="/assets/icons/receipt-green.svg"/><text>消息中心</text><text class="menu-arrow">›</text></view>
+    <view bindtap="scanRegistration"><image src="/assets/icons/people-green.svg"/><text>扫码报名活动</text><text class="menu-arrow">›</text></view>
     <view wx:if="{{member}}" bindtap="goFriends"><image src="/assets/icons/people-green.svg"/><text>我的好友</text><text class="menu-arrow">›</text></view>
     <view bindtap="goAbout"><image src="/assets/icons/store-green.svg"/><text>关于门店</text><text class="menu-arrow">›</text></view>
     <view wx:if="{{!member}}" bindtap="goAbout"><image src="/assets/icons/pin-green.svg"/><text>到店导航</text><text class="menu-arrow">›</text></view>

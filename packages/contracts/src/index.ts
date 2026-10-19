@@ -2377,3 +2377,4 @@ export * from './miniapp-community'
 export * from './miniapp-play-rules'
 
 export type { LotteryConfig, LotteryEntry, LotteryResult, LotteryWorkspace, LotteryCommand, LotteryMember } from './activity-lottery'
+export * from './staff-workspace'

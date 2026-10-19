@@ -108,7 +108,7 @@ export async function resolveWechatLoginSubject(
       `?appid=${encodeURIComponent(appId)}` +
       `&secret=${encodeURIComponent(appSecret)}` +
       `&js_code=${encodeURIComponent(code)}` +
-      '&grant_type=authorization_code'
+      '&grant_type=authorization_code', {signal:AbortSignal.timeout(10000)}
   )
   if (payload.errcode && payload.errcode !== 0) {
     throw new UnauthorizedException(
@@ -123,7 +123,7 @@ export async function resolveWechatLoginSubject(
   return `openid:${payload.openid.trim()}`
 }
 
-async function getWechatAccessToken(
+export async function getWechatAccessToken(
   config: ApiConfig,
   redis: Redis
 ): Promise<string> {
@@ -137,7 +137,7 @@ async function getWechatAccessToken(
     'https://api.weixin.qq.com/cgi-bin/token' +
       '?grant_type=client_credential' +
       `&appid=${encodeURIComponent(appId)}` +
-      `&secret=${encodeURIComponent(appSecret)}`
+      `&secret=${encodeURIComponent(appSecret)}`, {signal:AbortSignal.timeout(10000)}
   )
   if (payload.errcode && payload.errcode !== 0) {
     throw new ServiceUnavailableException(
@@ -157,15 +157,20 @@ async function getWechatAccessToken(
   return payload.access_token
 }
 
+export async function invalidateWechatAccessToken(config:ApiConfig,redis:Redis){
+  const appHash=createHash('sha256').update(config.wechatMiniappAppId?.trim()??'').digest('hex').slice(0,16)
+  await redis.del(`zyapp:wechat-miniapp-access-token:${appHash}`).catch(()=>undefined)
+}
+
 /** Returns the platform's binary miniapp code; never expose the access token. */
-export async function createCommunityMiniappCode(config:ApiConfig,redis:Redis,scene:string,envVersion:'release'|'trial'|'develop'='release'):Promise<string> {
-  if(!/^[a-f0-9]{32}$/.test(scene))throw new BadRequestException('邀请码无效')
+export async function createCommunityMiniappCode(config:ApiConfig,redis:Redis,scene:string,envVersion:'release'|'trial'|'develop'='release',page='pages/community-invite/index'):Promise<string> {
+  if(!/^[a-f0-9]{32}$/.test(scene)&&!/^l[a-f0-9]{30}$/.test(scene))throw new BadRequestException('邀请码无效')
   const token=await getWechatAccessToken(config,redis)
   let response:Response
   try {
     response=await fetch('https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token='+encodeURIComponent(token),{
       method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(10000),
-      body:JSON.stringify({scene,page:'pages/community-invite/index',check_path:envVersion==='release',env_version:envVersion,width:430})})
+      body:JSON.stringify({scene,page,check_path:envVersion==='release',env_version:envVersion,width:430})})
   } catch {throw new ServiceUnavailableException('生成小程序码失败，请重试')}
   if(!response.ok)throw new ServiceUnavailableException('生成小程序码失败，请重试')
   const image=Buffer.from(await response.arrayBuffer())
