@@ -7,10 +7,13 @@
     "tag": "desktop/v0.25.8-stable-20261019"
   },
   "miniapp": {
-    "recordedOnlineBaseline": "1.1.6",
+    "recordedOnlineBaseline": "1.1.7",
     "lastSuccessfulUpload": "1.1.7",
-    "tag": "miniapp/stable-20261019",
-    "versionPolicy": "Verify the online version in WeChat DevTools before the next upload. This archive does not assert 1.1.7 has passed review or is online."
+    "tag": "miniapp/v1.1.7-stable-20261019",
+    "versionPolicy": "Online version 1.1.7 verified in WeChat DevTools on 2026-10-19. Verify again before next upload; patch target 1.1.8 only while the online baseline is unchanged.",
+    "verifiedOnlineVersion": "1.1.7",
+    "verifiedAt": "2026-10-19",
+    "verificationSource": "WeChat DevTools RC 2.02.2607271 manual upload dialog: online version 1.1.7; upload cancelled without submitting"
   },
   "resourceCount": 51,
   "database": {
@@ -18,5 +21,7 @@
   },
   "scope": "Repository source and tracked resources; not a bit-for-bit archive of deployed binaries, runtime uploads or production databases. Existing undeployed source changes remain included in the checkpoint.",
   "localBackup": "E:/AIproject/zyApp-backups/before-staff-notifications-20261019-174624",
-  "nextDevelopmentBranch": "codex/staff-workspace-notifications"
+  "nextDevelopmentBranch": "codex/staff-workspace-notifications",
+  "previousArchiveCommit": "f4929248e7ece2292c98f79bd2036f9be1420a79",
+  "correction": "Original archive used outdated local online baseline 1.1.6. Old tags retained; corrected version-specific tag added."
 }
