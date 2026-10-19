@@ -1,0 +1,257 @@
+[
+  {
+    "path": "apps/miniapp/build-assets/assets/images/activity-illustration-v1.png",
+    "bytes": 197458,
+    "sha256": "71e2e8aa2fa7ad9ffd1a12be601492e0da615d580f4285352ab9d273b4f4fb26"
+  },
+  {
+    "path": "apps/miniapp/build-assets/assets/images/guest-landscape-v1.png",
+    "bytes": 89789,
+    "sha256": "511249f91ce6525422a46f3c7e9f8b9f02e9567049a5c35472dd248d5f4896a2"
+  },
+  {
+    "path": "apps/miniapp/build-assets/assets/images/login-illustration-v1.png",
+    "bytes": 215377,
+    "sha256": "2ee11beebe27fa4c2db2ac97253af08cf72a2d2e62b8cf818d5bc3b7badcf56b"
+  },
+  {
+    "path": "apps/miniapp/build-assets/assets/images/recommendations-hero-v1.png",
+    "bytes": 130984,
+    "sha256": "deef0f6a20bf295745706aaaae4c3333f724693b3c0619197bb7b6bcc7d5d15f"
+  },
+  {
+    "path": "apps/miniapp/build-assets/assets/images/tabletop-editorial-v2.jpg",
+    "bytes": 176134,
+    "sha256": "d1349f4d16a74b526ee1fbf900720741f0ee11cc5028b15ed7d21da97833d5df"
+  },
+  {
+    "path": "apps/miniapp/build-assets/assets/images/tabletop-empty-v2.jpg",
+    "bytes": 13488,
+    "sha256": "6fa823655cd0afe3df0bd71669ad6f9aa21a8dfa19acd91b88d776b593025d93"
+  },
+  {
+    "path": "apps/miniapp/build-assets/assets/images/tabletop-hero-v1.png",
+    "bytes": 144653,
+    "sha256": "b681c80c564cf3f4523a3cdc907cba3656f7555a7ce18b35c8f352eb1fab7031"
+  },
+  {
+    "path": "apps/miniapp/build-assets/decoration-manifest.json",
+    "bytes": 926,
+    "sha256": "5d69664fd09fea100fe6668bdda1daab8160779cc270d0f7e54e54ee8d490b03"
+  },
+  {
+    "path": "apps/miniapp/build-assets/manifest.json",
+    "bytes": 704,
+    "sha256": "f649dbab0eb243238d7ba760adaec45346749acb0d87e0831650943cedb78a0d"
+  },
+  {
+    "path": "apps/miniapp/build-assets/server/63462de1a8b0fda8f04523edcfe63eef5a4919cbeab8bc944ce6404d2ccd04ed.png",
+    "bytes": 30295,
+    "sha256": "63462de1a8b0fda8f04523edcfe63eef5a4919cbeab8bc944ce6404d2ccd04ed"
+  },
+  {
+    "path": "apps/miniapp/build-assets/server/6fa823655cd0afe3df0bd71669ad6f9aa21a8dfa19acd91b88d776b593025d93.jpg",
+    "bytes": 13488,
+    "sha256": "6fa823655cd0afe3df0bd71669ad6f9aa21a8dfa19acd91b88d776b593025d93"
+  },
+  {
+    "path": "apps/miniapp/build-assets/server/d1349f4d16a74b526ee1fbf900720741f0ee11cc5028b15ed7d21da97833d5df.jpg",
+    "bytes": 176134,
+    "sha256": "d1349f4d16a74b526ee1fbf900720741f0ee11cc5028b15ed7d21da97833d5df"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/arrow-green.svg",
+    "bytes": 186,
+    "sha256": "ce0b96fb9fb9baa6b160a4a3ec45c694efa85af25d1980de2a359c22c9339a08"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/arrow-muted.svg",
+    "bytes": 186,
+    "sha256": "7bbbea681bdd7a905188174c892e34920e68156cf6e42ac05cc72615532cff42"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/camera-white.svg",
+    "bytes": 226,
+    "sha256": "1926f8e39d57ebfb7d49150b59239380df34f9bffcf917de2173b4bb58e5b97a"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/clock-green.svg",
+    "bytes": 217,
+    "sha256": "5bd7034f20f492ccd01c3cfafb21b00f9b71cf7a6531908a7f0f0c86a97fdaa9"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/clock-muted.svg",
+    "bytes": 217,
+    "sha256": "a7cb1c4ca663ef433b416402a98a255ec9ada8d3e2f661295ca37dcc3725d9e4"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/edit-green.svg",
+    "bytes": 213,
+    "sha256": "4fd90bf16a99dc91cb6e410115aa166eeeda98376698f8b2281a5ba22fbb9614"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/edit-muted.svg",
+    "bytes": 213,
+    "sha256": "4538735f702bf6191be2bd5e30d87fcc1228ddb788c6ab18f87c04622678c1c1"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/games-green.svg",
+    "bytes": 219,
+    "sha256": "de197f79ea9749603ab705630452d17d68431c2da65648bb892f71fa451ed37a"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/games-muted.svg",
+    "bytes": 219,
+    "sha256": "da39e45fadc2f7cc8d4ebfe19a815e44632daae0080f14d76a0da6c06ee38731"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/heart-filled.svg",
+    "bytes": 236,
+    "sha256": "4feaa9e2912d922bf0ea5fdcef37147193ea8c277c968760edd5dc748b7f17eb"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/heart-green.svg",
+    "bytes": 233,
+    "sha256": "04197e8e6f44d454e26b1add66bb7fb3100eb8a00d309177c0e93a46cbf60e58"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/heart-muted.svg",
+    "bytes": 233,
+    "sha256": "2f9533ebd5032737067d79e398f6558f4e6f416ee5ea3fb2220654049d86ab92"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/home-green.svg",
+    "bytes": 203,
+    "sha256": "3bf5f11ce8ca1f3dc458171c22ff90829451def054f24cda4b4fe7773976764e"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/home-muted.svg",
+    "bytes": 203,
+    "sha256": "a3d19fe7b30fe68c9a567068f9e08890cec678cb5c9e981006295ba3a6c2a233"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/meeples-muted.svg",
+    "bytes": 322,
+    "sha256": "db54f66893ce928719cca8a51d724216eb104cf25d58af3b42d31ca1449b44b2"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/people-green.svg",
+    "bytes": 269,
+    "sha256": "c833b8e76ba58b9388db809655ecbeea1542169d0e24a3561e3fb1bca4451004"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/people-muted.svg",
+    "bytes": 269,
+    "sha256": "d08457840a891e86aa291dc5d6e3cbd0981017c4a0ceb895d99e60c6b2b9a9a6"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/pin-green.svg",
+    "bytes": 250,
+    "sha256": "5428245a29ca9d6976ce67c151336747571720e7bfdbb39f0451c8d9ee76589d"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/pin-muted.svg",
+    "bytes": 250,
+    "sha256": "b954adea04745cfe82e045bfaaaeb914c5bcaca39a247cf1e9b56da03dbe7d63"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/qrcode-green.svg",
+    "bytes": 333,
+    "sha256": "f7bb1fb682c04fcd22928e1b289037a31ec156586cb3ff403a0be35b3da8f64e"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/receipt-green.svg",
+    "bytes": 243,
+    "sha256": "2027879657a0a4cc9cc44ed216449008ea4c7be54418dcaa160176095f8bb23c"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/receipt-muted.svg",
+    "bytes": 243,
+    "sha256": "8db819a3e403bc340287563ea64e923fcd54cbb48001bcfca84d146218ec40c8"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/scan-green.svg",
+    "bytes": 295,
+    "sha256": "948d55d0435a4d4fac6fe3f6c92c783c5a0f792d2019ff6612bb49e7eb14e9d9"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/search-green.svg",
+    "bytes": 215,
+    "sha256": "d0b8def21a97c859cee6727ae7cb9d36ad6407c9c96c3940c0caaffd6f047ab4"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/search-muted.svg",
+    "bytes": 215,
+    "sha256": "77fe10d9d806c2c1c394ebd871044c7e40d45536e5a5f8898f0f5d0246e36ccf"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/store-green.svg",
+    "bytes": 269,
+    "sha256": "baad81efca47deef6033c7f90f82a292cc643312637899ed470010825502a8e9"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/store-muted.svg",
+    "bytes": 269,
+    "sha256": "6ccdf73c96fba4ace849620066ac45c8a1f7f56693597dd059bc9231f80e01c5"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/tools-green.svg",
+    "bytes": 254,
+    "sha256": "2e7c83bc8fddca2dbe1e720672478332450b09ee8a8be693ca7ecfce9c5d89db"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/tools-muted.svg",
+    "bytes": 254,
+    "sha256": "898e6f27dc7af189d9822507292de6a12f267aa3762280230ecfb5308fd57fb4"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/user-green.svg",
+    "bytes": 230,
+    "sha256": "e5f810bc2d437c37abe6970369e02d8dea514de81dada71789c541675362f4f2"
+  },
+  {
+    "path": "apps/miniapp/src/assets/icons/user-muted.svg",
+    "bytes": 230,
+    "sha256": "bf729cacdc0e50d776794bcfd9fe2cab3efcfcacde27d612f5462f52077df832"
+  },
+  {
+    "path": "apps/miniapp/src/assets/images/activity-illustration-v1.png",
+    "bytes": 2230028,
+    "sha256": "ccbea2c61cf4aad0a34fb365db179b7d63e5d6e7a4b5085ed88dd977637a5b58"
+  },
+  {
+    "path": "apps/miniapp/src/assets/images/guest-landscape-v1.png",
+    "bytes": 1673224,
+    "sha256": "f89bd276d46e0435ea7cb76d90612fc533905680ab688188497ba09d92891d40"
+  },
+  {
+    "path": "apps/miniapp/src/assets/images/login-illustration-v1.png",
+    "bytes": 1999789,
+    "sha256": "8a5715ca0a04f87b78cb4b59be0e5f0fea1edf80e4382a6cb5998199d1938fb4"
+  },
+  {
+    "path": "apps/miniapp/src/assets/images/recommendations-hero-v1.png",
+    "bytes": 1797863,
+    "sha256": "dee5ace62f79d100cfbb12fc09d72716986e84d8fda9ac8208b232c9ceba9462"
+  },
+  {
+    "path": "apps/miniapp/src/assets/images/store-logo-v1.png",
+    "bytes": 30295,
+    "sha256": "63462de1a8b0fda8f04523edcfe63eef5a4919cbeab8bc944ce6404d2ccd04ed"
+  },
+  {
+    "path": "apps/miniapp/src/assets/images/tabletop-editorial-v2.jpg",
+    "bytes": 176134,
+    "sha256": "d1349f4d16a74b526ee1fbf900720741f0ee11cc5028b15ed7d21da97833d5df"
+  },
+  {
+    "path": "apps/miniapp/src/assets/images/tabletop-empty-v2.jpg",
+    "bytes": 13488,
+    "sha256": "6fa823655cd0afe3df0bd71669ad6f9aa21a8dfa19acd91b88d776b593025d93"
+  },
+  {
+    "path": "apps/miniapp/src/assets/images/tabletop-hero-v1.png",
+    "bytes": 1705834,
+    "sha256": "eac0399faad192472bf7e2521ab2b219079ecf80c21cc13ebf48c2c488bcd8d6"
+  }
+]

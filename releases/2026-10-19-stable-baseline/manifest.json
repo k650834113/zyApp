@@ -1,0 +1,22 @@
+{
+  "recordedAt": "2026-10-19",
+  "status": "stable baseline confirmed by owner",
+  "sourceCheckpoint": "a2d0b35aa08c83dc982cfdc3cbe7c5c7e016ae21",
+  "desktop": {
+    "packageVersion": "0.25.8",
+    "tag": "desktop/v0.25.8-stable-20261019"
+  },
+  "miniapp": {
+    "recordedOnlineBaseline": "1.1.6",
+    "lastSuccessfulUpload": "1.1.7",
+    "tag": "miniapp/stable-20261019",
+    "versionPolicy": "Verify the online version in WeChat DevTools before the next upload. This archive does not assert 1.1.7 has passed review or is online."
+  },
+  "resourceCount": 51,
+  "database": {
+    "lastRecordedProductionPostgresMigration": 27
+  },
+  "scope": "Repository source and tracked resources; not a bit-for-bit archive of deployed binaries, runtime uploads or production databases. Existing undeployed source changes remain included in the checkpoint.",
+  "localBackup": "E:/AIproject/zyApp-backups/before-staff-notifications-20261019-174624",
+  "nextDevelopmentBranch": "codex/staff-workspace-notifications"
+}
