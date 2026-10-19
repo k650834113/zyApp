@@ -3,7 +3,7 @@
   "desktopVersion": "0.25.8",
   "verifiedMiniappOnlineVersion": "1.1.7",
   "miniappUploadVersion": "1.1.8",
-  "miniappUploadStatus": "pending",
+  "miniappUploadStatus": "success",
   "miniappUploadTaskId": "confirmation_upload_fc0b9451-bc78-4271-97db-a7b38272f32d",
   "apiImage": "zyapp-release:staff-notices-20261019",
   "postgresMigration": 28,
@@ -21,5 +21,6 @@
       "thing3": "body"
     }
   },
-  "employeeBindingStatus": "Awaiting owner miniapp member number or registered phone; WeChat handle alone is not an identity key."
+  "employeeBindingStatus": "Owner-confirmed registered member uniquely matched to active WeChat identity; staff access bound and verified on 2026-10-20, with audit and private before-binding snapshot.",
+  "miniappUploadBytes": 1720519
 }
