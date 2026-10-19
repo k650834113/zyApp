@@ -21,8 +21,11 @@ export type SubscriptionTicket = {id:string;scene:string;templateId:string;title
 export type MemberNotice = {
   id:string;scene:string;title:string;body:string;createdAt:string;read:boolean;
   delivery:string;businessId:string|null
+  test?:boolean;errorCode?:string|null
 }
+export type NoticeTestRequest={requestId:string;scene:string;channel:'in_app'|'wechat';envVersion:'release'|'trial'|'develop'}
 export interface WorkspaceClient {
+  testNotice(input:NoticeTestRequest):Promise<MemberNotice>
   activities():Promise<Array<{id:string;title:string;drawAt:string}>>
   batches(activityId:string):Promise<RegistrationBatch[]>
   batchCode(id:string):Promise<RegistrationBatch>

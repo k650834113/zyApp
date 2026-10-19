@@ -1,6 +1,6 @@
 import {BadRequestException,ForbiddenException,Inject,Injectable,Logger,NotFoundException} from '@nestjs/common'
 import type {Pool,PoolClient} from '@zyapp/cloud-db'
-import type {NoticeScene,MemberNotice,SubscriptionTicket} from '@zyapp/contracts'
+import type {NoticeScene,MemberNotice,SubscriptionTicket,NoticeTestRequest} from '@zyapp/contracts'
 import type Redis from 'ioredis'
 import {randomUUID} from 'node:crypto'
 import type {MiniappPrincipal} from './miniapp-auth'
@@ -32,13 +32,33 @@ export function validateNoticeScene(raw:NoticeScene):NoticeScene{
 }
 function sceneView(r:any):NoticeScene{return {key:r.key,title:r.title,description:r.description,templateId:r.template_id,enabled:r.enabled,fields:r.fields_json}}
 function noticeId(id:string){if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id??''))throw new BadRequestException('消息或订阅编号无效');return id}
-function noticeView(r:any):MemberNotice{return {id:r.id,scene:r.scene,title:r.title,body:r.body,createdAt:new Date(r.created_at).toISOString(),read:!!r.read_at,delivery:r.delivery,businessId:r.business_id}}
+function noticeView(r:any):MemberNotice{return {id:r.id,scene:r.scene,title:r.title,body:r.body,createdAt:new Date(r.created_at).toISOString(),read:!!r.read_at,delivery:r.delivery,businessId:r.business_id,test:r.data_json?.kind==='test',errorCode:r.error_code??null}}
 @Injectable()
 export class MiniappNoticeService{
   private timer?:ReturnType<typeof setInterval>;private running=false
   constructor(@Inject(POSTGRES_POOL) private readonly pool:Pool,@Inject(API_CONFIG) private readonly config:ApiConfig,@Inject(REDIS_CLIENT) private readonly redis:Redis){}
   onModuleInit(){this.timer=setInterval(()=>{void this.dispatch()},15000);this.timer.unref()}
   onModuleDestroy(){if(this.timer)clearInterval(this.timer)}
+  async testNotice(p:MiniappPrincipal,input:NoticeTestRequest):Promise<MemberNotice>{
+    const employeeId=requireWorkspaceEmployee(p,'transaction.read'),memberId=requireNoticeMember(p)
+    if(!input||!['in_app','wechat'].includes(input.channel)||!['release','trial','develop'].includes(input.envVersion)||typeof input.scene!=='string'||!/^[-a-z0-9.]{3,60}$/.test(input.scene))throw new BadRequestException('测试参数无效')
+    noticeId(input.requestId)
+    const db=await this.pool.connect(),eventKey='notice.test:'+p.identityId+':'+input.requestId
+    try{await db.query('BEGIN');await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[p.identityId+':notice-test'])
+      const previous=await db.query('SELECT * FROM miniapp_notice WHERE tenant_id=$1 AND store_id=$2 AND member_id=$3 AND event_key=$4',[p.tenantId,p.storeId,memberId,eventKey])
+      if(previous.rows[0]){const prior=previous.rows[0];if(prior.scene!==(input.channel==='in_app'?'system.test':input.scene)||prior.data_json?.channel!==input.channel||prior.data_json?.envVersion!==input.envVersion)throw new BadRequestException('请求编号已用于其他测试');await db.query('COMMIT');return noticeView(prior)}
+      const recent=await db.query(`SELECT id FROM miniapp_notice WHERE tenant_id=$1 AND store_id=$2 AND member_id=$3 AND data_json->>'kind'='test' AND created_at>clock_timestamp()-interval '1 minute' LIMIT 1`,[p.tenantId,p.storeId,memberId]);if(recent.rows.length)throw new BadRequestException('每分钟最多发送一条测试消息，请稍后重试')
+      if(input.channel==='wechat'){
+        const configured=(await this.scenes(p)).find(s=>s.key===input.scene&&s.enabled&&s.templateId);if(!configured)throw new BadRequestException('请先配置并启用真实微信订阅模板')
+        const grant=await db.query(`SELECT id FROM miniapp_subscription_ticket WHERE tenant_id=$1 AND store_id=$2 AND identity_id=$3 AND scene=$4 AND template_id=$5 AND business_id=$6 AND result='accept' AND used_at IS NULL AND expires_at>clock_timestamp()`,[p.tenantId,p.storeId,p.identityId,input.scene,configured.templateId,input.requestId]);if(!grant.rows.length)throw new BadRequestException('请先点击订阅并允许本次微信提醒')
+      }
+      const now=new Date(),time=new Date(now.getTime()+8*3600000).toISOString().replace('T',' ').slice(0,19)
+      await enqueueMemberNotice(db,{tenantId:p.tenantId,storeId:p.storeId,memberId,scene:input.channel==='in_app'?'system.test':input.scene,eventKey,businessId:input.requestId,title:'消息通知测试',body:'这是一条由你主动发起的测试消息，仅发送给你本人，不代表真实开奖或账户变动。',data:{kind:'test',channel:input.channel,envVersion:input.envVersion,title:'消息通知测试',result:'这是一条测试消息',body:'仅用于员工通知测试',time,status:'测试成功',amount:'0.00'}})
+      if(input.channel==='in_app')await db.query("UPDATE miniapp_notice SET delivery='disabled',error_code='in_app_only' WHERE tenant_id=$1 AND store_id=$2 AND member_id=$3 AND event_key=$4",[p.tenantId,p.storeId,memberId,eventKey])
+      const result=await db.query('SELECT * FROM miniapp_notice WHERE tenant_id=$1 AND store_id=$2 AND member_id=$3 AND event_key=$4',[p.tenantId,p.storeId,memberId,eventKey])
+      await db.query(`INSERT INTO cloud_audit_log(id,tenant_id,store_id,actor_id,action,aggregate_type,aggregate_id,metadata_json) VALUES($1,$2,$3,$4,'notice.test_requested','miniapp_notice',$5,$6::jsonb)`,[randomUUID(),p.tenantId,p.storeId,employeeId,result.rows[0].id,JSON.stringify({identityId:p.identityId,channel:input.channel,scene:input.scene})]);await db.query('COMMIT');return noticeView(result.rows[0])
+    }catch(e){await db.query('ROLLBACK');throw e}finally{db.release()}
+  }
   async scenes(p:MiniappPrincipal):Promise<NoticeScene[]>{
     const r=await this.pool.query('SELECT * FROM miniapp_notice_scene WHERE tenant_id=$1 AND store_id=$2 ORDER BY key',[p.tenantId,p.storeId])
     const scenes=new Map(defaultNoticeScenes.map(s=>[s.key,s]));for(const row of r.rows)scenes.set(row.key,sceneView(row));return [...scenes.values()]
@@ -105,7 +125,8 @@ export class MiniappNoticeService{
     for(const [field,key] of Object.entries(job.sceneConfig.fields_json as Record<string,string>))data[field]={value:String(job.data_json[key]??'')}
     let status='uncertain',code='network_unknown'
     try{
-      const response=await fetch('https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token='+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(10000),body:JSON.stringify({touser:job.ticket.provider_subject.slice(7),template_id:job.sceneConfig.template_id,page:'pages/messages/index?id='+job.id,data,miniprogram_state:'formal',lang:'zh_CN'})})
+      const state=job.data_json.kind==='test'?({release:'formal',trial:'trial',develop:'developer'}[job.data_json.envVersion as 'release'|'trial'|'develop']??'formal'):'formal'
+      const response=await fetch('https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token='+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(10000),body:JSON.stringify({touser:job.ticket.provider_subject.slice(7),template_id:job.sceneConfig.template_id,page:'pages/messages/index?id='+job.id,data,miniprogram_state:state,lang:'zh_CN'})})
       if(response.ok){const payload=await response.json() as {errcode?:number};if(typeof payload.errcode==='number'){code=String(payload.errcode);status=payload.errcode===0?'sent':payload.errcode===43101?'unsubscribed':'failed'}}
     }catch{}
     if(['-1','40001','42001','45009','45011'].includes(code)){

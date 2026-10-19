@@ -74,6 +74,7 @@ test('customer release output stays isolated from the shared dist directory', ()
       'monthly-card',
       'my-meetups',
       'notice-settings',
+      'notice-test',
       'play-create',
       'play-detail',
       'plays',

@@ -22,5 +22,5 @@ Page({
   async showQr(e:{currentTarget:{dataset:{id:string}}}){if(this.data.busy)return;this.setData({busy:true,error:''});try{const batch=await workspaceApi().batchCode(e.currentTarget.dataset.id);if(!batch.image)throw new Error('演示环境不生成微信报名码');this.setData({qrBatch:batch,qrPath:await writeInviteImage(batch.image)});this.updateCountdown()}catch(e){this.fail(e)}finally{this.setData({busy:false})}},
   revoke(e:{currentTarget:{dataset:{id:string}}}){const id=e.currentTarget.dataset.id;wx.showModal({title:'作废报名码',content:'尚未完成报名的用户将无法继续，已报名资格保留。',success:r=>{if(r.confirm)void workspaceApi().revokeBatch(id).then(()=>this.refreshBatches()).catch(e=>this.fail(e))}})},
   cancel(e:{currentTarget:{dataset:{batch:string;entry:string}}}){const {batch,entry}=e.currentTarget.dataset;wx.showModal({title:'取消报名',editable:true,placeholderText:'填写不符合资格等取消原因',success:r=>{if(r.confirm&&r.content?.trim())void workspaceApi().cancelEntry(batch,entry,r.content.trim()).then(()=>this.refreshBatches()).catch(e=>this.fail(e))}})},
-  transactions(){wx.navigateTo({url:'/pages/staff-transactions/index'})},settings(){wx.navigateTo({url:'/pages/notice-settings/index'})}
+  transactions(){wx.navigateTo({url:'/pages/staff-transactions/index'})},settings(){wx.navigateTo({url:'/pages/notice-settings/index'})},testNotifications(){wx.navigateTo({url:'/pages/notice-test/index'})}
 })

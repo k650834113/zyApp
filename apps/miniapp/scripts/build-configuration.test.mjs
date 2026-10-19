@@ -194,6 +194,7 @@ test('source app manifest exposes only approved customer pages', async () => {
     'pages/lottery-register/index',
     'pages/messages/index',
     'pages/notice-settings/index',
+    'pages/notice-test/index',
     'pages/activities/index',
     'pages/games/index',
     'pages/game-detail/index',

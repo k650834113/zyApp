@@ -20,6 +20,7 @@ export class StaffWorkspaceController{
   @Get('lotteries/:id') result(@Req() r:MiniappRequest,@Param('id') id:string){return this.staff.result(principal(r),id)}
   @Get('notice-scenes') scenes(@Req() r:MiniappRequest){return this.notices.scenes(principal(r))}
   @Post('notice-scenes') save(@Req() r:MiniappRequest,@Body() body:NoticeScene){return this.notices.save(principal(r),body)}
+  @Post('notice-tests') test(@Req() r:MiniappRequest,@Body() body:Parameters<MiniappNoticeService['testNotice']>[1]){return this.notices.testNotice(principal(r),body)}
   @Post('subscriptions') prepare(@Req() r:MiniappRequest,@Body() body:{scene:string;businessId?:string}){return this.notices.prepare(principal(r),body?.scene,body?.businessId)}
   @Post('subscriptions/:id') receipt(@Req() r:MiniappRequest,@Param('id') id:string,@Body() body:{result:string}){return this.notices.receipt(principal(r),id,body?.result)}
   @Get('notices') list(@Req() r:MiniappRequest,@Query('offset') offset?:string){return this.notices.list(principal(r),offset===undefined?0:Number(offset))}

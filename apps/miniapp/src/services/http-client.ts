@@ -132,6 +132,7 @@ function avatarUploadError(message: string): Error {
 
 export class HttpMiniappClient implements MiniappClient {
   readonly workspace:import('@zyapp/contracts').WorkspaceClient={
+    testNotice:input=>this.request('/v1/workspace/notice-tests','POST',input),
     activities:()=>this.request('/v1/workspace/activities'),
     batches:activityId=>this.request('/v1/workspace/batches?activityId='+encodeURIComponent(activityId)),
     batchCode:id=>this.request('/v1/workspace/batches/'+encodeURIComponent(id)+'/code'),

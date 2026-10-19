@@ -8,6 +8,7 @@ export function createWorkspaceDemoClient(identity:()=>MiniappIdentity):Workspac
  const employee=()=>{if(!['staff','manager'].includes(identity().role))throw new Error('当前账号没有此员工操作权限')}
  const admission=():LotteryAdmission=>({activityId,title:'现场报名流程演示',rules:'仅为本机界面演示，不产生正式报名。',drawAt:'2030-11-01T12:00:00+08:00',expiresAt:new Date(Date.now()+600000).toISOString(),registered,result:null})
  return {
+  testNotice:async input=>{employee();const notice:MemberNotice={id:input.requestId,scene:input.scene,title:'消息通知测试',body:'本机演示消息，不发送微信通知。',createdAt:new Date().toISOString(),read:false,delivery:'disabled',businessId:null,test:true,errorCode:'in_app_only'};notices.unshift(notice);return notice},
   activities:async()=>{employee();return [{id:activityId,title:'现场报名流程演示',drawAt:'2030-11-01T12:00:00+08:00'}]},
   batches:async()=>{employee();return batches},
   batchCode:async id=>{employee();const batch=batches.find(b=>b.id===id);if(!batch)throw new Error('报名码不存在');return batch},

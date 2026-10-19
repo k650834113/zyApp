@@ -127,4 +127,24 @@ describe.skipIf(!url)('staff workspace PostgreSQL integration',()=>{
   const fetch=vi.fn(async()=>new Response(JSON.stringify({errcode:-1}),{status:200}));vi.stubGlobal('fetch',fetch);await notices.dispatch();let row=(await pool.query('SELECT * FROM miniapp_notice WHERE event_key=$1',[key])).rows[0];expect(row.delivery).toBe('pending');expect((await pool.query('SELECT used_at FROM miniapp_subscription_ticket WHERE id=$1',[ticket.id])).rows[0].used_at).toBeNull()
   fetch.mockImplementation(async()=>new Response(JSON.stringify({errcode:0}),{status:200}));await pool.query('UPDATE miniapp_notice SET next_attempt_at=clock_timestamp() WHERE id=$1',[row.id]);await notices.dispatch();row=(await pool.query('SELECT * FROM miniapp_notice WHERE event_key=$1',[key])).rows[0];expect(row.delivery).toBe('sent');expect(fetch).toHaveBeenCalledTimes(2)
  })
+ it('limits test notices to the requesting employee and handles duplicate clicks and rate limits',async()=>{
+  const input={requestId:randomUUID(),scene:'system.test',channel:'in_app' as const,envVersion:'trial' as const}
+  await expect(notices.testNotice(principal(0),input)).rejects.toThrow('权限')
+  const [a,b]=await Promise.all([notices.testNotice(staff(),input),notices.testNotice(staff(),input)])
+  expect(a.id).toBe(b.id);expect(a.test).toBe(true);expect(a.errorCode).toBe('in_app_only')
+  await expect(notices.read(principal(1),a.id)).rejects.toThrow('不存在')
+  await expect(notices.testNotice(staff(),{...input,requestId:randomUUID()})).rejects.toThrow('每分钟')
+  await expect(notices.testNotice(staff(),{...input,envVersion:'release'})).rejects.toThrow('其他测试')
+ })
+ it('requires a fresh test-bound subscription and uses the selected WeChat environment',async()=>{
+  await pool.query("UPDATE miniapp_notice SET created_at=clock_timestamp()-interval '2 minutes' WHERE member_id=$1 AND data_json->>'kind'='test'",[members[0]])
+  const input={requestId:randomUUID(),scene:'test.result',channel:'wechat' as const,envVersion:'trial' as const}
+  await expect(notices.testNotice(staff(),input)).rejects.toThrow('允许本次')
+  const ticket=(await notices.prepare(staff(),input.scene,input.requestId))!;await notices.receipt(staff(),ticket.id,'accept')
+  const notice=await notices.testNotice(staff(),input)
+  const fetch=vi.fn(async()=>new Response(JSON.stringify({errcode:0}),{status:200}));vi.stubGlobal('fetch',fetch);await notices.dispatch()
+  const body=JSON.parse((fetch.mock.calls[0] as unknown as [string,RequestInit])[1].body as string)
+  expect(body.miniprogram_state).toBe('trial');expect(body.touser).toBe('audit-0');expect(body.data.thing1.value).toBe('消息通知测试')
+  expect((await notices.read(staff(),notice.id)).delivery).toBe('sent')
+ })
 })

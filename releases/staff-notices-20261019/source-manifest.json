@@ -1,0 +1,30 @@
+[
+  {
+    "path": "apps/api/src/activity-lottery.service.ts",
+    "sha256": "c43a440fc710800ecccff03571faedd44158876b2a583febf2b166d4a55fc220"
+  },
+  {
+    "path": "apps/api/src/miniapp-notice.service.ts",
+    "sha256": "9b9857e36017a9a79374b15b8c1b984669b76ff0cb7c0b6f8d8c62fae67a6872"
+  },
+  {
+    "path": "apps/api/src/staff-workspace.service.ts",
+    "sha256": "e0a7d7ee97a4b9740ce04f36a25509e399fcff480484d492e3a5a1a43a0a3d70"
+  },
+  {
+    "path": "apps/api/src/staff-workspace.controller.ts",
+    "sha256": "9eb7d59bd89d63fcf483cc5dc3ae26c5a0d56c8e16166eb4288052ea8a680341"
+  },
+  {
+    "path": "apps/api/src/wechat-miniapp-provider.ts",
+    "sha256": "d2fdb0d548a59a074fec749e032808e210dcf0ba87b2bec92a5f907122b04a2b"
+  },
+  {
+    "path": "packages/contracts/src/staff-workspace.ts",
+    "sha256": "5484e1091b6cfa2b74776eb8923e0098f3df8b4ed97bb9e66cbb4d9833727cf2"
+  },
+  {
+    "path": "packages/cloud-db/migrations/0028_staff_workspace_notifications.sql",
+    "sha256": "6010edd1ebb12326755ae7c4a70bfc36645e1c0a73d0e7c97fe5770b296b1ce3"
+  }
+]

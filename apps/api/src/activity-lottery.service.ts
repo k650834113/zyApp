@@ -68,10 +68,12 @@ export class ActivityLotteryService {
       state.revision=randomUUID()
       const drawn=state.result as LotteryWorkspace['result']
       if(action==='draw'&&drawn){
+        const campaign=await db.query<{title:string}>('SELECT title FROM cloud_activity_campaign WHERE id=$1 AND tenant_id=$2 AND store_id=$3',[activityId,p.tenantId,p.storeId])
+        const activityTitle=(campaign.rows[0]?.title??'门店活动抽奖').slice(0,20)
         const recipients=[...new Set(drawn.entries.map(e=>e.memberId))].map(memberId=>{
           const prizes=drawn.prizes.filter(prize=>prize.winners.some(w=>w.memberId===memberId)).map(prize=>prize.name)
           const result=prizes.length?'恭喜中奖：'+prizes.join('、'):'本次未中奖，感谢参与'
-          return {id:randomUUID(),memberId,title:'开奖结果已公布',body:result+'。请进入活动结果页查看，中奖者请联系门店领取。',data:{title:'开奖结果已公布',result:result.slice(0,20),body:result,time:new Date(now+8*3600000).toISOString().replace('T',' ').slice(0,19)}}
+          return {id:randomUUID(),memberId,title:'开奖结果已公布',body:result+'。请进入活动结果页查看，中奖者请联系门店领取。',data:{title:activityTitle,result:result.slice(0,20),body:'进入小程序查看结果与领取方式',time:new Date(now+8*3600000).toISOString().replace('T',' ').slice(0,19)}}
         })
         await db.query(`INSERT INTO miniapp_notice(id,tenant_id,store_id,member_id,scene,event_key,business_id,title,body,data_json)
           SELECT (r->>'id')::uuid,$1,$2,(r->>'memberId')::uuid,'lottery.result',$3,$4,r->>'title',r->>'body',r->'data'
