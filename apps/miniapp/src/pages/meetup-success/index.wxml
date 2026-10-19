@@ -1,0 +1,12 @@
+<view class="community-page">
+<view wx:if="{{loading}}" class="unavailable">正在加载…</view>
+<view wx:if="{{error}}" class="error">{{error}}<button bindtap="refresh" disabled="{{busy}}">重试加载</button></view>
+<view wx:if="{{!selected || !selected.joined || selected.status==='cancelled'}}" class="unavailable">暂无有效报名记录</view>
+<block wx:else>
+<view class="success-symbol">✓</view><text class="success-title">已报名</text><text class="success-subtitle">期待与你一起玩桌游！</text>
+<view class="community-card play-card"><view class="game-row"><image wx:if="{{selected.game.imageUrl}}" class="game-cover" src="{{selected.game.imageUrl}}" mode="aspectFit" data-id="{{selected.game.id}}" binderror="imageError"/><view class="game-copy"><text class="game-title">{{selected.title}}</text><view class="meta">{{selected.date}} {{selected.time}}</view><view class="meta">{{selected.location}}</view></view></view><view class="capacity-banner">{{selected.players.length >= selected.capacity ? '已满员' : '已报名'}} · {{selected.players.length}}/{{selected.capacity}}人</view>
+<text class="section-title">参与玩家</text><view class="members"><view wx:for="{{selected.participants || selected.players}}" wx:key="index" class="member-item"><image class="{{item.avatarUrl ? 'avatar-photo' : ''}}" mode="aspectFill" src="{{item.avatarUrl || '/assets/icons/user-green.svg'}}" data-member-id="{{item.memberId}}" binderror="avatarError"/><text>{{item.name || item}}</text></view></view>
+<button class="outline" style="width:100%;margin-top:28rpx" bindtap="goAbout">到店导航</button><view class="meta" bindtap="goPricing">查看收费 ›</view></view>
+<view class="info-note">约局不代表已预留桌位。建议提前与店家确认，按时到店。</view><text wx:if="{{demo}}" class="demo-note">开发演示报名，无真实报名数据</text>
+<button class="solid" bindtap="goMine">返回我的约局</button><button class="outline" style="margin:24rpx auto" loading="{{busy}}" wx:if="{{!selected.owned}}" bindtap="leave">退出约局</button>
+</block></view>

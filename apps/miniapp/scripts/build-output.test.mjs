@@ -52,23 +52,57 @@ test('customer release output stays isolated from the shared dist directory', ()
       .sort()
 
     assert.deepEqual(pageDirectories, [
+      'about',
+      'activities',
+      'activity-detail',
+      'community-invite',
       'favorites',
+      'friends',
+      'game-detail',
       'game-expansions',
       'games',
       'history',
       'home',
+      'login',
+      'meetup-create',
+      'meetup-detail',
+      'meetup-success',
+      'meetups',
       'member',
+      'monthly-card',
+      'my-meetups',
+      'play-create',
+      'play-detail',
+      'plays',
+      'pricing',
+      'profile',
+      'recharge',
+      'recommendations',
+      'settings',
       'tool-coin',
       'tool-dice',
       'tool-first-player',
       'tool-score',
       'tool-teams',
+      'tool-wheel',
       'tools'
     ])
     assert.equal(
       existsSync(sharedClientPath) ? readFileSync(sharedClientPath, 'utf8') : null,
       sharedClientBefore
     )
+    const community = readFileSync(resolve(output, 'services/community-page.js'), 'utf8')
+    const editor = readFileSync(resolve(output, 'services/community-cloud-page.js'), 'utf8')
+    const rules = readFileSync(resolve(output, 'services/play-rules.js'), 'utf8')
+    assert.doesNotMatch(editor + rules, /require\(["']@zyapp\//)
+    assert.match(rules, /rankPlayPlayers/)
+    assert.match(rules, /playFieldErrors/)
+    assert.doesNotMatch(community, /savePlay|demo-meetup|state\.meetups|state\.plays/)
+    const account = readFileSync(resolve(output, 'services/account-page.js'), 'utf8')
+    assert.doesNotMatch(account, /settleMockMonthlyCardOrder|settleMockRechargeOrder|测试门店预存款已到账/)
+    assert.equal(existsSync(resolve(output, 'services/account-page.js.map')), false)
+    assert.doesNotMatch(readFileSync(resolve(output, 'pages/recharge/index.wxml'), 'utf8'), /完成测试支付|settleMockRecharge/)
+    assert.doesNotMatch(readFileSync(resolve(output, 'services/ui-demo.js'), 'utf8'), /璀璨宝石轻松局/)
   } finally {
     rmSync(output, { recursive: true, force: true })
   }

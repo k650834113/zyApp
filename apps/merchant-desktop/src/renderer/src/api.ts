@@ -1,3 +1,4 @@
+import { FinancialRetry } from './financial-retry'
 import type {
   ActivitySummary,
   AnnouncementSummary,
@@ -613,6 +614,15 @@ async function completePreviewFinancialRefund(
 }
 
 const previewApi: DesktopApi = {
+  searchMiniappLocation: async () => { throw new Error('请在 PC 程序连接云端后搜索门店') },
+  getLottery:async()=>{throw new Error('请在 PC 程序连接云端后使用抽奖')},
+  findLotteryMember:async()=>{throw new Error('请在 PC 程序连接云端后登记报名')},
+  executeLottery:async()=>{throw new Error('请在 PC 程序连接云端后操作抽奖')},
+  getMiniappContent: async () => ({ revision: null, draft: null, published: null }),
+  executeMiniappContent: async () => { throw new Error('请在 PC 程序连接云端后保存或发布') },
+  getMiniappContentHistory: async () => [],
+  uploadMiniappContentImage: async () => { throw new Error('请在 PC 程序中上传图片') },
+  onCloudDataChanged: () => () => {},
   getSystemStatus: async () => previewApplicationState().system,
   switchDataEnvironment: async (request) => {
     previewDataEnvironment = request.environment
@@ -1881,9 +1891,35 @@ const previewApi: DesktopApi = {
   })
 }
 
+const financialRetry = new FinancialRetry()
+const retryMethods = new Set(['cashRecharge', 'debitWallet', 'reverseCashRecharge', 'purchaseMonthlyCard',
+  'pauseMonthlyCard', 'resumeMonthlyCard', 'useMonthlyCard', 'refundMonthlyCard', 'extendMonthlyCard',
+  'createSalesOrder', 'createRefundRequest', 'approveRefund', 'rejectRefund', 'directRefund',
+  'createFinancialRefundRequest', 'approveFinancialRefund', 'rejectFinancialRefund', 'directFinancialRefund'])
+let retryBridge: DesktopApi | null = null
+function withFinancialRetry(api: DesktopApi): DesktopApi {
+  // Electron's contextBridge exposes a frozen, non-configurable object. A
+  // Proxy around that object cannot return a retry wrapper for a read-only
+  // method without violating the Proxy get invariant (notably cashRecharge).
+  // Copy the bridge surface first so wrapped methods are ordinary configurable
+  // properties while calls still retain the original bridge as `this`.
+  const target = { ...api } as DesktopApi
+  return new Proxy(target, { get(target, property, receiver) {
+    const value = Reflect.get(target, property, receiver)
+    if (typeof value !== 'function') return value
+    if (typeof property === 'string' && retryMethods.has(property)) {
+      return (request: Record<string, unknown>) => financialRetry.run(property, request, next => value.call(target, next))
+    }
+    if (property === 'logout' || property === 'resolveInboundSyncConflict') {
+      return async (...args: unknown[]) => { const result = await value.apply(target, args); financialRetry.clear(); return result }
+    }
+    return value
+  } })
+}
+
 export function getDesktopApi(): DesktopApi {
   if (window.zyapp) {
-    return window.zyapp
+    return retryBridge ??= withFinancialRetry(window.zyapp)
   }
 
   if (import.meta.env.DEV) {
@@ -1895,7 +1931,15 @@ export function getDesktopApi(): DesktopApi {
 
 export function readableError(reason: unknown): string {
   const message = reason instanceof Error ? reason.message : String(reason)
-  return message
-    .replace(/^Error invoking remote method '[^']+': Error:\s*/i, '')
-    .replace(/^Error:\s*/i, '')
+  const normalized = message
+    .replace(/^Error invoking remote method '[^']+':\s*/i, '')
+    .replace(/^(?:Error|CloudRequestError):\s*/i, '')
+  const metadataErrors: Record<string, string> = {
+    'BGG access blocked by Cloudflare': 'BGG 安全防护拦截了云端服务器访问，请管理员联系 BGG 处理；可继续手工填写。',
+    'BGG authorization failed': 'BGG 拒绝访问，请管理员检查云端 BGG 令牌及访问限制；可继续手工填写。',
+    'BGG request was throttled': 'BGG 查询过于频繁，请稍后重试；可继续手工填写。',
+    'BGG metadata is unavailable': 'BGG 资料服务暂不可用，请稍后重试或联系管理员检查云端 BGG 访问；可继续手工填写。',
+    'BGG request timed out': 'BGG 查询超时，请稍后重试；可继续手工填写。'
+  }
+  return metadataErrors[normalized] ?? normalized
 }

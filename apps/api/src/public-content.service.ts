@@ -16,6 +16,7 @@ import type {
 import type { Pool } from '@zyapp/cloud-db'
 import type { MiniappPrincipal } from './miniapp-auth'
 import { POSTGRES_POOL } from './infrastructure.module'
+import { normalizeBoardGameId } from './board-game-library'
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -82,6 +83,18 @@ function formatMinute(value: number): string {
 @Injectable()
 export class PublicContentService {
   constructor(@Inject(POSTGRES_POOL) private readonly pool: Pool) {}
+  async getPricingRows(storeId:string):Promise<Array<{label:string;regular:string;member:string}>> {
+    const r=await this.pool.query<{name:string;regular:string;member:string}>(`SELECT item.name,
+      COALESCE(config.regular_price_fen,item.regular_price_fen) AS regular,
+      COALESCE(config.advanced_price_fen,item.advanced_price_fen) AS member
+      FROM store s JOIN cloud_catalog_item item ON item.tenant_id=s.tenant_id
+      LEFT JOIN cloud_catalog_store_config config ON config.tenant_id=s.tenant_id AND config.store_id=s.id AND config.catalog_item_id=item.id
+      WHERE s.id=$1 AND s.status='active' AND item.item_type = 'admission'
+      AND COALESCE(config.status,item.status)='active' AND COALESCE(config.availability,item.availability)='available'
+      ORDER BY item.name,item.id LIMIT 50`,[requireStoreId(storeId)])
+    const yuan=(value:string)=>'¥'+(Number(value)/100).toFixed(2).replace(/\.00$/,'')
+    return r.rows.map(row=>({label:row.name,regular:yuan(row.regular),member:yuan(row.member)}))
+  }
 
   private async store(storeIdInput: string): Promise<StoreRow> {
     const storeId = requireStoreId(storeIdInput)
@@ -170,6 +183,7 @@ export class PublicContentService {
       title: string
       summary: string
       content: string
+      lottery_config?: import('@zyapp/contracts').LotteryConfig | null
       activity_type: PublicActivitySummary['activityType']
       starts_at: Date | string
       ends_at: Date | string
@@ -182,11 +196,11 @@ export class PublicContentService {
     }>(
       `SELECT id, title, summary, content, activity_type, starts_at, ends_at,
               pinned, regular_price_fen, advanced_price_fen,
-              allow_stored_value, allow_wechat, recharge_tiers_json
+              allow_stored_value, allow_wechat, recharge_tiers_json,
+              (SELECT lottery.state_json->'config' FROM activity_lottery lottery WHERE lottery.activity_id=cloud_activity_campaign.id AND lottery.tenant_id=cloud_activity_campaign.tenant_id AND lottery.store_id=cloud_activity_campaign.store_id) AS lottery_config
        FROM cloud_activity_campaign
        WHERE store_id = $1
          AND status = 'published'
-         AND starts_at <= CURRENT_TIMESTAMP
          AND ends_at > CURRENT_TIMESTAMP
        ORDER BY pinned DESC, starts_at DESC, created_at DESC
        LIMIT 50`,
@@ -197,6 +211,7 @@ export class PublicContentService {
       title: row.title,
       summary: row.summary,
       content: row.content,
+      lottery:row.lottery_config??null,
       activityType: row.activity_type,
       startsAt: new Date(row.starts_at).toISOString(),
       endsAt: new Date(row.ends_at).toISOString(),
@@ -227,6 +242,7 @@ export class PublicContentService {
       recommendedOnly?: boolean
       favoriteOnly?: boolean
       baseGamesOnly?: boolean
+      gameId?: string
     } = {}
   ): Promise<PublicBoardGameSummary[]> {
     const storeId = requireStoreId(storeIdInput)
@@ -247,6 +263,7 @@ export class PublicContentService {
       'COALESCE(config.missing_pieces, game.missing_pieces) = FALSE'
     ]
     const query = filters.query?.trim().slice(0, 100)
+    if (options.gameId) conditions.push(`game.id = ${parameter(normalizeBoardGameId(options.gameId))}`)
     if (query) {
       const marker = parameter(query)
       conditions.push(`game.name ILIKE '%' || ${marker} || '%'`)
@@ -296,7 +313,13 @@ export class PublicContentService {
       )
     }
     if (options.recommendedOnly) {
-      conditions.push('COALESCE(config.recommended, game.recommended) = TRUE')
+      conditions.push(`(COALESCE(config.recommended, game.recommended) = TRUE OR EXISTS (
+        SELECT 1 FROM miniapp_content_workspace recommendation_content,
+          jsonb_array_elements(COALESCE(recommendation_content.published_json->'recommendationDisplays', '[]'::jsonb)) display
+        WHERE recommendation_content.tenant_id = current_store.tenant_id
+          AND recommendation_content.store_id = current_store.id
+          AND display->>'gameId' = game.id::text
+      ))`)
     }
     if (options.favoriteOnly) {
       conditions.push(
@@ -485,16 +508,34 @@ export class PublicContentService {
     }
   }
 
+  async getGame(storeId: string, gameId: string, viewerId: string | null = null): Promise<PublicBoardGameSummary> {
+    const games = await this.listGames(storeId, { limit: 1 }, viewerId, { gameId })
+    if (!games[0]) throw new NotFoundException('该游戏已下架或暂不可用')
+    return games[0]
+  }
+
   listFavoriteGames(
-    principal: Pick<MiniappPrincipal, 'storeId' | 'identityId'>
+    principal: Pick<MiniappPrincipal, 'storeId' | 'identityId'>,
+    filters:PublicBoardGameFilters={limit:24}
   ): Promise<PublicBoardGameSummary[]> {
-    return this.listGames(principal.storeId, {}, principal.identityId, {
+    return this.listGames(principal.storeId, filters, principal.identityId, {
       favoriteOnly: true
     })
   }
 
+  async getPublishedContent(storeId:string):Promise<MiniappHomeSnapshot['content']> {
+    const r=await this.pool.query<{published_json:MiniappHomeSnapshot['content']}>(`SELECT content.published_json FROM miniapp_content_workspace content
+      JOIN store ON store.id=content.store_id AND store.tenant_id=content.tenant_id
+      WHERE content.store_id=$1 AND store.status='active'`,[requireStoreId(storeId)])
+    return r.rows[0]?.published_json??null
+  }
+  decorateActivities(items:PublicActivitySummary[],content:MiniappHomeSnapshot['content']):PublicActivitySummary[] {
+    return items.map(item=>{const display=content?.activityDisplays?.find(r=>r.activityId===item.id)
+      return display?{...item,coverUrl:display.coverUrl ?? null,posterUrl:display.posterUrl,locationText:display.locationText,tags:display.tags}:item})
+  }
+
   async getHome(storeId: string): Promise<MiniappHomeSnapshot> {
-    const [store, announcements, activities, recommendedGames] =
+    const [store, announcements, activities, recommendedGames, contentResult] =
       await Promise.all([
         this.getStore(storeId),
         this.listAnnouncements(storeId),
@@ -502,13 +543,24 @@ export class PublicContentService {
         this.listGames(storeId, {}, null, {
           recommendedOnly: true,
           baseGamesOnly: true
-        })
+        }),
+        this.pool.query<{published_json: MiniappHomeSnapshot['content']}>(
+          `SELECT content.published_json FROM miniapp_content_workspace content
+           JOIN store ON store.id = content.store_id AND store.tenant_id = content.tenant_id
+           WHERE content.store_id = $1 AND store.status = 'active'`,
+          [requireStoreId(storeId)]
+        )
       ])
+    const content=contentResult.rows[0]?.published_json ?? null
     return {
+      content,
       store,
       announcements,
-      activities,
-      recommendedGames: recommendedGames.slice(0, 8)
+      activities:this.decorateActivities(activities,content),
+      recommendedGames: recommendedGames.map(game=>{
+        const display=content?.recommendationDisplays?.find(r=>r.gameId===game.id)
+        return display?{...game,recommendationReason:display.reason,recommendationAudience:display.audience,recommendationBadge:display.badge,recommendationSceneIds:display.sceneIds}:game
+      })
     }
   }
 }

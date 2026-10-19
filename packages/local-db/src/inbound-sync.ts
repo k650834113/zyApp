@@ -1,11 +1,19 @@
-import { randomUUID } from 'node:crypto'
+import { readCloudFinancialConflict } from './cloud-financial-conflict'
+import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   InboundSyncConflictSummary,
   ResolveInboundSyncConflictRequest
 } from '@zyapp/contracts'
 import type { EmployeeRecord, StoreContext } from './identity'
+import { listBoardGames } from './board-game'
+import { listCatalogItems } from './catalog'
+import { listActivities } from './activity'
+import { listAnnouncements } from './announcement'
+import { searchMembers } from './member'
+import { getStoreProfile } from './store-profile'
 import { reconcileProjectedMemberTier } from './member-tier-projection'
+import { outboundCloudSnapshot, resolveOutboundConflict, reviewToken, supportsContentResolution } from './outbound-conflict-review'
 
 type InboundEventRow = {
   sequence: string
@@ -359,13 +367,13 @@ export function listInboundSyncConflicts(
   const rows = database
     .prepare(
       `SELECT sequence, event_id, aggregate_type, aggregate_id, event_type,
-              occurred_at, received_at, error_message
+              occurred_at, received_at, error_message, payload_json
        FROM sync_inbound_event
        WHERE tenant_id = ? AND store_id = ? AND apply_status = 'conflict'
        ORDER BY length(sequence), sequence`
     )
     .all(context.tenantId, context.storeId) as Array<Record<string, unknown>>
-  return rows.map((row) => ({
+  const inbound = rows.map((row) => ({
     sequence: String(row.sequence),
     eventId: String(row.event_id),
     aggregateType: String(row.aggregate_type),
@@ -373,8 +381,72 @@ export function listInboundSyncConflicts(
     eventType: String(row.event_type),
     occurredAt: String(row.occurred_at),
     receivedAt: String(row.received_at),
-    errorMessage: String(row.error_message ?? 'Unknown inbound conflict')
+    errorMessage: String(row.error_message ?? 'Unknown inbound conflict'),
+    ...conflictSnapshots(database, context, row as unknown as InboundEventRow)
   }))
+  const outbound = database.prepare(
+    `SELECT c.operation_id, c.conflict_type, c.local_payload_json, c.server_payload_json,
+            c.created_at, o.aggregate_id, o.operation_type
+     FROM sync_conflict c JOIN outbox_operation o ON o.operation_id = c.operation_id
+     WHERE c.tenant_id = ? AND c.store_id = ? AND c.device_id = ? AND c.status = 'pending'`
+  ).all(context.tenantId, context.storeId, context.deviceId)
+  const reviewedGroups = new Set<string>()
+  return [...inbound, ...outbound.flatMap<InboundSyncConflictSummary>(row => {
+    const financial = readCloudFinancialConflict(database, context, String(row.operation_id))
+    if (financial) {
+      const group = String(financial.command.group_id)
+      if (reviewedGroups.has(group)) return []
+      reviewedGroups.add(group)
+      return [{ sequence: `outbound:${row.operation_id}`, eventId: String(row.operation_id),
+        aggregateType: 'financial_command', aggregateId: group, eventType: String(row.operation_type),
+        occurredAt: String(row.created_at), receivedAt: String(row.created_at),
+        errorMessage: '整笔业务未执行', direction: 'outbound' as const, resolutionMode: 'financial_command' as const,
+        resolutionSupported: true, canKeepLocal: financial.canKeepLocal, displayName: '待处理的整笔业务', localSnapshot: financial.localSnapshot,
+        cloudSnapshot: financial.cloudSnapshot, reviewToken: financial.reviewToken }]
+    }
+    const local = safeSnapshot(row.local_payload_json)
+    const type = String(row.operation_type).split('.')[0]!
+    const cached = outboundCloudSnapshot(database, context, type, String(row.aggregate_id))
+    const cloud = type === 'wallet' && cached ? { wallet: cached } : cached ?? safeSnapshot(row.server_payload_json)
+    const financialBalance = Boolean(cached && local && (type === 'wallet' && local.wallet || type === 'monthly_card' && local.id))
+    return [{ sequence: `outbound:${row.operation_id}`, eventId: String(row.operation_id),
+      aggregateType: String(row.operation_type).split('.')[0]!, aggregateId: String(row.aggregate_id),
+      eventType: String(row.operation_type), occurredAt: String(row.created_at), receivedAt: String(row.created_at),
+      errorMessage: String(row.conflict_type), direction: 'outbound' as const,
+      localSnapshot: local, cloudSnapshot: cloud, displayName: snapshotName(local), resolutionSupported: financialBalance || cached !== null && supportsContentResolution(type),
+      ...(financialBalance ? { resolutionMode: 'financial_balance' as const } : {}),
+      reviewToken: reviewToken(local, cloud) }]
+  })]
+}
+
+function safeSnapshot(value: unknown): Record<string, unknown> | null {
+  try {
+    const payload = typeof value === 'string' ? JSON.parse(value) : value
+    const result = payload?.after ?? payload
+    if (!result || typeof result !== 'object' || Array.isArray(result)) return null
+    return Object.fromEntries(Object.entries(result).filter(([key]) => !/password|credential|token|verifier|hash/i.test(key)))
+  } catch { return null }
+}
+function snapshotName(snapshot: Record<string, unknown> | null): string {
+  return String(snapshot?.nickname ?? snapshot?.title ?? snapshot?.name ?? snapshot?.display_name ?? '')
+}
+function localContentSnapshot(database: DatabaseSync, context: StoreContext, event: InboundEventRow): unknown {
+  switch (event.aggregate_type) {
+    case 'board_game': return listBoardGames(database, context).find(row => row.id === event.aggregate_id) ?? null
+    case 'catalog': return listCatalogItems(database, context).find(row => row.id === event.aggregate_id) ?? null
+    case 'activity': return listActivities(database, context).find(row => row.id === event.aggregate_id) ?? null
+    case 'announcement': return listAnnouncements(database, context).find(row => row.id === event.aggregate_id) ?? null
+    case 'member': return searchMembers(database, context.tenantId, '', 1000000).find(row => row.id === event.aggregate_id) ?? null
+    case 'store': return getStoreProfile(database, context)
+    default: return currentSnapshot(database, event)
+  }
+}
+function conflictSnapshots(database: DatabaseSync, context: StoreContext, event: InboundEventRow) {
+  const localSnapshot = safeSnapshot(localContentSnapshot(database, context, event))
+  const cloudSnapshot = safeSnapshot(event.payload_json)
+  return { localSnapshot, cloudSnapshot, displayName: snapshotName(localSnapshot) || snapshotName(cloudSnapshot),
+    reviewToken: reviewToken(localSnapshot, cloudSnapshot),
+    resolutionSupported: supportsContentResolution(event.aggregate_type) }
 }
 
 function hasPendingLocalChange(
@@ -936,6 +1008,22 @@ function applyMember(
   event: InboundEventRow,
   after: Record<string, unknown>
 ): void {
+  // Miniapp profile events carry only nickname/avatar, not membership or money.
+  if (event.event_type === 'member.profile_updated') {
+    const existing = database.prepare('SELECT nickname, updated_at FROM member WHERE tenant_id=? AND id=?')
+      .get(context.tenantId, event.aggregate_id) as { nickname: string; updated_at: string } | undefined
+    if (!existing) throw new Error('Member is missing for profile update')
+    const cached = outboundCloudSnapshot(database, context, 'member', event.aggregate_id)
+    const hasNewerSnapshot = cached && BigInt(String(cached.server_version ?? 0)) >= BigInt(event.sequence)
+    const nickname = hasNewerSnapshot ? cached.nickname : after.nickname
+    // A blank profile value must not erase an existing filled nickname.
+    if (typeof nickname !== 'string') throw new Error('member.nickname must be text')
+    if (nickname.trim() && (hasNewerSnapshot || Date.parse(existing.updated_at) <= Date.parse(event.occurred_at))) {
+      database.prepare('UPDATE member SET nickname=?, updated_at=? WHERE tenant_id=? AND id=?')
+        .run(nickname.trim(), hasNewerSnapshot ? String(cached.updated_at) : event.occurred_at, context.tenantId, event.aggregate_id)
+    }
+    return
+  }
   const tier = enumValue(
     after.tier,
     ['ordinary', 'advanced'] as const,
@@ -1415,6 +1503,7 @@ export function applyPendingInboundEvents(
   if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
     throw new RangeError('Inbound apply limit must be between 1 and 200')
   }
+  recoverProfileConflictFalsePositives(database, context)
   const events = database
     .prepare(
       `SELECT sequence, event_id, aggregate_type, aggregate_id, event_type,
@@ -1441,13 +1530,8 @@ export function applyPendingInboundEvents(
       continue
     }
     if (hasPendingLocalChange(database, context, event)) {
-      markConflict(
-        database,
-        context,
-        event,
-        'Local pending changes exist for the same aggregate'
-      )
-      conflicts += 1
+      // An in-flight upload is not a conflicting edit. Its authoritative
+      // receipt decides whether intervention is needed; retry this event later.
       continue
     }
 
@@ -1499,6 +1583,9 @@ export function autoResolveNonCriticalInboundConflicts(
   database: DatabaseSync,
   context: StoreContext
 ): { applied: number; skippedSuperseded: number } {
+  // Older clients misread partial profile patches as complete members. Close
+  // only errors whose latest cloud snapshot is already present locally.
+  const recoveredProfiles = recoverProfileConflictFalsePositives(database, context)
   const events = database.prepare(
     `SELECT sequence, event_id, aggregate_type, aggregate_id, event_type,
             payload_json, occurred_at
@@ -1508,7 +1595,7 @@ export function autoResolveNonCriticalInboundConflicts(
        AND aggregate_type IN ('announcement', 'board_game')
      ORDER BY length(sequence), sequence`
   ).all(context.tenantId, context.storeId) as InboundEventRow[]
-  let applied = 0
+  let applied = recoveredProfiles
   let skippedSuperseded = 0
 
   for (const event of events) {
@@ -1586,6 +1673,8 @@ export function resolveInboundSyncConflict(
   context: InboundResolutionContext,
   request: ResolveInboundSyncConflictRequest
 ): void {
+  if (context.actor.role !== 'manager') throw new Error('只有店长可以合并资料')
+  if (request.sequence.startsWith('outbound:')) return resolveOutboundConflict(database, context, request)
   if (!/^(0|[1-9]\d*)$/.test(request.sequence)) {
     throw new Error('Inbound conflict sequence is invalid')
   }
@@ -1618,11 +1707,30 @@ export function resolveInboundSyncConflict(
       request.sequence
     ) as InboundEventRow | undefined
   if (!event) throw new Error('Inbound sync conflict was not found')
+  if (request.reviewToken && request.reviewToken !== conflictSnapshots(database, context, event).reviewToken) {
+    throw new Error('资料已变化，请刷新差异并重新选择')
+  }
 
   if (request.resolution === 'keep_local') {
+    if (!supportsContentResolution(event.aggregate_type)) throw new Error('权限资料需要通过员工管理重新授权')
+    if (hasPendingLocalChange(database, context, event)) throw new Error('同一资料还有未确认的修改，请先处理对应的提交冲突')
+    const local = safeSnapshot(localContentSnapshot(database, context, event))
+    if (!local) throw new Error('本机资料不存在，无法保留本机版本')
     const timestampValue = new Date().toISOString()
     database.exec('BEGIN IMMEDIATE')
     try {
+      if (!hasLaterLocalOriginEvent(database, context, event)) {
+        const action = event.aggregate_type === 'catalog' ? 'catalog.item.updated'
+          : event.aggregate_type === 'store' ? 'store.profile.updated' : `${event.aggregate_type}.updated`
+        const json = JSON.stringify({ action, before: afterPayload(event), after: { ...local, updatedAt: timestampValue }, reason })
+        const seq = database.prepare('SELECT next_sequence FROM device WHERE id = ?').get(context.deviceId) as { next_sequence: number }
+        database.prepare('UPDATE device SET next_sequence = next_sequence + 1 WHERE id = ?').run(context.deviceId)
+        database.prepare(`INSERT INTO outbox_operation
+          (operation_id, device_id, device_seq, tenant_id, store_id, actor_id, operation_type, aggregate_id, base_version, occurred_at, payload_json, payload_hash)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(randomUUID(), context.deviceId, seq.next_sequence, context.tenantId, context.storeId, context.actor.id,
+            action, event.aggregate_id, Number(event.sequence), timestampValue, json, createHash('sha256').update(json).digest('hex'))
+      }
       database
         .prepare(
           `UPDATE sync_inbound_event
@@ -1697,4 +1805,26 @@ export function resolveInboundSyncConflict(
     database.exec('ROLLBACK')
     throw error
   }
+}
+
+/** Close historic partial-profile parsing errors without rewriting any business row. */
+export function recoverProfileConflictFalsePositives(database: DatabaseSync, context: StoreContext): number {
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    const events = database.prepare(`SELECT * FROM sync_inbound_event WHERE tenant_id=? AND store_id=?
+      AND apply_status='conflict' AND aggregate_type='member' AND event_type='member.profile_updated'
+      AND error_message='member.tier is invalid'`).all(context.tenantId,context.storeId) as InboundEventRow[]
+    let count=0
+    for(const event of events){
+      if(hasPendingLocalChange(database,context,event)) continue
+      const cloud=outboundCloudSnapshot(database,context,'member',event.aggregate_id)
+      const local=database.prepare('SELECT nickname FROM member WHERE tenant_id=? AND id=?').get(context.tenantId,event.aggregate_id)
+      if(!cloud || BigInt(String(cloud.server_version??0))<BigInt(event.sequence) || !local || local.nickname!==cloud.nickname) continue
+      const now=new Date().toISOString()
+      database.prepare(`UPDATE sync_inbound_event SET apply_status='applied',applied_at=?,error_message='auto_resolved_profile_snapshot_verified' WHERE sequence=?`).run(now,event.sequence)
+      appendInboundAudit(database,context,event,'sync.inbound.applied','Verified latest cloud profile already materialized; closed legacy partial-profile parsing error',local,local,now)
+      count++
+    }
+    database.exec('COMMIT');return count
+  }catch(error){database.exec('ROLLBACK');throw error}
 }

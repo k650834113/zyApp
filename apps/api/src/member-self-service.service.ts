@@ -712,11 +712,18 @@ export class MemberSelfService {
         payment_method: 'cash' | 'stored_value'
         completed_at: Date | string
       }>(
-        `SELECT id, order_number, total_fen, payment_method, completed_at
-         FROM cloud_sales_order
-         WHERE tenant_id = $1
-           AND (customer_member_id = $2 OR wallet_member_id = $2)
-         ORDER BY completed_at DESC
+        `SELECT sale.id, sale.order_number, admission.total_fen,
+                sale.payment_method, sale.completed_at
+         FROM cloud_sales_order sale
+         JOIN LATERAL (
+           SELECT SUM(item.line_total_fen) AS total_fen
+           FROM cloud_sales_order_item item
+           WHERE item.tenant_id = sale.tenant_id AND item.store_id = sale.store_id
+             AND item.order_id = sale.id AND item.item_type = 'admission'
+         ) admission ON admission.total_fen IS NOT NULL
+         WHERE sale.tenant_id = $1
+           AND (sale.customer_member_id = $2 OR sale.wallet_member_id = $2)
+         ORDER BY sale.completed_at DESC
          LIMIT 50`,
         [principal.tenantId, memberId]
       ),
@@ -771,7 +778,7 @@ export class MemberSelfService {
         kind: 'consumption' as const,
         businessId: row.id,
         businessNumber: row.order_number,
-        title: '桌位消费',
+        title: '门票消费',
         amountFen: safeFen(row.total_fen),
         direction: 'debit' as const,
         status: 'completed' as const,

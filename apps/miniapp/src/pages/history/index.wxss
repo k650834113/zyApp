@@ -133,3 +133,4 @@
     font-size: 23rpx;
   }
 }
+.history-page{padding-bottom:50rpx}.filter-pill{border:0;border-radius:14rpx;background:#f0f0ee}.date-group{background:white;border-radius:18rpx;overflow:hidden}.date-title{margin:0;padding:22rpx 26rpx;border-bottom:1rpx solid #eee;color:#7e8690;font-size:27rpx}.group-card{border:0;border-radius:0;box-shadow:none;background:#fff;padding:0 26rpx}.activity-row{min-height:156rpx}.activity-icon{background:#eaf0e8}.activity-icon.recharge,.activity-icon.monthly_card{background:#e8efea}.activity-icon image{width:42rpx;height:42rpx}.activity-amount.credit{color:#175540}.activity-meta{white-space:normal;overflow-wrap:anywhere;font-size:23rpx;line-height:1.5}.activity-title{font-size:29rpx}.activity-right{max-width:210rpx}.activity-amount{font-size:30rpx}.safe-tip{color:#9b9e9d;font-size:22rpx}

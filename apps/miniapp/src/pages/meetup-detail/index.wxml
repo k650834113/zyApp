@@ -1,0 +1,17 @@
+<view class="community-page">
+<view wx:if="{{loading}}" class="unavailable">正在加载…</view>
+<view wx:if="{{error}}" class="error">{{error}}<button bindtap="refresh" disabled="{{busy}}">重试加载</button></view>
+<view wx:if="{{!selected}}" class="unavailable">约局暂不可用</view>
+<block wx:else>
+<image wx:if="{{selected.game.imageUrl}}" class="detail-hero" src="{{selected.game.imageUrl}}" mode="aspectFit" data-id="{{selected.game.id}}" binderror="imageError"/>
+<text wx:if="{{selected.status==='cancelled'}}" class="error">约局已取消</text><button wx:if="{{ready && selected.owned && selected.status!=='cancelled'}}" bindtap="cancelMeetup" disabled="{{busy}}">取消约局</button><text class="detail-heading">{{selected.title}}</text><view class="tags"><text wx:for="{{selected.tags}}" wx:key="*this" class="tag">{{item}}</text></view>
+<view class="meta"><image src="/assets/icons/user-green.svg"/><text>发起人　{{selected.players[0]}}</text></view>
+<view class="meta"><image src="/assets/icons/clock-green.svg"/><text>{{selected.date}} {{selected.time}} · {{selected.duration}} 分钟</text></view>
+<view class="meta" bindtap="goAbout"><image src="/assets/icons/pin-green.svg"/><text>{{selected.location}}　查看位置 ›</text></view>
+<view class="meta"><image src="/assets/icons/people-green.svg"/><text>{{selected.players.length}} / {{selected.capacity}}人</text><text class="remaining">{{selected.capacity > selected.players.length ? '差 '+(selected.capacity-selected.players.length)+'人':'已满员'}}</text></view>
+<text class="section-title">参与成员（{{selected.players.length}}/{{selected.capacity}}）</text><view class="members"><view wx:for="{{selected.participants || selected.players}}" wx:key="index" class="member-item"><image class="{{item.avatarUrl ? 'avatar-photo' : ''}}" mode="aspectFill" src="{{item.avatarUrl || '/assets/icons/user-green.svg'}}" data-member-id="{{item.memberId}}" binderror="avatarError"/><text>{{item.name || item}}</text></view></view>
+<text class="section-title">约局说明</text><text class="body-copy">{{selected.description}}</text>
+<view class="info-note">约局不代表已预留桌位，按门店收费，到店结算。</view><text wx:if="{{demo}}" class="demo-note">开发演示，尚未发布到门店</text>
+<view class="fixed-action bottom-actions"><button class="outline share-meetup" open-type="share">分享</button><button class="solid" loading="{{busy}}" bindtap="join" disabled="{{busy || selected.status==='cancelled' || (!selected.joined && (selected.registrationClosed || selected.players.length >= selected.capacity))}}">{{selected.joined?'查看报名':'报名参加'}}</button></view>
+</block>
+</view>

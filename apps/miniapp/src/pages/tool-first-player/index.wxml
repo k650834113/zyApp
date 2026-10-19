@@ -1,6 +1,7 @@
-<view class="first-page">
+<view class="first-page {{selected ? 'locked' : ''}}">
   <view
     class="touch-arena {{selected ? 'has-result' : ''}}"
+    style="{{selected ? 'background:' + winnerColor : ''}}"
   >
     <view wx:if="{{singleMode}}" class="touch-layer single-touch-layer" bindtap="addSinglePlayer"></view>
     <view
@@ -12,7 +13,8 @@
       catchtouchcancel="handleTouchEnd"
     ></view>
     <view class="arena-guide">
-      <view class="guide-ring"><text>{{selected ? '✓' : markers.length}}</text></view>
+      <text class="arena-title">按住屏幕，选出先手</text>
+      <view wx:if="{{markers.length === 0}}" class="guide-ring"><text>{{markers.length}}</text></view>
       <text class="arena-status">{{statusText}}</text>
       <text class="arena-helper">{{helperText}}</text>
     </view>

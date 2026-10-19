@@ -3,6 +3,26 @@
   width: 100%;
 }
 
+.game-card.favorite, .game-card.expansion { background: #fff; border: 1rpx solid #e9e7e1; border-radius: 24rpx; }
+.favorite .game-card-body { padding: 28rpx; gap: 34rpx; }
+.favorite .game-cover { width: 244rpx; height: 326rpx; flex-basis: 244rpx; border-radius: 12rpx; }
+.favorite .game-name { padding-right: 52rpx; font-size: 32rpx; font-weight: 600; }
+.favorite .category-preview { margin-top: 26rpx; flex-wrap: wrap; }
+.favorite .card-actions { width: 48rpx; bottom: auto; right: 24rpx; top: 26rpx; }
+.favorite .like-button { min-width: 48rpx; width: 48rpx; padding: 0; background: transparent; }
+.favorite-heart { width: 46rpx; height: 46rpx; }
+.favorite-facts { margin-top: 28rpx; }
+.favorite-facts > view { display: flex; align-items: center; gap: 14rpx; margin-top: 12rpx; font-size: 26rpx; color: #626c75; }
+.favorite-facts image { width: 30rpx; height: 30rpx; }
+.expansion-cover { display: block; width: 100%; height: 324rpx; background: #edf1e9; }
+.expansion-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18rpx; color: #768777; font-size: 25rpx; }
+.expansion-placeholder image { width: 72rpx; height: 72rpx; }
+.expansion-copy { padding: 24rpx; }
+.expansion-title-row { display: flex; align-items: center; gap: 20rpx; font-size: 32rpx; font-weight: 600; }
+.expansion-type { flex-shrink: 0; padding: 6rpx 16rpx; border-radius: 8rpx; background: #eaf5e3; color: #557f43; font-size: 23rpx; font-weight: 400; }
+.expansion-description { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 16rpx; color: #68717b; font-size: 27rpx; line-height: 1.6; }
+.expansion-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 18rpx; color: #174f3b; font-size: 24rpx; }
+
 .game-card {
   position: relative;
   margin-top: 22rpx;

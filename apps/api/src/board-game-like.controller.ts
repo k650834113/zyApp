@@ -5,6 +5,7 @@ import {
   Inject,
   Param,
   Put,
+  Query,
   Req,
   UseGuards
 } from '@nestjs/common'
@@ -19,6 +20,7 @@ import {
   type MiniappRequest
 } from './miniapp-auth.guard'
 import { PublicContentService } from './public-content.service'
+import { normalizePublicBoardGameFilters } from './board-game-library'
 
 function principal(request: MiniappRequest): MiniappPrincipal {
   if (!request.zyappMiniapp) {
@@ -39,9 +41,10 @@ export class BoardGameLikeController {
 
   @Get('favorite-games')
   favoriteGames(
-    @Req() request: MiniappRequest
+    @Req() request: MiniappRequest,
+    @Query() query:Record<string,unknown>
   ): Promise<PublicBoardGameSummary[]> {
-    return this.publicContent.listFavoriteGames(principal(request))
+    return this.publicContent.listFavoriteGames(principal(request),normalizePublicBoardGameFilters(query))
   }
 
   @Put('board-games/:gameId/like')

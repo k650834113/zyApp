@@ -1794,6 +1794,30 @@ const migrations: Migration[] = [
       CREATE INDEX idx_board_game_base_game
         ON board_game (tenant_id, base_game_id);
     `
+  },
+  {
+    version: 32,
+    name: 'cloud-financial-command-journal',
+    sql: `CREATE TABLE cloud_financial_command (
+      id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, store_id TEXT NOT NULL,
+      device_id TEXT NOT NULL, actor_id TEXT NOT NULL, command_key TEXT NOT NULL,
+      request_hash TEXT NOT NULL, channel TEXT NOT NULL, request_json TEXT NOT NULL,
+      result_json TEXT NOT NULL, group_id TEXT NOT NULL, resolution_json TEXT, reported_at TEXT, created_at TEXT NOT NULL,
+      UNIQUE(device_id, command_key)
+    ) STRICT;
+    CREATE INDEX idx_cloud_financial_group ON cloud_financial_command(group_id);
+    CREATE TABLE monthly_card_event_reconciled (
+      id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, store_id TEXT NOT NULL REFERENCES store(id),
+      card_id TEXT NOT NULL REFERENCES monthly_card(id), member_id TEXT NOT NULL REFERENCES member(id),
+      event_type TEXT NOT NULL CHECK (event_type IN ('purchased','paused','resumed','used','refunded','expired','manual_extended','reconciled')),
+      request_id TEXT NOT NULL, actor_id TEXT NOT NULL, device_id TEXT NOT NULL,
+      reason TEXT NOT NULL, metadata_json TEXT NOT NULL, occurred_at TEXT NOT NULL,
+      UNIQUE(tenant_id, request_id)
+    ) STRICT;
+    INSERT INTO monthly_card_event_reconciled SELECT * FROM monthly_card_event;
+    DROP TABLE monthly_card_event;
+    ALTER TABLE monthly_card_event_reconciled RENAME TO monthly_card_event;
+    CREATE INDEX idx_monthly_card_events ON monthly_card_event(tenant_id,card_id,occurred_at);`
   }
 ]
 

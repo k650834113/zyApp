@@ -129,6 +129,12 @@ function parseRequest(value: unknown): CreateMemberMonthlyCardOrderRequest {
 
 @Injectable()
 export class MemberMonthlyCardService {
+  async getPublicPlan(storeId:string):Promise<{planName:string;priceFen:number;durationDays:number}> {
+    const r=await this.pool.query<{tenant_id:string}>("SELECT tenant_id FROM store WHERE id=$1 AND status='active'",[storeId])
+    if(!r.rows[0])throw new NotFoundException('门店不存在')
+    const {planName,priceFen,durationDays}=await this.resolvePlan(this.pool,{tenantId:r.rows[0].tenant_id,storeId})
+    return {planName,priceFen,durationDays}
+  }
   constructor(
     @Inject(POSTGRES_POOL) private readonly pool: Pool,
     @Inject(WECHAT_PAYMENT_PROVIDER)
@@ -566,7 +572,7 @@ export class MemberMonthlyCardService {
 
   private async resolvePlan(
     queryable: Pick<Pool, 'query'> | PoolClient,
-    principal: MiniappPrincipal
+    principal: Pick<MiniappPrincipal,'tenantId'|'storeId'>
   ): Promise<Plan> {
     const result = await queryable.query<{
       name: string

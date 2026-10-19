@@ -49,6 +49,49 @@ function respond(
 }
 
 describe('HTTP miniapp client authentication', () => {
+  it('browses games without a login round trip and bounds request time',async()=>{
+    installWxMock(request=>{expect(request.url).toContain('/v1/public/');expect(request.timeout).toBe(10000);respond(request,200,[])})
+    const client=new HttpMiniappClient({baseUrl,storeId,authMode:'wechat',token:()=>null,saveToken:()=>{throw new Error('unexpected login')},clearToken:()=>{}})
+    await client.listGames({limit:24});await client.getGameFilterOptions()
+  })
+  it('deduplicates concurrent home reads but fetches fresh content on the next visit',async()=>{
+    const requests:WechatMiniprogram.RequestOption[]=[]
+    installWxMock(request=>{requests.push(request as WechatMiniprogram.RequestOption)})
+    const client=new HttpMiniappClient({baseUrl,storeId,authMode:'wechat',token:()=>null,saveToken:()=>{},clearToken:()=>{}})
+    const a=client.getHome(),b=client.getHome();expect(requests).toHaveLength(1)
+    respond(requests[0]!,200,{content:{revision:'one'}});await Promise.all([a,b])
+    const c=client.getHome();expect(requests).toHaveLength(2);respond(requests[1]!,200,{content:{revision:'two'}})
+    expect((await c).content?.revision).toBe('two')
+  })
+  it('revokes logout and keeps subsequent account reads in guest state without silently signing back in',async()=>{
+    let token:string|null='valid',signedOut=false
+    const requests:string[]=[]
+    installWxMock(request=>{requests.push(request.url);respond(request,200,null)})
+    const client=new HttpMiniappClient({baseUrl,storeId,authMode:'wechat',token:()=>token,saveToken:v=>{token=v},clearToken:()=>{token=null},loggedOut:()=>signedOut,setLoggedOut:v=>{signedOut=v}})
+    await client.logout();expect(token).toBeNull();expect(signedOut).toBe(true)
+    expect(await client.getMemberSummary()).toBeNull();expect(await client.getIdentity()).toEqual({role:'guest'})
+    expect(requests).toHaveLength(1)
+  })
+  it('loads home and activities without login or an authorization header', async () => {
+    const requests: string[] = []
+    installWxMock(request => {
+      requests.push(request.url)
+      expect(request.header?.Authorization).toBeUndefined()
+      respond(request, 200, [])
+    })
+    const client = new HttpMiniappClient({
+      baseUrl, storeId, authMode: 'wechat', token: () => null,
+      saveToken: () => { throw new Error('Public browsing must not create a session') },
+      clearToken: () => {}
+    })
+    await client.getHome()
+    await client.listActivities()
+    expect(requests).toEqual([
+      `${baseUrl}/v1/public/home?storeId=${storeId}`,
+      `${baseUrl}/v1/public/activities?storeId=${storeId}`
+    ])
+  })
+
   beforeEach(() => {
     delete (globalThis as unknown as { wx?: unknown }).wx
   })
@@ -347,4 +390,10 @@ describe('HTTP miniapp client authentication', () => {
       })
     ])
   })
+})
+
+it('opens public meetup details without authentication, including after explicit logout',async()=>{
+  installWxMock(request=>{expect(request.url).toContain('/v1/public/meetups/m?storeId=');expect(request.header?.Authorization).toBeUndefined();respond(request,200,{id:'m'})})
+  const c=new HttpMiniappClient({baseUrl,storeId,authMode:'wechat',token:()=>null,saveToken:()=>{throw Error('unexpected login')},clearToken:()=>{}})
+  expect((await c.community.getMeetup('m')).id).toBe('m');await c.logout();expect((await c.community.getMeetup('m')).id).toBe('m')
 })

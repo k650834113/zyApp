@@ -57,12 +57,16 @@ export type WechatOneTapLoginInput = {
 }
 
 export interface MiniappClient {
+  getPublicPricing():Promise<import('@zyapp/contracts').PublicPricing>
+  logout():Promise<void>
+  community?: CommunityClient
   getIdentity(): Promise<MiniappIdentity>
   getHome(): Promise<MiniappHomeSnapshot>
+  getGame(id: string): Promise<PublicBoardGameSummary>
   listActivities(): Promise<PublicActivitySummary[]>
   listGames(filters?: PublicBoardGameFilters): Promise<PublicBoardGameSummary[]>
   getGameFilterOptions(): Promise<PublicBoardGameFilterOptions>
-  listFavoriteGames(): Promise<PublicBoardGameSummary[]>
+  listFavoriteGames(filters?:PublicBoardGameFilters): Promise<PublicBoardGameSummary[]>
   setGameLiked(
     gameId: string,
     input: SetBoardGameLikeRequest
@@ -155,4 +159,25 @@ export interface MiniappClient {
   updateEmployeeStoreStatus(
     input: EmployeeMobileUpdateStoreStatusRequest
   ): Promise<StoreProfileSummary>
+}
+import type { CommunityFilters, CommunityPage, MeetupSummary, PlaySummary, CreateMeetup, SavePlay } from '@zyapp/contracts'
+export interface CommunityClient {
+  selfMember():Promise<import('@zyapp/contracts').CommunityMember>
+  friends():Promise<import('@zyapp/contracts').FriendsSnapshot>
+  findMember(number:string):Promise<import('@zyapp/contracts').CommunityMember>
+  friendCommand(action:'request'|'accept'|'reject'|'remove',input:{requestId:string;memberId?:string;id?:string}):Promise<{ok:true}>
+  createTable(requestId:string):Promise<import('@zyapp/contracts').TableSnapshot>
+  getTable(id:string):Promise<import('@zyapp/contracts').TableSnapshot>
+  closeTable(id:string,requestId:string):Promise<{ok:true}>
+  createInvite(input:{requestId:string;tableId?:string;envVersion:'release'|'trial'|'develop'}):Promise<import('@zyapp/contracts').CommunityInvite>
+  previewInvite(token:string):Promise<{kind:'table'|'friend';member:import('@zyapp/contracts').CommunityMember}>
+  joinInvite(token:string,requestId:string):Promise<import('@zyapp/contracts').TableSnapshot|{ok:true}>
+  listMeetups(filters?:CommunityFilters):Promise<CommunityPage<MeetupSummary>>
+  getMeetup(id:string):Promise<MeetupSummary>
+  createMeetup(input:CreateMeetup):Promise<MeetupSummary>
+  actMeetup(id:string,action:'join'|'leave'|'cancel',requestId:string):Promise<MeetupSummary>
+  listPlays(filters?:CommunityFilters):Promise<CommunityPage<PlaySummary>>
+  getPlay(id:string):Promise<PlaySummary>
+  savePlay(input:SavePlay):Promise<PlaySummary>
+  deletePlay(id:string,expectedRevision:string,requestId:string):Promise<{deleted:true}>
 }

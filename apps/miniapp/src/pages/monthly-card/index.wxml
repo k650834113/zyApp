@@ -1,0 +1,14 @@
+<view class="page-shell monthly-card-page">
+  <view wx:if="{{loading}}" class="empty-state">正在加载月卡…</view>
+  <view wx:elif="{{!member}}" class="empty-state"><text>请先登录查看月卡</text><button class="primary-button" bindtap="goLogin">前往登录</button></view>
+  <block wx:elif="{{monthlyCardEnabled && monthlyCardConfiguration}}">
+    <view class="plan-hero"><view><text class="plan-title">{{monthlyCardConfiguration.planName}}</text><text class="plan-badge">{{monthlyCardState === 'active' ? '生效中' : monthlyCardState === 'paused' ? '已暂停' : '未开通'}}</text></view><text class="plan-price">{{monthlyCardPriceText}}</text><text>按门店月卡规则使用</text></view>
+    <view class="plan-status"><view><text>当前状态</text><text>{{monthlyCardState === 'active' ? '生效中' : monthlyCardState === 'paused' ? '已暂停' : '未开通'}}</text></view><view><text>到期时间</text><text>{{monthlyCardExpiresOn || '—'}}</text></view><text wx:if="{{monthlyCardRemainingDaysText}}" class="remaining">{{monthlyCardRemainingDaysText}}</text></view>
+    <text class="renew-title">{{monthlyCardState === 'unopened' ? '开通月卡' : '续费'}}</text>
+    <view class="renew-plan"><view><text>{{monthlyCardState === 'unopened' ? '开通' : '续费'}} {{monthlyCardConfiguration.durationDays}} 天</text><text>{{monthlyCardPriceText}}</text></view><text class="renew-description">{{monthlyCardStatusText}}</text></view>
+    <view class="plan-tip">{{monthlyCardConfiguration.blockedReason || '仅用于持卡人本人到店免入场，不解锁小程序内任何功能'}}</view>
+    <text wx:if="{{monthlyCardOrder}}" class="plan-tip">{{monthlyCardOrder.status === 'pending_payment' ? '正在确认支付结果，请勿重复支付' : monthlyCardOrder.errorMessage || '订单处理中'}}</text>
+    <button class="primary-button purchase-button" bindtap="purchaseMonthlyCard" loading="{{busy}}" disabled="{{busy || !monthlyCardConfiguration.purchaseAllowed || monthlyCardState === 'paused'}}">{{monthlyCardActionText}}</button>
+  </block>
+  <view wx:else class="empty-state">线上月卡尚未开放，请联系门店。</view>
+</view>

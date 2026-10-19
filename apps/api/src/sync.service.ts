@@ -67,7 +67,7 @@ function sameOperation(
 }
 
 function normalizedConflictType(value: string | null) {
-  return value === 'member_phone_duplicate' ||
+  return value === 'atomic_group_rejected' || value === 'member_phone_duplicate' ||
     value === 'member_version_mismatch' ||
     value === 'wallet_authority_conflict' ||
     value === 'monthly_card_state_conflict' ||
@@ -86,6 +86,8 @@ function isIdentityBootstrapOperation(operationType: string): boolean {
 
 function requiresManager(operationType: string): boolean {
   return (
+    operationType === 'financial_command.reviewed' ||
+    (operationType.endsWith('.reconciled') && !operationType.startsWith('member.')) ||
     operationType.startsWith('employee.') ||
     operationType.startsWith('store.') ||
     operationType.startsWith('catalog.item.created') ||
@@ -94,7 +96,7 @@ function requiresManager(operationType: string): boolean {
     operationType.startsWith('activity.') ||
     operationType.startsWith('announcement.') ||
     operationType.includes('gift_tiers') ||
-    operationType.includes('completed') ||
+    ((operationType.startsWith('refund.') || operationType.startsWith('financial_refund.')) && operationType.includes('completed')) ||
     operationType.includes('rejected') ||
     operationType.includes('reversed')
   )
@@ -158,6 +160,13 @@ export class SyncService {
         throw new ConflictException(
           'Sync operation belongs to another tenant or store'
         )
+      }
+    }
+    // The batch endpoint must enforce the same authority as /command for
+    // cloud-first transactions; a client cannot bypass it by changing routes.
+    for (const operation of batch.operations) {
+      if (JSON.parse(operation.payloadJson).cloudCommand === true) {
+        await this.assertCommandActor(principal, operation.actorId, operation.operationType)
       }
     }
     const client = await this.pool.connect()
@@ -268,6 +277,19 @@ export class SyncService {
   }
 
 
+  private async assertCommandActor(principal: DevicePrincipal, actorId: string | null | undefined, operationType: string): Promise<void> {
+    if (!actorId) throw new ForbiddenException('Business sync command requires an actor')
+    const actor = await this.pool.query<{ role: 'manager' | 'staff' }>(
+      `SELECT access.role FROM cloud_employee employee JOIN cloud_employee_store_access access
+       ON access.employee_id=employee.id AND access.tenant_id=employee.tenant_id
+       WHERE employee.id=$1 AND employee.tenant_id=$2 AND access.store_id=$3
+         AND employee.status='active' AND access.status='active'`,
+      [actorId,principal.tenantId,principal.storeId])
+    const employee=actor.rows[0]
+    if (!employee) throw new ForbiddenException('Command actor is not an active employee')
+    if (employee.role!=='manager' && requiresManager(operationType)) throw new ForbiddenException('Command requires manager permission')
+  }
+
   async command(
     principal: DevicePrincipal,
     rawCommand: unknown
@@ -292,21 +314,7 @@ export class SyncService {
       if (!operation.actorId) {
         throw new ForbiddenException('Business sync command requires an actor')
       }
-      const actor = await this.pool.query<{
-        role: 'manager' | 'staff'
-        status: 'active' | 'disabled'
-      }>(
-        `SELECT role, status FROM cloud_employee
-         WHERE id = $1 AND tenant_id = $2 AND store_id = $3`,
-        [operation.actorId, principal.tenantId, principal.storeId]
-      )
-      const employee = actor.rows[0]
-      if (!employee || employee.status !== 'active') {
-        throw new ForbiddenException('Command actor is not an active employee')
-      }
-      if (employee.role !== 'manager' && requiresManager(operation.operationType)) {
-        throw new ForbiddenException('Command requires manager permission')
-      }
+      await this.assertCommandActor(principal, operation.actorId, operation.operationType)
     }
     await this.receive(principal, {
       protocolVersion: 2,
@@ -315,8 +323,13 @@ export class SyncService {
       lastDeviceSeq: operation.deviceSeq,
       operations: [operation]
     })
+    const descriptor = JSON.parse(operation.payloadJson).atomicGroup as { id?: string } | undefined
+    const first = descriptor?.id ? await this.pool.query<{ operation_id: string }>(
+      `SELECT operation_id FROM sync_operation WHERE tenant_id=$1 AND store_id=$2 AND device_id=$3
+       AND payload_json->'atomicGroup'->>'id'=$4 ORDER BY device_seq LIMIT 1`,
+      [principal.tenantId, principal.storeId, principal.deviceId, descriptor.id]) : null
     await processReceivedSyncOperation(this.pool, {
-      operationId: operation.operationId,
+      operationId: first?.rows[0]?.operation_id ?? operation.operationId,
       tenantId: principal.tenantId,
       storeId: principal.storeId,
       deviceId: principal.deviceId
@@ -467,19 +480,7 @@ export class SyncService {
         : {
             operationId: row.operation_id,
             status: 'conflict',
-            conflictType:
-              row.conflict_type ===
-                'member_phone_duplicate' ||
-              row.conflict_type ===
-                'member_version_mismatch' ||
-              row.conflict_type ===
-                'wallet_authority_conflict' ||
-              row.conflict_type ===
-                'monthly_card_state_conflict' ||
-              row.conflict_type ===
-                'catalog_version_mismatch'
-                ? row.conflict_type
-                : 'unknown',
+            conflictType: normalizedConflictType(row.conflict_type),
             serverPayloadJson:
               row.server_payload_json === null
                 ? null

@@ -1,0 +1,17 @@
+<view class="recommendations-page">
+  <view class="intro"><ui-art kind="hero" class="intro-image" src="{{heroUrl}}" mode="aspectFill"/><text>{{heroTitle}}</text></view>
+  <view class="recommendations-body">
+  <view class="scenes"><button class="{{scene === 'all' ? 'selected' : ''}}" data-scene="all" bindtap="selectScene"><image src="/assets/icons/games-green.svg"/><view><text>{{demo ? '新手入门' : '全部推荐'}}</text><text class="scene-subtitle">{{demo ? '轻松上手' : '门店精选'}}</text></view></button><button class="{{scene === 'two' ? 'selected' : ''}}" data-scene="two" bindtap="selectScene"><image src="/assets/icons/user-green.svg"/><view><text>两人时光</text><text class="scene-subtitle">浪漫或对战</text></view></button><button class="{{scene === 'group' ? 'selected' : ''}}" data-scene="group" bindtap="selectScene"><image src="/assets/icons/people-green.svg"/><view><text>朋友聚会</text><text class="scene-subtitle">多人同乐</text></view></button></view>
+  <view wx:if="{{loading}}" class="empty-state">正在加载推荐…</view>
+  <view wx:elif="{{errorMessage}}" class="empty-state">{{errorMessage}}<button bindtap="load">重新加载</button></view>
+  <view wx:elif="{{!games.length}}" class="empty-state"><ui-art class="empty-art"/>暂无符合条件的店家推荐<button bindtap="goGames">逛逛桌游库</button></view>
+  <view wx:for="{{games}}" wx:key="id" class="recommendation card">
+    <view class="game-head" data-id="{{item.id}}" bindtap="goGameDetail">
+      <image wx:if="{{item.imageUrl && !item.imageFailed}}" src="{{item.imageUrl}}" mode="aspectFill" data-id="{{item.id}}" binderror="imageError" /><view wx:else class="placeholder">♟</view>
+      <view class="game-copy"><view class="name-row"><text class="name">{{item.name}}</text><text wx:if="{{item.badge}}" class="badge">{{item.badge}}</text></view><view class="reason"><text>{{item.reason || '推荐语待补充，可向店员了解玩法。'}}</text></view><text wx:if="{{item.audience}}" class="audience">{{item.audience}}</text><button class="view-game" data-id="{{item.id}}" catchtap="goGameDetail">查看游戏　〉</button></view>
+    </view>
+    <button wx:if="{{item.expansionCount}}" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="goExpansions">查看 {{item.expansionCount}} 个扩展　〉</button>
+    <text wx:if="{{item.sourceAttribution}}" class="attribution">Powered by BGG</text>
+  </view>
+  </view>
+</view>

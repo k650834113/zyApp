@@ -1,9 +1,4 @@
 <view class="page-shell library-page">
-  <view class="library-heading">
-    <text class="library-title">桌游库</text>
-    <text class="library-subtitle">看看本店现在有哪些桌游可以玩</text>
-  </view>
-
   <view class="search-row">
     <input
       class="form-input search-input"
@@ -14,6 +9,11 @@
       bindconfirm="search"
     />
     <button class="search-button" bindtap="search">搜索</button>
+  </view>
+  <view class="recommendation-entry" bindtap="goRecommendations" aria-role="button" aria-label="查看店家推荐">
+    <view class="recommendation-icon"><image src="/assets/icons/store-green.svg" /></view>
+    <view class="recommendation-copy"><text class="recommendation-title">店家推荐</text><text class="recommendation-subtitle">精选适合不同场景的桌游</text></view>
+    <image class="recommendation-arrow" src="/assets/icons/arrow-muted.svg" />
   </view>
 
   <view class="quick-filters">
@@ -57,7 +57,6 @@
       id="game-card-{{index}}"
       game="{{item}}"
       show-expansion-action="{{true}}"
-      bindtoggle="toggleGame"
       bindlike="likeGame"
       bindviewexpansions="goExpansions"
       bindimageerror="imageError"
@@ -79,13 +78,7 @@
     <text class="source-attribution-action">复制来源链接</text>
   </view>
 
-  <view class="bottom-nav">
-    <view class="nav-item" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
-    <view class="nav-item active" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>
-    <view class="nav-item" bindtap="goTools"><text class="nav-icon">◈</text><text>工具</text></view>
-    <view class="nav-item" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
-    <view class="nav-item" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
-  </view>
+  <ui-nav active="games"/>
 
   <view wx:if="{{filterOpen}}" class="filter-overlay">
     <view class="filter-scrim" bindtap="closeFilter"></view>
@@ -118,16 +111,17 @@
         </view>
 
         <view wx:if="{{activeFilter === 'players'}}" class="filter-section">
-          <text class="filter-title">适合人数</text>
-          <range-slider
-            min="{{playerBounds.min}}"
-            max="{{playerBounds.max}}"
-            step="{{playerBounds.step}}"
-            lower="{{draftPlayers.lower}}"
-            upper="{{draftPlayers.upper}}"
-            unit=" 人"
-            bindchange="changePlayers"
-          />
+          <text class="filter-title">当前有几人</text>
+          <text class="filter-helper">选择实际到场人数，将显示支持该人数的桌游</text>
+          <view class="player-options">
+            <button
+              wx:for="{{playerOptions}}"
+              wx:key="value"
+              class="player-option {{item.selected ? 'selected' : ''}}"
+              data-player-count="{{item.value}}"
+              bindtap="selectPlayer"
+            >{{item.label}}</button>
+          </view>
         </view>
 
         <view wx:if="{{activeFilter === 'minutes'}}" class="filter-section">

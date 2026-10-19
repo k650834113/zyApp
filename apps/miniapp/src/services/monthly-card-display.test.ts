@@ -51,7 +51,7 @@ describe('monthly card display', () => {
       state: 'active',
       expiresOn: '2026-08-24',
       remainingDaysText: '剩余 29 天',
-      actionText: '微信续费'
+      actionText: '微信续费到店月卡'
     })
   })
 
@@ -62,7 +62,7 @@ describe('monthly card display', () => {
       state: 'unopened',
       expiresOn: null,
       remainingDaysText: null,
-      actionText: '微信开通月卡'
+      actionText: '微信开通到店月卡'
     })
   })
 

@@ -10,9 +10,7 @@ import { MemberPage } from './MemberPage'
 import { WalletPage } from './WalletPage'
 import { MonthlyCardPage } from './MonthlyCardPage'
 import { CatalogPage } from './CatalogPage'
-import { ActivityPage } from './ActivityPage'
-import { AnnouncementPage } from './AnnouncementPage'
-import { BoardGamePage } from './BoardGamePage'
+import { MiniappControlPage } from './MiniappControlPage'
 import { CashierPage } from './CashierPage'
 import { RefundPage } from './RefundPage'
 import { LegacyImportPage } from './LegacyImportPage'
@@ -29,9 +27,7 @@ type Page =
   | 'wallet'
   | 'monthly-card'
   | 'catalog'
-  | 'activity'
-  | 'announcements'
-  | 'board-games'
+  | 'miniapp'
   | 'cashier'
   | 'refund'
   | 'report'
@@ -48,6 +44,10 @@ type Props = {
 
 export function AppShell({ state, onLogout }: Props): React.JSX.Element {
   const [page, setPage] = useState<Page>('cashier')
+  function navigatePage(next: Page): void {
+    const event = new CustomEvent('zyapp:before-navigation', { cancelable: true })
+    if (window.dispatchEvent(event)) setPage(next)
+  }
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [currentDatabasePath, setCurrentDatabasePath] = useState(
     state.system.databasePath
@@ -149,6 +149,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
                   : '尚未配置云端'
 
   async function logout(): Promise<void> {
+    if (!window.dispatchEvent(new Event('zyapp:before-navigation', { cancelable: true }))) return
     try {
       await getDesktopApi().logout()
       onLogout()
@@ -189,7 +190,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
               <h2 id="cloud-conflict-prompt-title">发现需要人工合并的资料</h2>
             </div>
             <p>
-              桌游与公告的普通冲突已经自动采用云端版本。当前仍有
+              正常跨端更新会自动刷新。当前有
               {conflictPrompt.upload > 0
                 ? ` ${conflictPrompt.upload} 条本机上传被云端拒绝`
                 : ''}
@@ -212,7 +213,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
                 type="button"
                 onClick={() => {
                   setConflictPrompt(null)
-                  setPage('cloud')
+                  navigatePage('cloud')
                 }}
               >
                 前往云端资料合并
@@ -245,7 +246,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'cashier' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('cashier')}
+              onClick={() => navigatePage('cashier')}
               title="收银"
             >
               <span className="nav-short">收</span>
@@ -255,7 +256,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
           <button
             className={page === 'dashboard' ? 'active' : ''}
             type="button"
-            onClick={() => setPage('dashboard')}
+            onClick={() => navigatePage('dashboard')}
             title="工作台"
           >
             <span className="nav-short">台</span>
@@ -265,7 +266,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'employees' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('employees')}
+              onClick={() => navigatePage('employees')}
               title="员工权限"
             >
               <span className="nav-short">员</span>
@@ -276,7 +277,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'members' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('members')}
+              onClick={() => navigatePage('members')}
               title="会员中心"
             >
               <span className="nav-short">会</span>
@@ -287,7 +288,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'wallet' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('wallet')}
+              onClick={() => navigatePage('wallet')}
               title="储值账户"
             >
               <span className="nav-short">储</span>
@@ -298,7 +299,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'transactions' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('transactions')}
+              onClick={() => navigatePage('transactions')}
               title="交易明细"
             >
               <span className="nav-short">账</span>
@@ -308,7 +309,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
           <button
             className={page === 'monthly-card' ? 'active' : ''}
             type="button"
-            onClick={() => setPage('monthly-card')}
+            onClick={() => navigatePage('monthly-card')}
             title="月卡"
           >
             <span className="nav-short">月</span>
@@ -318,51 +319,23 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'catalog' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('catalog')}
+              onClick={() => navigatePage('catalog')}
               title="收费目录"
             >
               <span className="nav-short">目</span>
               <span className="nav-label">收费目录</span>
             </button>
           ) : null}
-          {canReadActivity ? (
-            <button
-              className={page === 'activity' ? 'active' : ''}
-              type="button"
-              onClick={() => setPage('activity')}
-              title="活动管理"
-            >
-              <span className="nav-short">活</span>
-              <span className="nav-label">活动管理</span>
+          {canReadActivity || canReadContent ? (
+            <button className={page === 'miniapp' ? 'active' : ''} type="button" onClick={() => navigatePage('miniapp')} title="小程序控制">
+              <span className="nav-short">小</span><span className="nav-label">小程序控制</span>
             </button>
-          ) : null}
-          {canReadContent ? (
-            <>
-              <button
-                className={page === 'announcements' ? 'active' : ''}
-                type="button"
-                onClick={() => setPage('announcements')}
-                title="公告管理"
-              >
-                <span className="nav-short">告</span>
-                <span className="nav-label">公告管理</span>
-              </button>
-              <button
-                className={page === 'board-games' ? 'active' : ''}
-                type="button"
-                onClick={() => setPage('board-games')}
-                title="桌游管理"
-              >
-                <span className="nav-short">游</span>
-                <span className="nav-label">桌游管理</span>
-              </button>
-            </>
           ) : null}
           {canManageStoreProfile ? (
             <button
               className={page === 'store-profile' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('store-profile')}
+              onClick={() => navigatePage('store-profile')}
               title="门店设置"
             >
               <span className="nav-short">店</span>
@@ -373,7 +346,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'refund' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('refund')}
+              onClick={() => navigatePage('refund')}
               title="退款"
             >
               <span className="nav-short">退</span>
@@ -384,7 +357,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'report' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('report')}
+              onClick={() => navigatePage('report')}
               title="营业报表"
             >
               <span className="nav-short">报</span>
@@ -395,7 +368,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'backup' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('backup')}
+              onClick={() => navigatePage('backup')}
               title="备份恢复"
             >
               <span className="nav-short">备</span>
@@ -406,7 +379,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'cloud' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('cloud')}
+              onClick={() => navigatePage('cloud')}
               title="云端连接"
             >
               <span className="nav-short">云</span>
@@ -417,7 +390,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             <button
               className={page === 'legacy-import' ? 'active' : ''}
               type="button"
-              onClick={() => setPage('legacy-import')}
+              onClick={() => navigatePage('legacy-import')}
               title="旧库导入"
             >
               <span className="nav-short">导</span>
@@ -455,7 +428,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
             ) : null}
           </div>
           {canManageCloud ? (
-            <button className="text-button" type="button" onClick={() => setPage('cloud')}>
+            <button className="text-button" type="button" onClick={() => navigatePage('cloud')}>
               云端设置
             </button>
           ) : null}
@@ -476,15 +449,7 @@ export function AppShell({ state, onLogout }: Props): React.JSX.Element {
         {page === 'transactions' && canReadTransactions ? <TransactionsPage /> : null}
         {page === 'monthly-card' ? <MonthlyCardPage session={session} /> : null}
         {page === 'catalog' && canReadCatalog ? <CatalogPage session={session} /> : null}
-        {page === 'activity' && canReadActivity ? (
-          <ActivityPage session={session} />
-        ) : null}
-        {page === 'announcements' && canReadContent ? (
-          <AnnouncementPage session={session} />
-        ) : null}
-        {page === 'board-games' && canReadContent ? (
-          <BoardGamePage session={session} />
-        ) : null}
+        {page === 'miniapp' && (canReadActivity || canReadContent) ? <MiniappControlPage session={session} /> : null}
         {page === 'store-profile' && canManageStoreProfile ? (
           <StoreProfilePage onStoreNameChanged={setStoreName} />
         ) : null}

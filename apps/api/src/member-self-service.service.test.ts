@@ -790,6 +790,21 @@ describe('member self-service transactions', () => {
     ).toBe(false)
   })
 
+  it('shows admission subtotals from mixed orders and excludes product-only orders before pagination', async () => {
+    const { pool } = fakePool((sql) => {
+      if (!sql.includes('FROM cloud_sales_order sale')) return []
+      expect(sql).toContain("item.item_type = 'admission'")
+      expect(sql).toContain('SUM(item.line_total_fen)')
+      expect(sql).toContain('item.tenant_id = sale.tenant_id AND item.store_id = sale.store_id')
+      expect(sql).toContain('admission ON admission.total_fen IS NOT NULL')
+      expect(sql.indexOf('admission ON')).toBeLessThan(sql.indexOf('LIMIT 50'))
+      return [{ id:'admission-order', order_number:'SO-TICKET', total_fen:'3000', payment_method:'cash', completed_at:'2026-10-04T00:00:00Z' }]
+    })
+    const history = await new MemberSelfService(pool, fakeRedis(), config()).getHistory(memberPrincipal())
+    expect(history.activities).toEqual([expect.objectContaining({ title:'门票消费', amountFen:3000, kind:'consumption' })])
+    expect(history.orders).toEqual([expect.objectContaining({ totalFen:3000 })])
+  })
+
   it('maps member history amounts as integer fen', async () => {
     const { pool } = fakePool((sql) => {
       if (sql.includes('FROM cloud_sales_order')) {
@@ -870,7 +885,7 @@ describe('member self-service transactions', () => {
       giftDeltaFen: 2000
     })
     expect(history.activities.map((item) => item.title)).toEqual([
-      '桌位消费',
+      '门票消费',
       '线下充值',
       '微信充值',
       '线下充值冲正',

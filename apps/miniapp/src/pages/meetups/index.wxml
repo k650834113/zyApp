@@ -1,0 +1,20 @@
+<view class="community-page with-nav">
+<view wx:if="{{loading}}" class="unavailable">正在加载…</view><view wx:if="{{error}}" class="error">{{error}}<button bindtap="refresh">重试</button></view>
+<view wx:if="{{!demo && !ready}}" class="unavailable">请先登录后使用此功能。</view>
+<block wx:else>
+<view class="tabs"><view class="{{tab==='all'?'active':''}}" data-tab="all" bindtap="setTab">全部</view><view class="{{tab!=='all'?'active':''}}" data-tab="joined" bindtap="setTab">我参与的</view></view>
+<view class="filters"><view class="{{dateFilter==='all'?'active':''}}" data-date="all" bindtap="setDateFilter">全部日期</view><view wx:for="{{dates}}" wx:key="*this" class="{{dateFilter===item?'active':''}}" data-date="{{item}}" bindtap="setDateFilter">{{item}}</view></view>
+<view wx:for="{{items}}" wx:key="id" class="community-card">
+  <view class="game-row"><image lazy-load wx:if="{{item.game.imageUrl}}" class="game-cover" src="{{item.game.imageUrl}}" mode="aspectFit" data-id="{{item.game.id}}" binderror="imageError"/><view wx:else class="game-cover cover-empty">暂无封面</view>
+    <view class="game-copy"><text class="game-title">{{item.title}}</text><view class="tags"><text wx:for="{{item.tags}}" wx:for-item="tag" wx:key="*this" class="tag">{{tag}}</text></view>
+      <view class="meta"><image src="/assets/icons/clock-green.svg"/><text>{{item.date}} {{item.time}}</text></view><view class="meta"><image src="/assets/icons/pin-green.svg"/><text>{{item.location}}</text></view><view class="meta"><image src="/assets/icons/people-green.svg"/><text>{{item.players.length}} / {{item.capacity}}人</text><text class="remaining">{{item.capacity > item.players.length ? '差 '+(item.capacity-item.players.length)+'人' : '已满员'}}</text></view>
+    </view>
+  </view>
+  <view class="card-bottom"><view class="avatars"><image wx:for="{{item.participants || item.players}}" wx:for-item="player" wx:key="index" class="avatar-dot {{player.avatarUrl ? 'avatar-photo' : ''}}" mode="aspectFill" src="{{player.avatarUrl || '/assets/icons/user-green.svg'}}" data-member-id="{{player.memberId}}" binderror="avatarError"/></view><button class="outline" data-id="{{item.id}}" bindtap="openMeetup">查看详情</button></view>
+</view>
+<view wx:if="{{items.length===0}}" class="unavailable"><ui-art class="empty-art"/>暂无约局</view>
+<text wx:if="{{demo}}" class="demo-note">开发演示 · 尚未发布到门店</text>
+<view class="fixed-action"><button class="solid" bindtap="createMeetup">＋ 发起约局</button></view>
+</block>
+<ui-nav active="meetups"/>
+</view>

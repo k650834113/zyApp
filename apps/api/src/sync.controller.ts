@@ -28,6 +28,9 @@ import { SyncService } from './sync.service'
 export class SyncController {
   constructor(@Inject(SyncService) private readonly syncService: SyncService) {}
 
+  @Get('capabilities')
+  capabilities() { return { atomicFinancialCommands: 1 } }
+
   @Post('push')
   push(
     @Req() request: DeviceRequest,

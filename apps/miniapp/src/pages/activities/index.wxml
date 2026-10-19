@@ -1,28 +1,8 @@
-<view class="page">
-  <view class="hero compact">
-    <text class="hero-title">近期活动</text>
-    <text class="hero-subtitle">仅展示当前已经发布且在有效期内的活动</text>
+<view class="activities-page">
+  <view class="activity-tabs"><button class="{{tab === 'all' ? 'active' : ''}}" data-tab="all" bindtap="selectTab">全部</button><button class="{{tab === 'upcoming' ? 'active' : ''}}" data-tab="upcoming" bindtap="selectTab">即将开始</button><button class="{{tab === 'ended' ? 'active' : ''}}" data-tab="ended" bindtap="selectTab">已结束</button></view>
+  <view wx:for="{{activities}}" wx:key="id" class="activity-card" data-id="{{item.id}}" bindtap="goActivity">
+    <view class="poster"><activity-cover src="{{item.coverUrl}}" title="{{item.coverTitle}}" status="{{item.statusText}}" date="{{item.timeText}}"/></view>
+    <view class="activity-copy"><text class="activity-title">{{item.title}}</text><view class="info"><image src="/assets/icons/clock-muted.svg"/><text>{{item.timeText}}</text></view><view wx:if="{{item.location}}" class="info"><image src="/assets/icons/pin-muted.svg"/><text>{{item.location}}</text></view><text class="summary">{{item.summary}}</text><view class="activity-footer"><view class="tags"><text wx:for="{{item.tags}}" wx:key="*this">{{item}}</text><text wx:for="{{item.tierTexts}}" wx:key="*this">{{item}}</text></view><button size="mini" data-id="{{item.id}}" catchtap="goActivity">查看活动</button></view></view>
   </view>
-
-  <view class="card activity" wx:for="{{activities}}" wx:key="id">
-    <view class="activity-head">
-      <text class="card-title">{{item.title}}</text>
-      <text class="tag warn" wx:if="{{item.pinned}}">置顶</text>
-    </view>
-    <text class="muted block">{{item.summary}}</text>
-    <view class="time-box">
-      <text>{{item.startsAtText}}</text>
-      <text>至</text>
-      <text>{{item.endsAtText}}</text>
-    </view>
-    <view class="tag-row">
-      <text class="tag good" wx:for="{{item.tierTexts}}" wx:key="*this">{{item}}</text>
-    </view>
-    <text class="content">{{item.content}}</text>
-  </view>
-
-  <view class="empty" wx:if="{{!loading && activities.length === 0}}">
-    当前没有进行中的活动
-  </view>
-  <view class="empty" wx:if="{{loading}}">正在加载活动...</view>
+  <view wx:if="{{loading}}" class="empty-state">正在加载活动…</view><view wx:elif="{{errorMessage}}" class="empty-state">{{errorMessage}}<button bindtap="load">重新加载</button></view><view wx:elif="{{!activities.length}}" class="empty-state"><ui-art class="empty-art"/>暂无{{tab === 'ended' ? '已结束' : tab === 'upcoming' ? '即将开始' : '近期'}}活动</view>
 </view>

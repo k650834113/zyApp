@@ -1,6 +1,10 @@
 {
-  "navigationBarTitleText": "会员中心",
-  "navigationBarBackgroundColor": "#174f3b",
-  "navigationBarTextStyle": "white",
-  "backgroundColor": "#fbf7ef"
+  "navigationBarTitleText": "首页",
+  "navigationBarBackgroundColor": "#fbf7ef",
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "activity-cover": "/components/activity-cover/index",
+    "ui-nav": "/components/ui-nav/index",
+    "ui-art": "/components/ui-art/index"
+  }
 }

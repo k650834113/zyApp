@@ -1,23 +1,22 @@
 <view class="page-shell favorites-page">
-  <view class="favorites-heading">
-    <text class="page-title">我喜欢的</text>
-    <text class="page-subtitle">收藏的桌游都在这里</text>
-  </view>
+  <view class="favorite-search"><image src="/assets/icons/search-muted.svg"/><input placeholder="搜索我喜欢的桌游" value="{{query}}" bindinput="onQueryInput" confirm-type="search"/></view>
 
   <view wx:if="{{loadFailed}}" class="load-error" bindtap="retry">加载失败，点击重试</view>
   <view wx:if="{{loading && games.length}}" class="loading-line">正在更新收藏…</view>
 
   <board-game-card
-    wx:for="{{games}}"
+    wx:for="{{visibleGames}}"
     wx:key="id"
     game="{{item}}"
-    bindtoggle="toggleGame"
+    variant="favorite"
     bindlike="likeGame"
     bindimageerror="imageError"
   />
+  <view wx:if="{{!loading && games.length && !visibleGames.length}}" class="empty-state">没有找到匹配的收藏</view>
+  <button wx:if="{{games.length}}" class="library-button" bindtap="goLibrary">去桌游库看看　〉</button>
 
   <view wx:if="{{loading && !games.length}}" class="empty-state">正在加载收藏…</view>
-  <view wx:elif="{{!loading && !games.length && !loadFailed}}" class="empty-favorites card">
+  <view wx:elif="{{!loading && !games.length && !loadFailed}}" class="empty-favorites card"><ui-art class="empty-art"/>
     <text>还没有喜欢的桌游，去桌游库逛逛吧</text>
     <button class="primary-button" bindtap="goLibrary">去桌游库</button>
   </view>

@@ -2,6 +2,19 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS, type DesktopApi } from '@zyapp/contracts'
 
 const desktopApi: DesktopApi = {
+  searchMiniappLocation: (request) => ipcRenderer.invoke(IPC_CHANNELS.miniappLocationSearch, request),
+  getLottery: activityId=>ipcRenderer.invoke(IPC_CHANNELS.lotteryRead,{activityId}),
+  findLotteryMember:(activityId,phone)=>ipcRenderer.invoke(IPC_CHANNELS.lotteryMember,{activityId,phone}),
+  executeLottery:command=>ipcRenderer.invoke(IPC_CHANNELS.lotteryCommand,command),
+  getMiniappContent: () => ipcRenderer.invoke(IPC_CHANNELS.miniappContentRead),
+  executeMiniappContent: (request) => ipcRenderer.invoke(IPC_CHANNELS.miniappContentCommand, request),
+  getMiniappContentHistory: () => ipcRenderer.invoke(IPC_CHANNELS.miniappContentHistory),
+  uploadMiniappContentImage: () => ipcRenderer.invoke(IPC_CHANNELS.miniappContentUpload),
+  onCloudDataChanged: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on('zyapp:cloud-data-changed', handler)
+    return () => ipcRenderer.removeListener('zyapp:cloud-data-changed', handler)
+  },
   getSystemStatus: () => ipcRenderer.invoke(IPC_CHANNELS.systemStatus),
   switchDataEnvironment: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.systemSwitchDataEnvironment, request),

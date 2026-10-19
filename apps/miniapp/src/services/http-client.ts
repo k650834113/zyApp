@@ -41,6 +41,7 @@ import type {
 } from '@zyapp/contracts'
 import type {
   MemberRegistrationInput,
+  CommunityClient,
   WechatOneTapLoginInput,
   MiniappClient
 } from './types'
@@ -51,6 +52,8 @@ type HttpClientOptions = {
   token(): string | null
   saveToken(token: string): void
   clearToken(): void
+  loggedOut?(): boolean
+  setLoggedOut?(value:boolean): void
   authMode: 'development' | 'wechat'
   developmentProviderSubject?: string
 }
@@ -58,7 +61,8 @@ type HttpClientOptions = {
 class HttpRequestError extends Error {
   constructor(
     message: string,
-    readonly statusCode: number
+    readonly statusCode: number,
+    readonly fieldErrors:Record<string,string> = {}
   ) {
     super(message)
   }
@@ -127,9 +131,43 @@ function avatarUploadError(message: string): Error {
 }
 
 export class HttpMiniappClient implements MiniappClient {
+  readonly community:CommunityClient = {
+    selfMember:()=>this.request('/v1/member/community/profile'),
+    friends:()=>this.request('/v1/member/community/friends'),
+    findMember:number=>this.request('/v1/member/community/members?number='+encodeURIComponent(number)),
+    friendCommand:(action,input)=>this.request('/v1/member/community/friends/'+action,'POST',input),
+    createTable:requestId=>this.request('/v1/member/community/tables','POST',{requestId}),
+    getTable:id=>this.request('/v1/member/community/tables/'+encodeURIComponent(id)),
+    closeTable:(id,requestId)=>this.request('/v1/member/community/tables/'+encodeURIComponent(id)+'/close','POST',{requestId}),
+    createInvite:input=>this.request('/v1/member/community/invites','POST',input),
+    previewInvite:token=>this.request('/v1/member/community/invites/'+encodeURIComponent(token)),
+    joinInvite:(token,requestId)=>this.request('/v1/member/community/invites/'+encodeURIComponent(token)+'/join','POST',{requestId}),
+    listMeetups: (filters={}) => this.request('/v1/member/community/meetups?'+this.communityQuery(filters)),
+    getMeetup: id => this.signedOut||this.options.loggedOut?.()||!this.options.token()?this.send('/v1/public/meetups/'+encodeURIComponent(id)+'?storeId='+encodeURIComponent(this.options.storeId),'GET',undefined,false):this.request('/v1/public/meetups/'+encodeURIComponent(id)+'?storeId='+encodeURIComponent(this.options.storeId)),
+    createMeetup: input => this.request('/v1/member/community/meetups','POST',input),
+    actMeetup: (id,action,requestId) => this.request('/v1/member/community/meetups/'+encodeURIComponent(id)+'/'+action,'POST',{requestId}),
+    listPlays: (filters={}) => this.request('/v1/member/community/plays?'+this.communityQuery(filters)),
+    getPlay: id => this.request('/v1/member/community/plays/'+encodeURIComponent(id)),
+    savePlay: input => this.request('/v1/member/community/plays','POST',input),
+    deletePlay: (id,expectedRevision,requestId) => this.request('/v1/member/community/plays/'+encodeURIComponent(id)+'/hide','POST',{expectedRevision,requestId})
+  }
+  private communityQuery(filters:Record<string,unknown>):string {
+    return Object.entries(filters).filter(([,v])=>v!==undefined).map(([k,v])=>encodeURIComponent(k)+'='+encodeURIComponent(String(v))).join('&')
+  }
   private sessionPromise: Promise<void> | null = null
+  private homePromise: Promise<MiniappHomeSnapshot> | null = null
+  private signedOut = false
 
   constructor(private readonly options: HttpClientOptions) {}
+
+  private resumeLogin():void {this.signedOut=false;this.options.setLoggedOut?.(false)}
+  async logout():Promise<void> {
+    await this.sessionPromise
+    if (this.options.token()) await this.send('/v1/miniapp/logout','POST')
+    this.signedOut=true
+    this.options.setLoggedOut?.(true)
+    this.options.clearToken()
+  }
 
   private baseUrl(): string {
     const baseUrl = this.options.baseUrl.replace(/\/+$/, '')
@@ -154,13 +192,14 @@ export class HttpMiniappClient implements MiniappClient {
       > = {
         url: `${this.baseUrl()}${path}`,
         method,
+        timeout: 10000,
         header: token ? { Authorization: `Bearer ${token}` } : {},
         success: (response) => {
           if (response.statusCode >= 200 && response.statusCode < 300) {
             resolve(response.data as T)
           } else {
             const body = response.data as
-              | { message?: string | string[] }
+              | { message?: string | string[]; fieldErrors?:Record<string,string> }
               | string
               | undefined
             const message =
@@ -172,7 +211,8 @@ export class HttpMiniappClient implements MiniappClient {
             reject(
               new HttpRequestError(
                 message || `服务请求失败：${response.statusCode}`,
-                response.statusCode
+                response.statusCode,
+                typeof body==='object'?body?.fieldErrors??{}:{}
               )
             )
           }
@@ -185,6 +225,7 @@ export class HttpMiniappClient implements MiniappClient {
   }
 
   private async ensureSession(): Promise<void> {
+    if (this.signedOut || this.options.loggedOut?.()) throw new Error('请先登录')
     if (this.options.token()) return
     if (this.sessionPromise) return this.sessionPromise
     this.sessionPromise = this.createSession()
@@ -250,37 +291,50 @@ export class HttpMiniappClient implements MiniappClient {
   }
 
   getIdentity(): Promise<MiniappIdentity> {
+    if (this.signedOut || this.options.loggedOut?.()) return Promise.resolve({role:'guest'})
     return this.request('/v1/miniapp/session')
   }
 
   getHome(): Promise<MiniappHomeSnapshot> {
-    return this.request(
-      `/v1/public/home?storeId=${encodeURIComponent(this.options.storeId)}`
-    )
+    if (this.homePromise) return this.homePromise
+    this.homePromise = this.send<MiniappHomeSnapshot>(
+      `/v1/public/home?storeId=${encodeURIComponent(this.options.storeId)}`,
+      'GET', undefined, false
+    ).finally(() => { this.homePromise = null })
+    return this.homePromise
+  }
+  getPublicPricing():Promise<import('@zyapp/contracts').PublicPricing> {
+    return this.send(`/v1/public/pricing?storeId=${encodeURIComponent(this.options.storeId)}`,'GET',undefined,false)
   }
 
   listActivities(): Promise<PublicActivitySummary[]> {
-    return this.request(
-      `/v1/public/activities?storeId=${encodeURIComponent(this.options.storeId)}`
+    return this.send(
+      `/v1/public/activities?storeId=${encodeURIComponent(this.options.storeId)}`,
+      'GET', undefined, false
     )
+  }
+
+  getGame(id: string): Promise<PublicBoardGameSummary> {
+    const path = `/v1/public/games/${encodeURIComponent(id)}?storeId=${encodeURIComponent(this.options.storeId)}`
+    return this.options.token() ? this.request(path) : this.send(path, 'GET', undefined, false)
   }
 
   listGames(
     filters: PublicBoardGameFilters = {}
   ): Promise<PublicBoardGameSummary[]> {
-    return this.request(
-      `/v1/public/games?${boardGameQuery(this.options.storeId, filters)}`
-    )
+    const path = `/v1/public/games?${boardGameQuery(this.options.storeId, filters)}`
+    return this.options.token() ? this.request(path) : this.send(path, 'GET', undefined, false)
   }
 
   getGameFilterOptions(): Promise<PublicBoardGameFilterOptions> {
-    return this.request(
-      `/v1/public/game-filter-options?storeId=${encodeURIComponent(this.options.storeId)}`
+    return this.send(
+      `/v1/public/game-filter-options?storeId=${encodeURIComponent(this.options.storeId)}`,
+      'GET', undefined, false
     )
   }
 
-  listFavoriteGames(): Promise<PublicBoardGameSummary[]> {
-    return this.request('/v1/miniapp/favorite-games')
+  listFavoriteGames(filters?:PublicBoardGameFilters): Promise<PublicBoardGameSummary[]> {
+    return this.request('/v1/miniapp/favorite-games'+(filters?'?'+boardGameQuery(this.options.storeId,filters):''))
   }
 
   setGameLiked(
@@ -295,6 +349,7 @@ export class HttpMiniappClient implements MiniappClient {
   }
 
   getMemberSummary(): Promise<MemberSelfServiceSummary | null> {
+    if (this.signedOut || this.options.loggedOut?.()) return Promise.resolve(null)
     return this.request('/v1/member/self')
   }
 
@@ -309,18 +364,21 @@ export class HttpMiniappClient implements MiniappClient {
   requestPhoneVerification(
     phone: string
   ): Promise<PhoneVerificationChallenge> {
+    this.resumeLogin()
     return this.request('/v1/member/verification/request', 'POST', { phone })
   }
 
   registerMember(
     input: MemberRegistrationInput
   ): Promise<MemberSelfServiceSummary> {
+    this.resumeLogin()
     return this.request('/v1/member/register', 'POST', input)
   }
 
   loginWithWechatProfile(
     input: WechatOneTapLoginInput
   ): Promise<MemberSelfServiceSummary> {
+    this.resumeLogin()
     return this.request('/v1/member/wechat-one-tap-login', 'POST', input)
   }
 

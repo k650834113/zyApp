@@ -1,0 +1,8 @@
+<view class="about-page">
+  <view wx:if="{{loading}}" class="empty-state">正在加载门店资料…</view><view wx:elif="{{errorMessage}}" class="empty-state">{{errorMessage}}<button bindtap="load">重新加载</button></view>
+  <block wx:elif="{{store}}">
+    <view class="store-group"><view class="store-row hours"><image src="/assets/icons/clock-green.svg"/><text>营业时间</text><text class="hours-value">{{store.businessHours || '营业时间待补充'}}</text></view><view class="store-row" bindtap="copyAddress"><image src="/assets/icons/pin-green.svg"/><view><text>到店导航</text><text wx:if="{{store.address}}" class="subtext">{{store.address}}</text></view><image class="arrow" src="/assets/icons/arrow-muted.svg"/></view><view class="store-row" bindtap="goPricing"><image src="/assets/icons/receipt-green.svg"/><text>收费说明</text><image class="arrow" src="/assets/icons/arrow-muted.svg"/></view><view class="store-row" bindtap="callStore"><image src="/assets/icons/people-green.svg"/><text>联系门店</text><image class="arrow" src="/assets/icons/arrow-muted.svg"/></view></view>
+    <view class="contact-group"><text class="contact-title">联系我们</text><view wx:for="{{contacts}}" wx:key="id" class="contact-row"><text>{{item.label}}</text><text>{{item.value}}</text><button size="mini" data-value="{{item.value}}" bindtap="copyContact">{{item.action === 'phone' ? '拨打' : '复制'}}</button></view><view wx:if="{{store.contactPhone}}" class="contact-row"><text>联系电话</text><text>{{store.contactPhone}}</text><button size="mini" bindtap="callStore">拨打</button></view><text wx:if="{{!contacts.length && !store.contactPhone}}" class="subtext">联系方式待发布</text></view>
+    <view class="store-footer"><text wx:if="{{content.storeFooter}}">{{content.storeFooter}}</text></view>
+  </block>
+</view>

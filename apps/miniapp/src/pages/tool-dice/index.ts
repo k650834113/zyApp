@@ -53,6 +53,7 @@ Page({
   },
 
   data: {
+    controlsVisible: false,
     groups: initialGroups(),
     expression: '2D6',
     results: placeholderDice(initialGroups()),
@@ -62,6 +63,7 @@ Page({
     maxDiceCount
   },
 
+  toggleControls(){this.setData({controlsVisible:!this.data.controlsVisible})},
   onUnload() {
     this.clearRollTimers()
   },

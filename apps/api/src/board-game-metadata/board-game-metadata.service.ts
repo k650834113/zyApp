@@ -188,6 +188,15 @@ export class BoardGameMetadataService {
 
   private throwStableError(error: unknown): never {
     if (error instanceof BggMetadataError) {
+      if (error.code === 'blocked') {
+        throw new ServiceUnavailableException('BGG access blocked by Cloudflare')
+      }
+      if (error.code === 'unauthorized') {
+        throw new ServiceUnavailableException('BGG authorization failed')
+      }
+      if (error.code === 'throttled') {
+        throw new ServiceUnavailableException('BGG request was throttled')
+      }
       if (error.code === 'timeout') {
         throw new GatewayTimeoutException('BGG request timed out')
       }

@@ -1,0 +1,11 @@
+<view class="community-page">
+<view wx:if="{{loading}}" class="unavailable">正在加载…</view>
+<view wx:if="{{error}}" class="error">{{error}}<button bindtap="refresh" disabled="{{busy}}">重试加载</button></view>
+<view wx:if="{{!play}}" class="unavailable">对局记录暂不可用</view>
+<block wx:else>
+<view class="community-card play-card"><view class="game-row"><image wx:if="{{play.game.imageUrl}}" class="game-cover" src="{{play.game.imageUrl}}" mode="aspectFit" data-id="{{play.game.id}}" binderror="imageError"/><view class="game-copy"><text class="game-title">{{play.game.name}}</text><view class="tags"><text class="tag">{{play.visibility}}</text></view></view></view><view class="stats-row"><view class="meta">{{play.date}}</view><view class="meta">{{play.duration}} 分钟</view><view class="meta">{{play.players.length}} 人</view><view class="meta">{{play.mode}}模式</view></view></view>
+<text class="section-title">成绩记录</text><view class="score-table"><view class="score-th"><text>玩家</text><text wx:if="{{play.recordScores!==false}}">得分</text><text>结果</text></view><view wx:for="{{play.players}}" wx:key="index"><text>{{item.name}}{{item.team?' · '+item.team:''}}</text><text wx:if="{{play.recordScores!==false}}">{{item.score}}</text><text>{{item.outcome==='win'?'胜利':item.outcome==='loss'?'失败':item.outcome==='draw'?'平局':item.rank?'第'+item.rank+'名':'—'}}</text></view></view>
+<text class="section-title">本局备注</text><view class="community-card"><text class="body-copy">{{play.note || '暂无备注'}}</text></view>
+<text class="section-title">可见范围</text><view class="community-card"><text class="body-copy">{{play.visibility==='参与者'?'仅创建者与关联参与者可见':'仅自己可见'}}</text><text class="form-note">共享记录由创建者编辑，每位参与者可单独隐藏。</text></view><text wx:if="{{demo}}" class="demo-note">开发演示 · 无云端记录</text>
+<view class="fixed-action bottom-actions"><button wx:if="{{play.owned!==false}}" class="outline" bindtap="editPlay">编辑记录</button><button class="solid" bindtap="unavailable">分享</button></view>
+<button wx:if="{{ready}}" bindtap="deletePlay" disabled="{{busy}}">隐藏我的记录</button></block></view>

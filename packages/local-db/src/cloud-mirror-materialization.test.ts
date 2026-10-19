@@ -413,7 +413,7 @@ describe('cloud mirror materialization', () => {
           .get(cardId)
       ).toEqual({ payment_method: 'wechat', source: 'cloud' })
       expect(
-        getMonthlyCardDetails(local.connection, context, memberId).current
+        getMonthlyCardDetails(local.connection, context, memberId, new Date(now)).current
       ).toMatchObject({ id: cardId, paymentMethod: 'wechat' })
       expect(
         local.connection

@@ -4,22 +4,22 @@
       <text class="score-kicker">表格计分</text>
       <text class="score-title">逐轮记录，自动合计</text>
     </view>
-    <button class="reset" bindtap="resetScores">清空</button>
   </view>
 
   <scroll-view class="score-scroll" scroll-x enhanced show-scrollbar="{{false}}">
     <view class="score-table" style="width: {{tableWidth}}rpx;">
       <view class="table-row header-row">
-        <view class="row-label"><text>记录</text></view>
+        <view class="row-label"><text>回合</text></view>
         <view wx:for="{{players}}" wx:key="id" class="player-column player-header">
-          <input maxlength="10" value="{{item.name}}" data-index="{{index}}" bindinput="inputName" />
+          <image class="score-avatar" src="{{item.avatarUrl || '/assets/icons/user-green.svg'}}"/>
+          <input disabled="{{!!item.memberId}}" maxlength="12" value="{{item.name}}" data-index="{{index}}" bindinput="inputName" />
           <button wx:if="{{players.length > 1}}" data-index="{{index}}" bindtap="removePlayer">×</button>
         </view>
       </view>
 
       <view wx:for="{{rows}}" wx:key="id" wx:for-item="row" wx:for-index="rowIndex" class="table-row score-row">
         <view class="row-label row-number">
-          <text>{{rowIndex + 1}}</text>
+          <text>回合 {{rowIndex + 1}}</text>
           <button wx:if="{{rows.length > 1}}" data-index="{{rowIndex}}" bindtap="removeRow">×</button>
         </view>
         <view wx:for="{{players}}" wx:key="id" wx:for-item="player" wx:for-index="playerIndex" class="player-column score-cell">
@@ -44,8 +44,13 @@
   </scroll-view>
 
   <view class="score-actions">
-    <button class="add-row" bindtap="addRow">＋ 新增分值行</button>
-    <button class="add-player" bindtap="addPlayer" disabled="{{players.length >= 8}}">＋ 添加玩家</button>
+    <button class="add-row" bindtap="addRow">＋ 添加回合</button>
+    <button class="reset" bindtap="resetScores">清空分值</button>
   </view>
+  <view class="social-actions"><button class="add-player" bindtap="addPlayer" disabled="{{socialBusy || players.length >= 8}}">添加临时玩家</button><button bindtap="addFriend" disabled="{{socialBusy || players.length>=8}}">从好友添加</button><button bindtap="showTableCode" disabled="{{socialBusy}}">生成同桌码</button><button bindtap="scan">扫一扫</button></view>
+  <text wx:if="{{socialError}}" class="social-error">{{socialError}}</text>
+  <view wx:if="{{codePath}}" class="table-code"><image src="{{codePath}}" mode="aspectFit"/><text>扫码确认后加入本局，同桌创建后24小时有效</text><button bindtap="hideCode">收起</button></view>
+  <view wx:if="{{tableId && !tableClosed}}" class="table-members"><text>同桌成员</text><view wx:for="{{tableMembers}}" wx:key="memberId"><text>{{item.name}}</text><button wx:if="{{item.memberId !== tableMembers[0].memberId}}" data-id="{{item.memberId}}" bindtap="requestTableFriend" disabled="{{socialBusy}}">加好友</button></view><button bindtap="closeTable" disabled="{{socialBusy}}">关闭同桌邀请</button></view>
   <text class="score-footnote">支持正负数与最多 4 位小数，内容自动保存在当前设备。</text>
+  <button class="finish-game" bindtap="finishGame" disabled="{{socialBusy}}">结束并重置</button>
 </view>

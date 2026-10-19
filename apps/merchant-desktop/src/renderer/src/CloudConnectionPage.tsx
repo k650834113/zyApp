@@ -13,6 +13,7 @@ import type {
 } from '@zyapp/contracts'
 import { getDesktopApi, readableError } from './api'
 import { EnvironmentSwitcher } from './EnvironmentSwitcher'
+import { ConflictDiff } from './ConflictDiff'
 import { configuredCloudBaseUrl } from '../../shared/public-endpoints'
 
 function formatTime(value: string | null): string {
@@ -39,6 +40,9 @@ const aggregateLabels: Record<string, string> = {
   employee_pc_credential: '员工 PC 登录凭据',
   employee_mobile_access: '员工移动端权限',
   member: '会员资料',
+  wallet: '储值账户',
+  monthly_card: '月卡',
+  sales_order: '消费单',
   store: '门店资料'
 }
 
@@ -47,6 +51,14 @@ function conflictTitle(conflict: InboundSyncConflictSummary): string {
 }
 
 function conflictDescription(conflict: InboundSyncConflictSummary): string {
+  if (conflict.resolutionMode === 'financial_balance') return '请核对实际收款及两侧数值。系统将按所选数值生成关联原异常的更正流水，保留原始记录；核对期间云端再发生变化会要求重新选择。'
+  if (conflict.canKeepLocal === false) return '原移动端业务已处理或已由其他设备领取。请核对原业务结果，采用云端记录关闭本机待处理项，不能重复收款。'
+  if (conflict.resolutionMode === 'financial_command') return '这笔业务已被云端整笔拒绝，尚未扣款。可采用云端并取消本笔，或保留本机操作、按最新云端余额重新提交整笔业务。'
+  if (conflict.direction === 'outbound') {
+    return conflict.resolutionSupported
+      ? '这次本机修改未被云端接受。请对照两侧资料，选择需要保留的版本。'
+      : '这笔操作未被云端接受，请对照两侧记录核对。资金异常需要通过更正流水处理。'
+  }
   if (conflict.errorMessage === 'Local pending changes exist for the same aggregate') {
     return '本机和云端同时修改了这条资料。请先完成本机上传，再选择保留本机或采用云端。'
   }
@@ -198,7 +210,7 @@ export function CloudConnectionPage({
       const manualConflicts = next.pendingConflicts + next.inboundConflicts
       setNotice(
         manualConflicts > 0
-          ? `同步已完成；普通内容冲突已自动处理，仍有 ${manualConflicts} 条重大或异常冲突，请在下方状态卡和资料合并区核对`
+          ? `同步已完成；仍有 ${manualConflicts} 条重大或异常冲突，请在下方状态卡和资料合并区核对`
           : next.pendingOperations > 0
             ? `已上传并查询回执，尚有 ${next.pendingOperations} 条等待处理`
             : '同步完成，本机没有待上传操作或待合并冲突'
@@ -437,13 +449,17 @@ export function CloudConnectionPage({
     setNotice(null)
     try {
       await getDesktopApi().resolveInboundSyncConflict({
+        ...(conflict.reviewToken ? { reviewToken: conflict.reviewToken } : {}),
         sequence: conflict.sequence,
         resolution,
         reason
       })
       setNotice(
-        resolution === 'keep_local'
-          ? '已保留本地资料并完成冲突审计'
+        conflict.resolutionMode === 'financial_balance' ? '更正记录已提交，请核对最新云端结果'
+          : conflict.resolutionMode === 'financial_command'
+          ? resolution === 'keep_local' ? '已重新提交整笔业务，请核对最新同步结果' : '已取消未执行的业务，保留云端记录'
+          : resolution === 'keep_local'
+          ? '已重新提交本机资料并记录处理原因'
           : '已应用云端资料并完成冲突审计'
       )
       await refresh(false)
@@ -547,7 +563,7 @@ export function CloudConnectionPage({
         <article className="panel cloud-status-card">
           <span>云端资料待合并</span>
           <strong>{status?.inboundConflicts ?? 0}</strong>
-          <small>桌游与公告的小冲突自动采用云端；这里仅保留重大或异常项</small>
+          <small>普通跨端更新自动刷新；真实差异在此核对处理</small>
         </article>
         <article className="panel cloud-status-card">
           <span>云端拉取游标</span>
@@ -875,7 +891,7 @@ export function CloudConnectionPage({
           <div>
             <p className="eyebrow">仅保留需要人工判断的冲突</p>
             <h2>云端资料合并</h2>
-            <p>桌游与公告的普通并发修改默认采用云端版本；会员、收费项目、活动、门店资料或内容异常仍要求店长确认。余额、月卡、订单和退款绝不会在此静默覆盖。</p>
+            <p>正常跨端更新自动刷新。只有无法自动合并的修改才出现在这里；请对照本机和云端的不同字段，再决定采用哪一侧。</p>
           </div>
         </div>
         {inboundConflicts.length === 0 ? (
@@ -893,18 +909,19 @@ export function CloudConnectionPage({
                     云端时间 {formatTime(conflict.occurredAt)} · 资料编号 {conflict.aggregateId}
                   </small>
                   <p>{conflictDescription(conflict)}</p>
+                  <ConflictDiff conflict={conflict} />
                 </div>
-                <div className="cloud-actions">
+                {conflict.resolutionSupported !== false ? <div className="cloud-actions">
                   <button
                     className="secondary-button"
-                    disabled={loading}
+                    disabled={loading || conflict.canKeepLocal === false}
                     type="button"
                     onClick={() => {
                       setInboundResolution({ conflict, resolution: 'keep_local' })
                       setInboundResolutionReason('')
                     }}
                   >
-                    保留本机版本
+                    {conflict.resolutionMode === 'financial_command' ? '保留本机操作并重试' : '保留本机版本'}
                   </button>
                   <button
                     className="primary-button"
@@ -915,9 +932,9 @@ export function CloudConnectionPage({
                       setInboundResolutionReason('')
                     }}
                   >
-                    采用云端版本
+                    {conflict.resolutionMode === 'financial_command' ? '采用云端并取消本笔' : '采用云端版本'}
                   </button>
-                </div>
+                </div> : <p>请核对实际收款及会员身份，再由店长进行账务更正；保留原始流水供追查。</p>}
               </article>
             ))}
           </div>
@@ -948,6 +965,8 @@ export function CloudConnectionPage({
                   : '保留本机版本'}
               </h2>
               <p>{conflictTitle(inboundResolution.conflict)}</p>
+              <p>{conflictDescription(inboundResolution.conflict)}</p>
+              <ConflictDiff conflict={inboundResolution.conflict} />
             </div>
             <label>
               <span>处理原因（2–200 字）</span>
@@ -987,7 +1006,7 @@ export function CloudConnectionPage({
             <p className="eyebrow">PC 客户端在线升级</p>
             <h2>程序更新</h2>
             <p>
-              更新在后台下载，只有店长确认后才会重启安装；安装前自动创建数据库保护备份。
+              启动时会自动检查更新，无需登录；选择立即更新后下载并安装，安装前自动创建数据库保护备份。
             </p>
           </div>
           <div className={`release-tag update-state-${updateStatus?.state ?? 'disabled'}`}>

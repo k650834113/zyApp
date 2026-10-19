@@ -25,6 +25,8 @@ export function getMiniappClient(): MiniappClient {
           wx.removeStorageSync(LEGACY_ACCESS_TOKEN_KEY)
         },
         clearToken: () => wx.removeStorageSync(tokenStorageKey),
+        loggedOut: () => wx.getStorageSync<boolean>(tokenStorageKey + '_signed_out') === true,
+        setLoggedOut: value => wx.setStorageSync(tokenStorageKey + '_signed_out',value),
         authMode: configuration.authMode,
         developmentProviderSubject: configuration.developmentProviderSubject
       })

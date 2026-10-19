@@ -43,8 +43,8 @@ function localParts(value: string): { date: string; time: string } {
   const hour = String(date.getHours()).padStart(2, '0')
   const minute = String(date.getMinutes()).padStart(2, '0')
   return {
-    date: `${year}年${month}月${day}日`,
-    time: `${hour}:${minute}`
+    date: `${year}年${month}月`,
+    time: `${month}月${day}日 ${hour}:${minute}`
   }
 }
 
@@ -122,11 +122,11 @@ Page({
     try {
       const member = await getMiniappClient().getMemberSummary()
       if (!member) {
-        wx.reLaunch({ url: '/pages/home/index' })
+        wx.reLaunch({ url: '/pages/member/index' })
         return
       }
       if (!member.profileCompleted) {
-        wx.reLaunch({ url: '/pages/member/index?mode=complete' })
+        wx.reLaunch({ url: '/pages/profile/index?mode=complete' })
         return
       }
       const history = await getMiniappClient().getMemberHistory()

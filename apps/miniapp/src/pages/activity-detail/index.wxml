@@ -1,0 +1,14 @@
+<view class="activity-detail">
+  <view wx:if="{{loading}}" class="empty-state">正在加载活动…</view>
+  <view wx:elif="{{errorMessage}}" class="empty-state">{{errorMessage}}<button bindtap="load">重新加载</button></view>
+  <view wx:elif="{{unavailable}}" class="empty-state">该活动已结束、下架或暂不可查看<button bindtap="goActivities">查看近期活动</button></view>
+  <block wx:elif="{{activity}}">
+    <image wx:if="{{poster}}" class="hero" src="{{poster}}" mode="widthFix" binderror="posterError"/><view wx:else class="hero hero-empty"><image src="/assets/icons/store-green.svg"/><text>活动海报待补充</text></view>
+    <view class="detail-content"><text class="detail-title">{{activity.title}}</text><view class="tags"><text>{{activity.statusText}}</text><text wx:if="{{demo}}">新手友好</text><text wx:if="{{demo}}">轻松愉快</text><text wx:if="{{demo}}">店内活动</text></view>
+      <view class="information"><view><image src="/assets/icons/clock-muted.svg"/><text>{{activity.startsAtText}} – {{activity.endsAtText}}</text></view><view bindtap="goAbout"><image src="/assets/icons/pin-muted.svg"/><text>门店位置</text><text class="trailing">查看位置　〉</text></view></view>
+      <view wx:if="{{activity.lottery}}" class="section"><text class="section-title">抽奖报名</text><text class="body">报名：{{activity.lotteryStartsAtText}} 至 {{activity.lotteryClosesAtText}}（北京时间）</text><text class="body">可开奖时间：{{activity.lotteryDrawAtText}}，由工作人员手动开奖。</text><text class="body">到店联系工作人员报名，奖品由门店手动发放。{{activity.lottery.multipleEntries ? '允许多次报名，每次增加一个机会。' : '每位会员限报名一次。'}}{{activity.lottery.repeatWinners ? '可凭不同报名机会重复中奖。' : '每位会员最多中奖一次。'}}</text><text class="body">{{activity.lottery.rules}}</text><view wx:for="{{activity.lottery.prizes}}" wx:key="id"><text>{{item.name}} · {{item.description}} · {{item.count}}名</text></view></view>
+      <view class="section"><text class="section-title">活动介绍</text><text class="body">{{activity.content || activity.summary}}</text></view>
+    </view>
+    <view class="detail-actions"><button class="share" open-type="share">分享活动</button></view>
+  </block>
+</view>

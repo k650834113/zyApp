@@ -107,6 +107,9 @@ function principalFromRow(row: PrincipalRow): MiniappPrincipal {
 
 @Injectable()
 export class MiniappSessionService {
+  async logout(token:string):Promise<void> {
+    await this.pool.query('UPDATE miniapp_session SET revoked_at=CURRENT_TIMESTAMP WHERE token_hash=$1 AND revoked_at IS NULL',[hashMiniappToken(token)])
+  }
   constructor(
     @Inject(POSTGRES_POOL) private readonly pool: Pool,
     @Inject(API_CONFIG) private readonly config: ApiConfig

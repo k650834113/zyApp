@@ -1,5 +1,7 @@
 {
-  "navigationBarTitleText": "相关扩展",
+  "navigationBarTitleText": "游戏扩展",
+  "navigationBarBackgroundColor": "#fbf7ef",
+  "navigationBarTextStyle": "black",
   "onReachBottomDistance": 180,
   "usingComponents": {
     "board-game-card": "/components/board-game-card/index"

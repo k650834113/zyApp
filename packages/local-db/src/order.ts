@@ -1,3 +1,4 @@
+import { beginFinancialTransaction, commitFinancialTransaction } from './financial-transaction'
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
@@ -445,7 +446,7 @@ export function createSalesOrder(
   const orderId = randomUUID()
   const orderNumber = nextOrderNumber(now, orderId)
 
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const visitBatchId = resolveVisitBatch(database, context, timestamp)
     const customerMember = input.customerMemberId
@@ -676,7 +677,7 @@ export function createSalesOrder(
         timestamp
       })
     }
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return order
   } catch (error) {
     database.exec('ROLLBACK')

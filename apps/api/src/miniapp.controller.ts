@@ -16,9 +16,15 @@ import {
   type MiniappRequest
 } from './miniapp-auth.guard'
 import { MiniappSessionService } from './miniapp-session.service'
+import { extractBearerToken } from './miniapp-auth'
 
 @Controller('miniapp')
 export class MiniappController {
+  @Post('logout')
+  async logout(@Req() request:MiniappRequest):Promise<void> {
+    const token=extractBearerToken(request.headers.authorization)
+    if (token) await this.sessions.logout(token)
+  }
   constructor(
     @Inject(MiniappSessionService)
     private readonly sessions: MiniappSessionService

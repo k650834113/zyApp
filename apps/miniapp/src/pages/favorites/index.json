@@ -1,6 +1,9 @@
 {
   "navigationBarTitleText": "我喜欢的",
+  "navigationBarBackgroundColor": "#fbf7ef",
+  "navigationBarTextStyle": "black",
   "usingComponents": {
-    "board-game-card": "/components/board-game-card/index"
+    "board-game-card": "/components/board-game-card/index",
+    "ui-art": "/components/ui-art/index"
   }
 }

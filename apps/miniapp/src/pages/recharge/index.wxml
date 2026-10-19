@@ -1,0 +1,68 @@
+<view class="page-shell recharge-page">
+<view wx:if="{{loading}}" class="empty-state">正在加载…</view>
+<view wx:elif="{{!member}}" class="empty-state"><text>请先登录查看充值</text><button class="primary-button" bindtap="goLogin">前往登录</button></view>
+<block wx:else>
+<view class="current-balance"><text>当前预存款余额</text><text class="current-amount">{{member.totalBalanceText}}</text><text>仅限到店消费</text></view>
+
+<view wx:if="{{rechargeEnabled}}" class="recharge-card card">
+      <view class="recharge-heading">
+        <text class="recharge-title">门店预存款充值</text>
+        <text class="muted recharge-subtitle">选择快捷金额或输入自定义金额</text>
+      </view>
+      <view class="recharge-scope-note">充值款仅用于据点桌游门店入场费、线下零售商品及线下活动消费</view>
+      <view class="recharge-options">
+        <button
+          wx:for="{{quickRechargeAmounts}}"
+          wx:key="principalFen"
+          class="recharge-option {{selectedRechargeAmountFen == item.principalFen ? 'selected' : ''}}"
+          data-principal-fen="{{item.principalFen}}"
+          disabled="{{busy}}"
+          bindtap="selectRechargeAmount"
+        >
+          <text class="recharge-option-amount">{{item.label}}</text>
+          <text class="recharge-gift-estimate">{{item.giftText}}</text>
+          <text class="recharge-total-estimate">{{item.totalText}}</text>
+        </button>
+      </view>
+      <view class="custom-recharge">
+        <text class="custom-currency">¥</text>
+        <input
+          class="custom-recharge-input"
+          type="digit"
+          value="{{customRechargeAmount}}"
+          disabled="{{busy}}"
+          placeholder="自定义金额，最低 0.01 元"
+          bindinput="inputCustomRechargeAmount"
+        />
+      </view>
+      <view class="recharge-breakdown"><text class="breakdown-title">充值明细</text><view><text>本金</text><text>{{rechargePrincipalText}}</text></view><view><text>赠送</text><text>{{rechargeGiftText}}</text></view><view class="breakdown-total"><text>预计到账</text><text>{{rechargeTotalText}}</text></view></view>
+      <button
+        class="primary-button recharge-button"
+        loading="{{busy}}"
+        disabled="{{busy}}"
+        bindtap="recharge"
+      >微信支付 {{rechargePrincipalText}}</button>
+      <view class="recharge-rule-note">
+        <text class="muted recharge-hint">实际赠送以创建充值订单时的规则为准</text>
+        <button
+          class="recharge-rule-info"
+          aria-label="查看当前充赠规则"
+          bindtap="showRechargeRules"
+        >!</button>
+      </view>
+    </view>
+
+    <view wx:if="{{rechargeOrder}}" class="recharge-result card">
+      <view>
+        <text class="result-title">{{rechargeOrder.statusText}}</text>
+        <text class="muted result-copy">预计到账 {{rechargeOrder.amountText}}</text>
+      </view>
+      <button
+        wx:if="{{rechargeOrder.providerMode === 'mock' && rechargeOrder.status === 'pending_payment'}}"
+        class="small-action"
+        bindtap="settleMockRecharge"
+      >完成测试支付</button>
+    </view>
+<view wx:if="{{!rechargeEnabled}}" class="empty-state">线上充值尚未开放，请联系门店。</view>
+</block>
+</view>

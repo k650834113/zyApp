@@ -1,0 +1,37 @@
+[
+  {
+    "name": "activity-illustration-v1.png",
+    "sourceBytes": 2230028,
+    "outputBytes": 197458,
+    "width": 900,
+    "height": 409
+  },
+  {
+    "name": "guest-landscape-v1.png",
+    "sourceBytes": 1673224,
+    "outputBytes": 89789,
+    "width": 900,
+    "height": 300
+  },
+  {
+    "name": "login-illustration-v1.png",
+    "sourceBytes": 1999789,
+    "outputBytes": 215377,
+    "width": 640,
+    "height": 640
+  },
+  {
+    "name": "recommendations-hero-v1.png",
+    "sourceBytes": 1797863,
+    "outputBytes": 130984,
+    "width": 900,
+    "height": 300
+  },
+  {
+    "name": "tabletop-hero-v1.png",
+    "sourceBytes": 1705834,
+    "outputBytes": 144653,
+    "width": 900,
+    "height": 429
+  }
+]

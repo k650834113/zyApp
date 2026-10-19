@@ -1,3 +1,4 @@
+import { processAtomicSyncGroup } from './atomic-sync-group'
 import { randomUUID } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
 import {
@@ -182,13 +183,9 @@ export async function processReceivedSyncOperations(
       [limit]
     )
     for (const operation of result.rows) {
-      const status = await processSyncOperation(
-        client,
-        operation,
-        confirmStoreBootstrap
-      )
-      if (status === 'confirmed') confirmed += 1
-      else if (status === 'conflict') conflicts += 1
+      const result = await processAtomicSyncGroup(client, operation, item => processSyncOperation(client, item, confirmStoreBootstrap))
+      if (result.status === 'confirmed') confirmed += result.count
+      else if (result.status === 'conflict') conflicts += result.count
     }
     await client.query('COMMIT')
     return { confirmed, conflicts }
@@ -248,11 +245,7 @@ export async function processReceivedSyncOperation(
       await client.query('COMMIT')
       return 'received'
     }
-    const status = await processSyncOperation(
-      client,
-      operation,
-      confirmStoreBootstrap
-    )
+    const { status } = await processAtomicSyncGroup(client, operation, item => processSyncOperation(client, item, confirmStoreBootstrap))
     await client.query(
       `UPDATE sync_operation SET completed_at = CURRENT_TIMESTAMP
        WHERE operation_id = $1 AND status IN ('confirmed', 'conflict')`,

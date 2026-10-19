@@ -1,0 +1,1 @@
+<image class="art-image {{kind}}" src="{{imageUrl}}" mode="{{mode}}" binderror="imageError" aria-hidden="true"/>

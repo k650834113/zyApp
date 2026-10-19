@@ -1,0 +1,8 @@
+<view class="cover {{compact ? 'compact' : ''}}">
+  <image wx:if="{{src}}" class="cover-art" src="{{src}}" mode="aspectFit"/>
+  <block wx:else>
+  <view class="orb orb-one"></view><view class="orb orb-two"></view>
+  <view class="gift"><view class="ribbon"></view><view class="lid"></view><view class="box"></view><text class="spark">✦</text></view>
+  <view wx:if="{{!compact}}" class="copy"><text class="eyebrow">据点活动 · {{status}}</text><text class="title">{{title}}</text><text class="date">{{date}}</text><text class="link">查看活动详情　›</text></view>
+  </block>
+</view>

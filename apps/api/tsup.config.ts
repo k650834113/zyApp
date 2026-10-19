@@ -8,6 +8,7 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   noExternal: [
+    '@zyapp/contracts',
     '@zyapp/auth',
     '@zyapp/cloud-db',
     '@zyapp/domain',

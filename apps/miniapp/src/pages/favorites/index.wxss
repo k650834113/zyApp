@@ -2,6 +2,11 @@
   padding-top: 24rpx;
 }
 
+.favorite-search { display: flex; align-items: center; gap: 20rpx; padding: 20rpx 28rpx; background: #fff; border: 1rpx solid #e9e7e1; border-radius: 30rpx; margin-bottom: 32rpx; }
+.favorite-search image { width: 40rpx; height: 40rpx; }
+.favorite-search input { min-width: 0; flex: 1; height: 42rpx; font-size: 28rpx; }
+.favorites-page .library-button { width: 86%; min-width: 0; margin: 72rpx auto 30rpx; border: 1rpx solid #174f3b; border-radius: 60rpx; background: #fff; color: #174f3b; font-size: 28rpx; line-height: 104rpx; }
+
 .favorites-heading {
   margin-bottom: 28rpx;
 }

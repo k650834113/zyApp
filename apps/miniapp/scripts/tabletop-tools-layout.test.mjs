@@ -23,8 +23,8 @@ test('toolbox exposes all five approved tabletop tools', () => {
   ]) {
     assert.ok(app.pages.includes(`pages/${route}/index`))
   }
-  assert.match(toolbox, /无需登录、无需网络/)
-  assert.match(toolbox, /不上传玩家与对局数据/)
+  assert.match(toolbox, /<ui-nav active="tools"\/>/)
+  assert.doesNotMatch(page, /getMemberSummary|purchaseMonthlyCard|createRechargeOrder/)
 })
 
 test('first-player tool supports true multitouch and a one-finger fallback', () => {

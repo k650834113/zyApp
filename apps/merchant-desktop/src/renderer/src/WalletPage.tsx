@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type {
   LegacyFinancialHistorySummary,
   MemberSummary,
@@ -9,6 +9,7 @@ import type {
   WalletRechargeSummary
 } from '@zyapp/contracts'
 import { getDesktopApi, readableError } from './api'
+import { MemberSelection } from './member-selection'
 
 function yuanToFen(value: string): number {
   const normalized = value.trim()
@@ -116,6 +117,12 @@ export function WalletPage({ session }: { session: SessionUser }): React.JSX.Ele
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const selection = useRef(new MemberSelection())
+  const submitting = useRef(false)
+  useEffect(() => () => { selection.current.select(null) }, [])
+  useEffect(() => getDesktopApi().onCloudDataChanged(() => {
+    if (!submitting.current) void refresh().catch(() => {})
+  }), [selectedMember])
   const canApprove = session.permissions.includes('refund.approve')
 
   async function search(event: FormEvent): Promise<void> {
@@ -129,26 +136,35 @@ export function WalletPage({ session }: { session: SessionUser }): React.JSX.Ele
   }
 
   async function selectMember(member: MemberSummary): Promise<void> {
+    if (submitting.current) return
+    const generation = selection.current.select(member.id)
+    setSelectedMember(member)
+    setDetails(null)
+    setReversal(null)
     setError(null)
     setNotice(null)
     try {
-      const nextDetails = await getDesktopApi().getWalletDetails({ memberId: member.id })
-      setSelectedMember(member)
-      setDetails(nextDetails)
+      const next = await getDesktopApi().getWalletDetails({ memberId: member.id })
+      if (!selection.current.accepts(generation, member.id)) return
+      setDetails(next)
       setMembers([])
     } catch (reason) {
-      setError(readableError(reason))
+      if (selection.current.accepts(generation, member.id)) setError(readableError(reason))
     }
   }
 
   async function refresh(): Promise<void> {
-    if (!selectedMember) return
-    setDetails(await getDesktopApi().getWalletDetails({ memberId: selectedMember.id }))
+    const memberId = selection.current.memberId
+    if (!memberId) return
+    const generation = selection.current.capture()
+    const next = await getDesktopApi().getWalletDetails({ memberId })
+    if (selection.current.accepts(generation, memberId)) setDetails(next)
   }
 
   async function submitRecharge(event: FormEvent): Promise<void> {
     event.preventDefault()
-    if (!selectedMember || busy) return
+    if (!selectedMember || submitting.current || !details || selection.current.memberId !== selectedMember.id || details.wallet.memberId !== selectedMember.id) return
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -170,13 +186,15 @@ export function WalletPage({ session }: { session: SessionUser }): React.JSX.Ele
     } catch (reason) {
       setError(readableError(reason))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   async function submitDebit(event: FormEvent): Promise<void> {
     event.preventDefault()
-    if (!selectedMember || busy) return
+    if (!selectedMember || submitting.current || !details || selection.current.memberId !== selectedMember.id || details.wallet.memberId !== selectedMember.id) return
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -199,13 +217,15 @@ export function WalletPage({ session }: { session: SessionUser }): React.JSX.Ele
     } catch (reason) {
       setError(readableError(reason))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   async function submitReversal(event: FormEvent): Promise<void> {
     event.preventDefault()
-    if (!reversal || busy) return
+    if (!reversal || submitting.current || !details || selection.current.memberId !== selectedMember?.id || details.wallet.memberId !== selectedMember?.id) return
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -236,13 +256,15 @@ export function WalletPage({ session }: { session: SessionUser }): React.JSX.Ele
     } catch (reason) {
       setError(readableError(reason))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   async function submitGiftTiers(event: FormEvent): Promise<void> {
     event.preventDefault()
-    if (!tierEditor || busy) return
+    if (!tierEditor || submitting.current || !details) return
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -259,6 +281,7 @@ export function WalletPage({ session }: { session: SessionUser }): React.JSX.Ele
     } catch (reason) {
       setError(readableError(reason))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }

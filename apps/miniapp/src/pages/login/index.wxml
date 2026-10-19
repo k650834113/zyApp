@@ -1,0 +1,18 @@
+<view class="login-page"><view class="login-brand"><ui-art kind="logo" class="login-logo"/></view>
+  <image class="login-art" src="/assets/images/login-illustration-v1.png" mode="aspectFit"/>
+  <text class="login-title">登录 / 注册</text>
+  <text class="login-subtitle">注册后可参与约局、保存对局记录</text>
+  <button class="primary-button login-button" open-type="{{loginAgreementAccepted ? 'getPhoneNumber' : ''}}" bindgetphonenumber="loginWithWechat" bindtap="checkLoginAgreement" loading="{{busy}}" disabled="{{busy}}">手机号快捷登录</button>
+  <view class="terms"><view class="agreement-box {{loginAgreementAccepted ? 'checked' : ''}}" bindtap="toggleLoginAgreement" role="checkbox" aria-checked="{{loginAgreementAccepted}}">{{loginAgreementAccepted ? '✓' : ''}}</view><text bindtap="toggleLoginAgreement">阅读并同意 </text><text bindtap="goSettings">《用户协议》与《隐私政策》</text></view>
+  <text class="fallback-toggle" bindtap="showFallbackLogin">使用验证码登录</text>
+  <view wx:if="{{loginFallbackVisible}}" class="fallback-card">
+    <text>手机号验证码登录</text>
+    <input class="form-input" type="number" maxlength="11" placeholder="手机号" bindinput="inputPhone"/>
+    <view class="code-row"><input class="form-input" type="number" maxlength="8" placeholder="验证码" bindinput="inputCode"/><button bindtap="requestVerification" loading="{{verificationBusy}}">获取验证码</button></view>
+    <text wx:if="{{loginHint}}" class="login-hint">{{loginHint}}</text>
+    <button class="primary-button" bindtap="submitFallbackLogin" loading="{{busy}}" disabled="{{busy || !loginAgreementAccepted}}">登录并完善资料</button>
+  </view>
+  <view class="divider">或</view>
+  <button class="browse-button" bindtap="goHome">返回浏览</button>
+  <text class="login-note">注册不等于获得会员价格。</text>
+</view>

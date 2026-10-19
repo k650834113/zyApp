@@ -12,6 +12,20 @@ const searchXml = `
 `
 
 describe('BGG XML API adapter', () => {
+  it('distinguishes Cloudflare blocking from invalid authorization without exposing the block page', async () => {
+    const adapter = new BggBoardGameMetadataAdapter({
+      token: 'server-only-token',
+      imagesEnabled: false,
+      fetch: async () => new Response('<title>Attention Required! | Cloudflare</title>Sorry, you have been blocked. private diagnostic details', {
+        status: 403,
+        headers: { server: 'cloudflare', 'content-type': 'text/html' }
+      })
+    })
+    const error = await adapter.search('Catan').catch((reason: unknown) => reason)
+    expect(error).toMatchObject({ code: 'blocked' })
+    expect(String(error)).not.toContain('private diagnostic details')
+  })
+
   it('uses only the fixed search endpoint with bearer authentication', async () => {
     const request = vi.fn(async (
       _input: string | URL | Request,

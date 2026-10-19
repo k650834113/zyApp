@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { wheelSlots, wheelStopAngle } from './wheel'
 import {
   createRandomTeams,
   diceExpression,
@@ -12,6 +13,28 @@ import {
 } from './tabletop-tools'
 
 describe('tabletop tools', () => {
+  it('gives each quantity one equal wheel sector and rejects invalid configurations', () => {
+    expect(wheelSlots([{ id: 1, name: 'A', count: 2 }, { id: 2, name: 'B', count: 1 }])).toEqual([1, 1, 2])
+    for (const count of [0, -1, 1.5, 61, NaN]) {
+      expect(() => wheelSlots([{ id: 1, name: 'A', count }])).toThrow()
+    }
+    expect(() => wheelSlots([])).toThrow()
+    expect(() => wheelSlots([{ id: 1, name: ' ', count: 1 }])).toThrow()
+    expect(() => wheelSlots([{ id: 1, name: 'A', count: 40 }, { id: 2, name: 'B', count: 30 }])).toThrow()
+  })
+
+  it('stops every wheel sector under the fixed pointer after at least three turns', () => {
+    for (const total of [1, 3, 7, 60]) {
+      for (let slot = 0; slot < total; slot++) {
+        for (const current of [0, 345, 12570]) {
+          const angle = wheelStopAngle(current, slot, total)
+          expect(angle - current).toBeGreaterThanOrEqual(1080)
+          const pointer = (360 - angle % 360) % 360
+          expect(Math.floor(pointer / (360 / total))).toBe(slot)
+        }
+      }
+    }
+  })
   it('selects a first player with an injected random source', () => {
     expect(pickFirstPlayer(['甲', '乙', '丙'], () => 0.5)).toBe('乙')
   })

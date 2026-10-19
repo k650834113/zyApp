@@ -1,0 +1,28 @@
+.pricing-page { padding:42rpx 28rpx; color:#222c26; }
+.pricing-heading { display:flex; align-items:center; gap:24rpx; margin:0 10rpx 36rpx; }
+.pricing-heading > image { width:74rpx; height:74rpx; }
+.pricing-heading text { display:block; font-size:38rpx; color:#174f3b; font-weight:600; }
+.pricing-heading .subtitle { margin-top:8rpx; font-size:25rpx; color:#85908e; font-weight:400; }
+.price-table { border:14rpx solid #fff; border-radius:22rpx; overflow:hidden; background:#fff; }
+.table-row { display:flex; }
+.table-row text { flex:1; min-width:0; padding:25rpx 6rpx; text-align:center; border:1rpx solid #f0f1ef; font-size:25rpx; }
+.table-row text:first-child { flex:1.12; }
+.table-head { background:#f1f4f3; font-weight:600; }
+.table-head text:last-child { color:#174f3b; }
+.price-card { background:#fff; border-radius:22rpx; margin-top:26rpx; padding:0 24rpx; }
+.price-row { display:flex; gap:24rpx; align-items:flex-start; padding:26rpx 0; border-bottom:1rpx solid #f0f1ed; }
+.price-row:last-child { border-bottom:0; }
+.price-row > image { width:44rpx; height:44rpx; flex-shrink:0; }
+.row-copy { flex:1; min-width:0; }
+.row-copy > view { display:flex; align-items:center; justify-content:space-between; gap:12rpx; font-size:27rpx; line-height:1.6; }
+.row-copy > view > text:first-child { flex-shrink:0; }
+.row-copy > view > text:last-child { text-align:right; }
+.note { display:block; margin-top:6rpx; color:#859087; font-size:24rpx; }
+.membership-note { display:flex; gap:24rpx; padding:28rpx; margin-top:28rpx; border-radius:18rpx; background:#e9efe7; color:#174f3b; }
+.membership-note image { width:60rpx; height:60rpx; flex-shrink:0; }
+.membership-note text { display:block; font-size:27rpx; font-weight:600; }
+.membership-note text:last-child { font-size:23rpx; font-weight:400; margin-top:12rpx; line-height:1.6; }
+.recharge-link { text-align:center; color:#174f3b; font-size:26rpx; padding:44rpx 0; }
+.pricing-unavailable { background:#fff; padding:30rpx; border-radius:20rpx; font-size:27rpx; line-height:1.7; }
+
+.membership-threshold{display:block;margin:18rpx 4rpx 28rpx;color:#68736a;font-size:23rpx;line-height:1.6}

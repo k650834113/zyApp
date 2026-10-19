@@ -83,7 +83,10 @@ function hasPendingAggregate(
   return Boolean(database.prepare(
     `SELECT 1 FROM outbox_operation
      WHERE tenant_id = ? AND store_id = ? AND aggregate_id = ?
-       AND sync_status = 'pending' LIMIT 1`
+       AND sync_status <> 'confirmed'
+       AND NOT EXISTS (SELECT 1 FROM cloud_financial_command command
+         WHERE command.group_id = json_extract(outbox_operation.payload_json, '$.atomicGroup.id')
+           AND command.device_id = outbox_operation.device_id) LIMIT 1`
   ).get(context.tenantId, context.storeId, aggregateId))
 }
 
@@ -498,6 +501,7 @@ function applyWalletAccount(database: DatabaseSync, context: StoreContext, row: 
 
 function walletEntryType(eventType: string): string {
   const map: Record<string, string> = {
+    'wallet.reconciled': 'manual_adjustment',
     'wallet.cash_recharged': 'cash_recharge',
     'wallet.wechat_recharged': 'wechat_recharge',
     'wallet.debited': 'consumption_debit',
@@ -661,7 +665,8 @@ function applyMonthlyCardEvent(database: DatabaseSync, context: StoreContext, ro
       'used',
       'refunded',
       'expired',
-      'manual_extended'
+      'manual_extended',
+      'reconciled'
     ] as const,
     'monthly_card_event.event_type'
   )
@@ -1011,9 +1016,8 @@ function applyOrder(database: DatabaseSync, context: StoreContext, row: Json): v
   const id = text(row.id, 'order.id')
   const sourceStoreId = nullableText(row.store_id) ?? context.storeId
   if (hasPendingAggregate(database, context, id)) return
-  const snapshot = row.payload_json && typeof row.payload_json === 'object'
-    ? row.payload_json as Json
-    : row
+  const raw = row.payload_json && typeof row.payload_json === 'object' ? row.payload_json as Json : row
+  const snapshot = raw.after && typeof raw.after === 'object' ? raw.after as Json : raw
   const timestamp = text(row.completed_at ?? snapshot.completedAt, 'order.completed_at')
   const items = Array.isArray(snapshot.items) ? snapshot.items.filter((value): value is Json => Boolean(value) && typeof value === 'object') : []
   for (const item of items) {
@@ -1067,12 +1071,13 @@ function applyOrder(database: DatabaseSync, context: StoreContext, row: Json): v
     `INSERT OR IGNORE INTO order_payment
      (id, tenant_id, store_id, order_id, payment_method, amount_fen,
       wallet_member_id, wallet_operation_id, status, occurred_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'completed', ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?)`
   ).run(
     `cloud-payment:${id}`, context.tenantId, sourceStoreId, id,
     text(row.payment_method ?? snapshot.paymentMethod, 'order.payment_method'),
     integer(row.total_fen ?? snapshot.totalFen, 'order.total_fen'),
-    nullableText(row.wallet_member_id ?? snapshot.walletMemberId), timestamp
+    nullableText(row.wallet_member_id ?? snapshot.walletMemberId),
+    nullableText((snapshot.payment as Json | undefined)?.wallet_operation_id), timestamp
   )
 }
 
@@ -1080,7 +1085,8 @@ function applyRefund(database: DatabaseSync, context: StoreContext, row: Json): 
   const id = text(row.id, 'refund.id')
   const sourceStoreId = nullableText(row.store_id) ?? context.storeId
   if (hasPendingAggregate(database, context, id)) return
-  const snapshot = row.payload_json && typeof row.payload_json === 'object' ? row.payload_json as Json : row
+  const raw = row.payload_json && typeof row.payload_json === 'object' ? row.payload_json as Json : row
+  const snapshot = raw.after && typeof raw.after === 'object' ? raw.after as Json : raw
   const orderId = text(row.order_id ?? snapshot.orderId, 'refund.order_id')
   if (!database.prepare('SELECT 1 FROM sales_order WHERE id = ?').get(orderId)) return
   database.prepare(
@@ -1155,7 +1161,8 @@ function applyFinancialRefund(database: DatabaseSync, context: StoreContext, row
   const id = text(row.id, 'financial_refund.id')
   const sourceStoreId = nullableText(row.store_id) ?? context.storeId
   if (hasPendingAggregate(database, context, id)) return
-  const snapshot = row.payload_json && typeof row.payload_json === 'object' ? row.payload_json as Json : row
+  const raw = row.payload_json && typeof row.payload_json === 'object' ? row.payload_json as Json : row
+  const snapshot = raw.after && typeof raw.after === 'object' ? raw.after as Json : raw
   database.prepare(
     `INSERT INTO financial_refund_request
      (id, tenant_id, store_id, request_number, target_type, target_id, member_id,
@@ -1198,9 +1205,10 @@ function applyFinancialRefund(database: DatabaseSync, context: StoreContext, row
 export function applyCloudMirrorPage(
   database: DatabaseSync,
   context: StoreContext,
-  page: CloudMirrorPage
+  page: CloudMirrorPage,
+  inTransaction = false
 ): number {
-  database.exec('BEGIN IMMEDIATE')
+  if (!inTransaction) database.exec('BEGIN IMMEDIATE')
   try {
     let applied = 0
     for (const item of page.rows) {
@@ -1224,10 +1232,10 @@ export function applyCloudMirrorPage(
       else if (page.resource === 'financial_refunds') applyFinancialRefund(database, context, row)
       applied += 1
     }
-    database.exec('COMMIT')
+    if (!inTransaction) database.exec('COMMIT')
     return applied
   } catch (error) {
-    database.exec('ROLLBACK')
+    if (!inTransaction) database.exec('ROLLBACK')
     throw error
   }
 }
@@ -1246,7 +1254,10 @@ export function markCloudMirrorEventsApplied(
      SET apply_status = 'applied', applied_at = ?,
          error_message = 'materialized_from_cloud_snapshot'
      WHERE event.tenant_id = ? AND event.store_id = ?
-       AND event.apply_status = 'pending'
+       AND (event.apply_status = 'pending' OR (
+         event.apply_status = 'conflict'
+         AND event.error_message = 'Local pending changes exist for the same aggregate'
+       ))
        AND (length(event.sequence) < length(?)
          OR (length(event.sequence) = length(?) AND event.sequence <= ?))
        AND NOT EXISTS (
@@ -1254,7 +1265,7 @@ export function markCloudMirrorEventsApplied(
          WHERE local.tenant_id = event.tenant_id
            AND local.store_id = event.store_id
            AND local.aggregate_id = event.aggregate_id
-           AND local.sync_status = 'pending'
+           AND local.sync_status <> 'confirmed'
        )`
   ).run(
     timestamp,

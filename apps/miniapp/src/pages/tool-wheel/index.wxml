@@ -1,0 +1,25 @@
+<view class="page-shell wheel-page">
+  <text class="heading">把选择交给转盘</text>
+  <text class="hint">每份数量占一格，所有格子等分圆盘</text>
+  <view class="wheel-stage">
+    <view class="pointer"/>
+    <view class="wheel-disc" style="transform: rotate({{angle}}deg); transition: {{transition}};">
+      <canvas canvas-id="wheel" class="wheel-canvas" style="width:300px;height:300px"/>
+    </view>
+    <view class="wheel-hub">{{total}} 格</view>
+  </view>
+  <view class="result" aria-live="polite">{{result ? '选中了：' + result : phase === 'running' ? '旋转中，点击停止揭晓' : phase === 'stopping' ? '正在减速…' : '准备好后，点击开始'}}</view>
+  <button class="spin-button" bindtap="toggleSpin" disabled="{{phase === 'stopping' || !!error}}">{{phase === 'running' ? '停止' : phase === 'stopping' ? '减速中…' : '开始'}}</button>
+  <view class="editor">
+    <view class="editor-head"><text>转盘项目</text><text class="hint">最多 12 项 · 合计 60 格</text></view>
+    <view wx:for="{{items}}" wx:key="id" class="item-row {{selectedId === item.id ? 'selected' : ''}}">
+      <view class="color-dot" style="background:{{colors[index % 6]}}"/>
+      <input class="name-input" value="{{item.name}}" maxlength="20" placeholder="项目名称" data-id="{{item.id}}" data-field="name" bindinput="editItem" disabled="{{phase !== 'idle'}}"/>
+      <text>×</text>
+      <input class="count-input" type="number" value="{{item.count || ''}}" placeholder="数量" maxlength="2" data-id="{{item.id}}" data-field="count" bindinput="editItem" disabled="{{phase !== 'idle'}}"/>
+      <button class="remove" data-id="{{item.id}}" bindtap="removeItem" disabled="{{phase !== 'idle'}}" aria-label="删除项目">×</button>
+    </view>
+    <text wx:if="{{error}}" class="error">{{error}}</text>
+    <button class="add-button" bindtap="addItem" disabled="{{phase !== 'idle' || items.length >= 12}}">＋ 添加项目</button>
+  </view>
+</view>

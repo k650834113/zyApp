@@ -1,0 +1,21 @@
+.about-page { padding-bottom:36rpx; }
+.store-photo { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22rpx; height:450rpx; background:#e9eee3; color:#7d8b75; font-size:27rpx; }
+.store-photo image { width:96rpx; height:96rpx; }
+.store-caption { display:block; padding:22rpx 32rpx; color:#717b7e; font-size:26rpx; }
+.store-group,.contact-group { margin:0 28rpx 24rpx; padding:0 24rpx; background:#fff; border-radius:20rpx; }
+.store-row { display:flex; align-items:center; gap:24rpx; min-height:98rpx; border-bottom:1rpx solid #eee; font-size:28rpx; color:#25302a; }
+.store-row:last-child { border-bottom:0; }
+.store-row > image { width:42rpx; height:42rpx; flex-shrink:0; }
+.store-row .arrow { margin-left:auto; width:30rpx; height:30rpx; }
+.hours { align-items:flex-start; padding:26rpx 0; }
+.hours > text:first-of-type { flex-shrink:0; }
+.hours-value { margin-left:auto; font-size:26rpx; line-height:1.7; white-space:pre-line; }
+.subtext { display:block; margin:8rpx 0 18rpx; color:#7c8580; font-size:23rpx; line-height:1.6; }
+.contact-group { padding:24rpx; }
+.contact-title { display:block; font-size:25rpx; margin-bottom:20rpx; }
+.contact-row { display:flex; align-items:center; gap:24rpx; margin-top:18rpx; font-size:26rpx; color:#435148; }
+.contact-row button { margin:0 0 0 auto; border:1rpx solid #91b3a5; border-radius:10rpx; color:#174f3b; background:#fff; font-size:23rpx; }
+.store-footer { padding-top:16rpx; text-align:center; color:#8c9690; font-size:25rpx; line-height:1.8; }
+.store-footer text { display:block; }
+
+.store-brand{display:flex;align-items:center;gap:24rpx;margin:20rpx 28rpx;padding:24rpx 28rpx;border-radius:26rpx;background:#174f3b;color:#fff;font-size:30rpx;font-weight:600}.store-logo{display:block;width:170rpx;height:96rpx;flex-shrink:0}

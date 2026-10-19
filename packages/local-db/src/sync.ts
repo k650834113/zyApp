@@ -345,9 +345,8 @@ export function applySyncPushResult(
         ).get(receipt.operationId) as
           | { resolution_json: string | null }
           | undefined
-        if (resolution?.resolution_json?.includes(
-          'automatic_noncritical_policy'
-        )) {
+        if (resolution?.resolution_json?.includes('automatic_noncritical_policy') ||
+            resolution?.resolution_json?.includes('manager_review')) {
           continue
         }
       }

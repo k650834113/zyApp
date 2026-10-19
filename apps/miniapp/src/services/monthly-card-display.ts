@@ -54,9 +54,9 @@ export function monthlyCardDisplay(
   if (member.monthlyCardStatus === 'none') {
     return {
       state: 'unopened',
-      actionText: '微信开通月卡',
+      actionText: '微信开通到店月卡',
       priceText,
-      statusText: `${configuration.planName}，支付成功后立即生效`,
+      statusText: `${configuration.planName}，支付成功后到店权益立即生效`,
       expiresOn: null,
       remainingDaysText: null
     }
@@ -76,9 +76,9 @@ export function monthlyCardDisplay(
 
   return {
     state: 'active',
-    actionText: '微信续费',
+    actionText: '微信续费到店月卡',
     priceText,
-    statusText: '续费后从当前到期日顺延',
+    statusText: '续费后到店权益从当前到期日顺延',
     ...expiry
   }
 }

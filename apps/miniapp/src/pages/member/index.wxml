@@ -1,85 +1,30 @@
-<view class="page-shell profile-page {{mode === 'complete' ? 'complete-mode' : ''}}">
-  <view wx:if="{{loading}}" class="empty-state">正在加载会员资料…</view>
+<view class="home-page page-shell">
+  <view wx:if="{{loading}}" class="empty-state">正在加载会员信息…</view>
 
   <block wx:elif="{{member}}">
-    <view wx:if="{{mode === 'complete'}}" class="profile-heading">
-      <text class="heading-title">完善会员资料</text>
-      <text class="heading-subtitle">完善资料，享受更好的会员体验</text>
+    <view class="profile-row account-profile" bindtap="goProfile">
+      <image wx:if="{{member.avatarUrl}}" class="avatar" src="{{member.avatarUrl}}" mode="aspectFill"/>
+      <view wx:else class="avatar avatar-fallback">{{member.avatarText}}</view>
+      <view class="profile-copy"><view class="profile-identity"><text class="profile-name">{{member.nickname}}</text><text class="member-tier">{{member.tierText}}</text></view><text class="profile-edit">编辑资料 ›</text></view><text>›</text>
     </view>
-
-    <view class="avatar-section">
-      <button class="avatar-button" open-type="chooseAvatar" bindchooseavatar="chooseAvatar">
-        <image
-          wx:if="{{localAvatarPath || member.avatarUrl}}"
-          class="profile-avatar"
-          src="{{localAvatarPath || member.avatarUrl}}"
-          mode="aspectFill"
-        />
-        <view wx:else class="profile-avatar avatar-fallback">{{avatarText}}</view>
-        <view class="camera-badge">◉</view>
-      </button>
-      <text class="choose-avatar-label">选择头像</text>
-      <text class="muted avatar-tip">头像选填，之后可在「我的资料」中修改</text>
-    </view>
-
-    <view class="profile-form">
-      <text class="form-label">会员名称</text>
-      <input
-        class="form-input nickname-input"
-        type="nickname"
-        maxlength="12"
-        value="{{nickname}}"
-        placeholder="请输入会员名称（2–12 个字）"
-        bindinput="inputNickname"
-      />
-      <text class="count-text">{{nickname.length}}/12</text>
-
-      <view class="account-card card">
-        <view class="account-row">
-          <text class="account-label">绑定手机号</text>
-          <text class="account-value">{{member.phoneMasked}}</text>
-        </view>
-        <view class="account-row">
-          <text class="account-label">会员等级</text>
-          <text class="account-value">{{member.tier === 'advanced' ? '高级会员' : '普通会员'}}</text>
-        </view>
-      </view>
-
-      <view wx:if="{{mode !== 'complete'}}" class="favorites-entry card" bindtap="goFavorites">
-        <view>
-          <text class="favorites-title">♡　我喜欢的</text>
-          <text class="favorites-subtitle">已收藏 {{favoriteCount}} 款桌游</text>
-        </view>
-        <text class="entry-arrow">〉</text>
-      </view>
-
-      <button class="primary-button save-button" loading="{{saving}}" bindtap="saveProfile">
-        {{mode === 'complete' ? '保存并进入' : '保存资料'}}
-      </button>
-      <text class="privacy-tip">♡　我们将保护您的个人信息安全，仅用于会员服务</text>
-    </view>
+    <view class="account-balance"><view class="balance-caption"><text>门店预存款余额</text><text>仅限到店消费</text></view><text class="balance-number">{{member.totalBalanceText}}</text><view class="balance-actions"><button bindtap="goRecharge">充值</button><button bindtap="goHistory">收支明细</button></view></view>
+    <view class="account-month" bindtap="goMonthlyCard"><image src="/assets/icons/receipt-green.svg"/><view><text class="month-title">月卡</text><text class="month-subtitle">{{member.monthlyCardText}}</text></view><button>{{monthlyCardState === 'active' ? '续费' : '查看'}}</button></view>
+    <view class="account-tiles"><view bindtap="goMyMeetups"><image src="/assets/icons/people-green.svg"/><text>我的约局 ›</text></view><view bindtap="goPlays"><image src="/assets/icons/receipt-green.svg"/><text>对局记录 ›</text></view><view bindtap="goFavorites"><image src="/assets/icons/heart-green.svg"/><text>我喜欢的 ›</text></view></view>
   </block>
 
-  <view wx:elif="{{mode !== 'complete'}}" class="guest-profile">
-    <view class="guest-card card">
-      <text class="guest-title">登录后完善会员资料</text>
-      <text class="guest-subtitle">可同步会员权益、消费明细与头像昵称</text>
-      <button class="secondary-button" bindtap="goHome">返回首页登录</button>
-    </view>
-    <view class="favorites-entry card" bindtap="goFavorites">
-      <view>
-        <text class="favorites-title">♡　我喜欢的</text>
-        <text class="favorites-subtitle">已收藏 {{favoriteCount}} 款桌游</text>
-      </view>
-      <text class="entry-arrow">〉</text>
-    </view>
+  <view wx:else class="guest-panel">
+    <image class="guest-landscape" src="/assets/images/guest-landscape-v1.png" mode="aspectFill"/>
+    <view class="guest-identity"><image class="guest-avatar" src="/assets/icons/user-muted.svg"/><view class="guest-welcome"><text class="guest-title">欢迎来到{{storeName || '桌游门店'}}</text><button class="guest-login" bindtap="goLogin">登录 / 注册</button><text class="guest-copy">注册后可参与约局、保存对局</text></view></view>
+    <view class="account-tiles"><view bindtap="goMyMeetups"><image src="/assets/icons/people-green.svg"/><text>我的约局</text><text class="tile-hint">登录后查看</text></view><view bindtap="goPlays"><image src="/assets/icons/receipt-green.svg"/><text>对局记录</text><text class="tile-hint">登录后查看</text></view><view bindtap="goFavorites"><image src="/assets/icons/heart-green.svg"/><text>我喜欢的</text><text class="tile-hint">查看收藏</text></view></view>
   </view>
 
-  <view wx:if="{{mode !== 'complete'}}" class="bottom-nav">
-    <view class="nav-item" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
-    <view class="nav-item" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>
-    <view class="nav-item" bindtap="goTools"><text class="nav-icon">◈</text><text>工具</text></view>
-    <view class="nav-item" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
-    <view class="nav-item active" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
+  <view class="account-menu">
+    <view wx:if="{{member}}" bindtap="goFriends"><image src="/assets/icons/people-green.svg"/><text>我的好友</text><text class="menu-arrow">›</text></view>
+    <view bindtap="goAbout"><image src="/assets/icons/store-green.svg"/><text>关于门店</text><text class="menu-arrow">›</text></view>
+    <view wx:if="{{!member}}" bindtap="goAbout"><image src="/assets/icons/pin-green.svg"/><text>到店导航</text><text class="menu-arrow">›</text></view>
+    <view wx:if="{{!member}}" bindtap="goPricing"><image src="/assets/icons/receipt-green.svg"/><text>收费说明</text><text class="menu-arrow">›</text></view>
+    <view bindtap="goAbout"><image src="/assets/icons/user-green.svg"/><text>联系门店</text><text class="menu-arrow">›</text></view>
+    <view bindtap="goSettings"><image src="/assets/icons/tools-green.svg"/><text>设置与隐私</text><text class="menu-arrow">›</text></view>
   </view>
+  <ui-nav active="member"/>
 </view>

@@ -2,7 +2,7 @@
   <view class="filter-row">
     <view class="filter-pill {{filter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="chooseFilter">全部</view>
     <view class="filter-pill {{filter === 'consumption' ? 'active' : ''}}" data-filter="consumption" bindtap="chooseFilter">消费</view>
-    <view class="filter-pill {{filter === 'recharge' ? 'active' : ''}}" data-filter="recharge" bindtap="chooseFilter">充值</view>
+    <view class="filter-pill {{filter === 'recharge' ? 'active' : ''}}" data-filter="recharge" bindtap="chooseFilter">预存款</view>
     <view class="filter-pill {{filter === 'monthly_card' ? 'active' : ''}}" data-filter="monthly_card" bindtap="chooseFilter">月卡</view>
   </view>
 
@@ -17,9 +17,9 @@
       <text class="date-title">{{item.date}}</text>
       <view class="card group-card">
         <view wx:for="{{item.items}}" wx:for-item="activity" wx:key="activityId" class="activity-row">
-          <view class="activity-icon {{activity.kind}}">{{activity.iconText}}</view>
+          <view class="activity-icon {{activity.kind}}"><image src="/assets/icons/receipt-green.svg"/></view>
           <view class="activity-main">
-            <text class="activity-title">{{activity.title}}</text>
+            <text class="activity-title">{{activity.kind === 'recharge' ? '门店预存款充值' : activity.title}}</text>
             <text class="activity-meta">
               {{activity.timeText}}{{activity.businessNumber ? '　单号：' + activity.businessNumber : ''}}
             </text>
@@ -33,13 +33,6 @@
     </view>
   </block>
 
-  <view class="safe-tip">♡　交易安全由微信支付保障，请放心使用</view>
+  <view class="safe-tip">消费记录仅展示门票金额，饮品等商品不在此列。预存款与月卡仅用于门店线下服务。</view>
 
-  <view class="bottom-nav">
-    <view class="nav-item" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
-    <view class="nav-item" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>
-    <view class="nav-item" bindtap="goTools"><text class="nav-icon">◈</text><text>工具</text></view>
-    <view class="nav-item active" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
-    <view class="nav-item" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
-  </view>
 </view>

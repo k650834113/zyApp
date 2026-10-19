@@ -1,3 +1,4 @@
+import { beginFinancialTransaction, commitFinancialTransaction } from './financial-transaction'
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
@@ -616,7 +617,7 @@ export function createRefundRequest(
   assertCloudMirrorSafeForFinancialWrite(database, context, 'refund')
   assertCloudMirrorSafeForFinancialWrite(database, context, 'wallet')
   const now = input.now ?? new Date()
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const refund = prepareRefundInOpenTransaction(database, context, {
       ...input,
@@ -631,7 +632,7 @@ export function createRefundRequest(
       after: refund,
       timestamp: now.toISOString()
     })
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return refund
   } catch (error) {
     database.exec('ROLLBACK')
@@ -661,7 +662,7 @@ export function approveRefund(
   assertCloudMirrorSafeForFinancialWrite(database, context, 'refund')
   assertCloudMirrorSafeForFinancialWrite(database, context, 'wallet')
   const now = input.now ?? new Date()
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const before = findRefund(database, context.tenantId, input.refundId)
     const after = completeRefundInOpenTransaction(database, context, before, {
@@ -679,7 +680,7 @@ export function approveRefund(
       after,
       timestamp: now.toISOString()
     })
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return after
   } catch (error) {
     database.exec('ROLLBACK')
@@ -709,7 +710,7 @@ export function rejectRefund(
   assertCloudMirrorSafeForFinancialWrite(database, context, 'wallet')
   const now = input.now ?? new Date()
   const timestamp = now.toISOString()
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const before = findRefund(database, context.tenantId, input.refundId)
     if (before.status !== 'pending') {
@@ -740,7 +741,7 @@ export function rejectRefund(
       after,
       timestamp
     })
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return after
   } catch (error) {
     database.exec('ROLLBACK')
@@ -771,7 +772,7 @@ export function directRefund(
   assertCloudMirrorSafeForFinancialWrite(database, context, 'refund')
   assertCloudMirrorSafeForFinancialWrite(database, context, 'wallet')
   const now = input.now ?? new Date()
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const pending = prepareRefundInOpenTransaction(database, context, {
       requestId: input.requestId,
@@ -795,7 +796,7 @@ export function directRefund(
       after: completed,
       timestamp: now.toISOString()
     })
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return completed
   } catch (error) {
     database.exec('ROLLBACK')
@@ -871,7 +872,7 @@ export function recordRefundEvidence(
     generatedBy: context.actor.id,
     generatedAt: timestamp
   }
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     database
       .prepare(
@@ -901,7 +902,7 @@ export function recordRefundEvidence(
       after: [...refund.evidence, evidence],
       timestamp
     })
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return evidence
   } catch (error) {
     database.exec('ROLLBACK')

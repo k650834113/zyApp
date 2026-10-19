@@ -8,7 +8,8 @@
   ></view>
 
   <view class="team-guide">
-    <view class="guide-cluster">
+    <text class="team-heading">一起按住，随机分队</text>
+    <view wx:if="{{markers.length === 0}}" class="guide-cluster">
       <text class="guide-count">{{markers.length}}</text>
       <text class="guide-unit">个触点</text>
     </view>

@@ -9,14 +9,14 @@
     <view class="coin-shadow {{flipping ? 'active' : ''}}"></view>
     <view class="coin {{flipping ? 'flipping' : ''}} {{result === '正面' ? 'front' : 'back'}}">
       <view class="coin-ring">
-        <text class="coin-symbol">{{result === '正面' ? '桌' : '游'}}</text>
+        <text class="coin-symbol">{{result === '正面' ? '正' : '反'}}</text>
         <text class="coin-face-label">{{result}}</text>
       </view>
     </view>
   </view>
 
   <view class="coin-result">
-    <text>{{flipping ? '翻面中…' : headsCount + tailsCount === 0 ? '准备好了' : '结果：' + result}}</text>
+    <text>{{flipping ? '翻面中…' : headsCount + tailsCount === 0 ? '准备好了' : result}}</text>
   </view>
 
   <view class="coin-stats">
@@ -24,6 +24,6 @@
     <view class="stat-card tails"><text>反面</text><text>{{tailsCount}}</text></view>
   </view>
 
-  <button class="flip-button" bindtap="flip" disabled="{{flipping}}">{{flipping ? '正在翻面' : '抛硬币'}}</button>
-  <button wx:if="{{headsCount + tailsCount > 0}}" class="reset-counts" bindtap="resetCounts">清空统计</button>
+  <button class="flip-button" bindtap="flip" disabled="{{flipping}}">{{flipping ? '正在翻面' : headsCount + tailsCount > 0 ? '再抛一次' : '抛硬币'}}</button>
+  <button class="reset-counts" bindtap="resetCounts" disabled="{{flipping || headsCount + tailsCount === 0}}">重置统计</button>
 </view>

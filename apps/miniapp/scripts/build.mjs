@@ -72,10 +72,11 @@ function copyAssets(directory) {
       copyAssets(sourcePath)
       continue
     }
-    if (!['.json', '.wxml', '.wxss', '.wxs'].includes(extname(entry))) continue
+    if (!['.json', '.wxml', '.wxss', '.wxs', '.png', '.jpg', '.jpeg', '.webp', '.svg'].includes(extname(entry))) continue
     const targetPath = join(output, relative(source, sourcePath))
     mkdirSync(dirname(targetPath), { recursive: true })
-    cpSync(sourcePath, targetPath)
+    const optimizedAsset = join(root, 'build-assets', relative(source, sourcePath))
+    cpSync(existsSync(optimizedAsset) ? optimizedAsset : sourcePath, targetPath)
   }
 }
 
@@ -114,14 +115,51 @@ async function buildProject() {
     platform: 'neutral',
     format: 'cjs',
     target: 'es2020',
-    sourcemap: true,
+    sourcemap: !configuration.customerOnly,
+    minifySyntax: configuration.customerOnly,
     bundle: false,
     define: {
+      __ZYAPP_UI_DEMO_ENABLED__: JSON.stringify(!configuration.customerOnly && mode === 'mock'),
       __ZYAPP_MINIAPP_BUILD_CONFIG__: JSON.stringify(configuration)
     }
   })
   if (!existsSync(output)) mkdirSync(output, { recursive: true })
+  // Runtime workspace modules cannot be resolved by the miniapp loader.
+  // Emit only the pure shared scoring rules at the local facade's path.
+  await build({
+    entryPoints: [join(workspaceRoot, 'packages/contracts/src/miniapp-play-rules.ts')],
+    outfile: join(output, 'services/play-rules.js'),
+    platform: 'neutral', format: 'cjs', target: 'es2020', bundle: true,
+    sourcemap: !configuration.customerOnly, minifySyntax: configuration.customerOnly
+  })
   copyAssets(source)
+  // UI fixtures and the legacy mock seed must never ship in a customer release.
+  if (configuration.customerOnly) {
+    const rechargeTemplate = join(output, 'pages/recharge/index.wxml')
+    writeFileSync(rechargeTemplate, readFileSync(rechargeTemplate, 'utf8').replace(
+      /<button\s+wx:if="\{\{rechargeOrder\.providerMode === 'mock'[\s\S]*?<\/button>/g,
+      ''
+    ), 'utf8')
+    for (const [name, stub] of Object.entries({
+      'community-demo-client': 'exports.createCommunityDemoClient = () => { throw new Error("Mock unavailable in customer release") };',
+      'ui-demo': 'exports.getUiDemo = () => null; exports.getCommunityDemo = () => null;',
+      'mock-client': 'exports.MockMiniappClient = class { constructor() { throw new Error("Mock unavailable in customer release") } };',
+      'community-page': `
+        const {getMiniappClient}=require('./client');
+        exports.openCommunityPage=async function(page){
+          try {
+            if(!await getMiniappClient().getMemberSummary()){wx.navigateTo({url:'/pages/login/index'});return}
+            wx.navigateTo({url:'/pages/'+page+'/index'});
+          } catch {wx.showToast({title:'暂时无法读取账户，请重试',icon:'none'})}
+        };
+        exports.registerCommunityPage=require('./community-cloud-page').registerCloudCommunityPage;
+      `
+    })) {
+      writeFileSync(join(output, 'services', name + '.js'), stub, 'utf8')
+      const sourceMap = join(output, 'services', name + '.js.map')
+      if (existsSync(sourceMap)) rmSync(sourceMap)
+    }
+  }
   if (configuration.customerOnly) applyCustomerOnlyOutput()
   console.log(`[miniapp] built ${mode} mode`)
 }

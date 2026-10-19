@@ -18,6 +18,7 @@ Page({
       { title: '玩家分队', glyph: 'teams', tone: 'amber', path: '/pages/tool-teams/index' },
       { title: '快速骰子', glyph: 'dice', tone: 'blue', path: '/pages/tool-dice/index' },
       { title: '抛硬币', glyph: 'coin', tone: 'gold', path: '/pages/tool-coin/index' },
+      { title: '自定义转盘', glyph: 'wheel', tone: 'mint', path: '/pages/tool-wheel/index' },
       { title: '计分器', glyph: 'score', tone: 'rose', path: '/pages/tool-score/index' }
     ] as ToolItem[]
   },

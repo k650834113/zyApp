@@ -1,0 +1,13 @@
+<view class="page-shell settings-page">
+<block wx:if="{{!selected}}">
+  <view class="settings-card">
+    <view data-key="agreement" bindtap="openDocument"><image src="/assets/icons/receipt-green.svg"/><text>用户协议</text><text class="arrow">›</text></view>
+    <view data-key="privacy" bindtap="openDocument"><image src="/assets/icons/user-green.svg"/><text>隐私政策</text><text class="arrow">›</text></view>
+    <view bindtap="openPermissions"><image src="/assets/icons/tools-green.svg"/><text>隐私授权管理</text><text class="arrow">›</text></view>
+    <view data-key="help" bindtap="openDocument"><image src="/assets/icons/people-green.svg"/><text>使用帮助</text><text class="arrow">›</text></view>
+  </view>
+  <view class="version-row"><text>版本信息</text><text>{{version}}</text></view>
+  <button wx:if="{{member}}" class="logout" bindtap="logout">退出登录</button>
+</block>
+<view wx:else class="document"><text class="document-title">{{selected.title}}</text><text class="document-version">版本 {{selected.version}} · {{selected.updatedAt}}</text><text class="document-body" selectable>{{selected.body}}</text><button bindtap="closeDocument">返回设置</button></view>
+</view>

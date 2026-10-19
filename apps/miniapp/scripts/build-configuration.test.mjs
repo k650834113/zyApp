@@ -148,6 +148,8 @@ test('keeps only the approved member pages in the customer app manifest', () => 
         'pages/tool-dice/index',
         'pages/tool-coin/index',
         'pages/tool-score/index',
+    'pages/friends/index',
+    'pages/community-invite/index',
         'pages/history/index',
         'pages/member/index',
         'pages/favorites/index',
@@ -168,6 +170,8 @@ test('keeps only the approved member pages in the customer app manifest', () => 
         'pages/tool-dice/index',
         'pages/tool-coin/index',
         'pages/tool-score/index',
+    'pages/friends/index',
+    'pages/community-invite/index',
         'pages/history/index',
         'pages/member/index',
         'pages/favorites/index'
@@ -185,21 +189,43 @@ test('source app manifest exposes only approved customer pages', async () => {
 
   assert.deepEqual(app.pages, [
     'pages/home/index',
+    'pages/activities/index',
     'pages/games/index',
+    'pages/game-detail/index',
     'pages/game-expansions/index',
     'pages/tools/index',
     'pages/tool-first-player/index',
     'pages/tool-teams/index',
     'pages/tool-dice/index',
     'pages/tool-coin/index',
+    'pages/tool-wheel/index',
     'pages/tool-score/index',
+    'pages/friends/index',
+    'pages/community-invite/index',
     'pages/history/index',
     'pages/member/index',
-    'pages/favorites/index'
+    'pages/login/index',
+    'pages/recharge/index',
+    'pages/monthly-card/index',
+    'pages/settings/index',
+    'pages/meetups/index',
+    'pages/meetup-create/index',
+    'pages/meetup-detail/index',
+    'pages/meetup-success/index',
+    'pages/my-meetups/index',
+    'pages/plays/index',
+    'pages/play-create/index',
+    'pages/play-detail/index',
+    'pages/favorites/index',
+    'pages/profile/index',
+    'pages/about/index',
+    'pages/pricing/index',
+    'pages/recommendations/index',
+    'pages/activity-detail/index'
   ])
   assert.equal(JSON.stringify(app).includes('staff'), false)
   assert.equal(JSON.stringify(app).includes('manager'), false)
-  assert.equal(JSON.stringify(app).includes('activities'), false)
+  assert.equal(app.pages.includes('pages/activities/index'), true)
 })
 
 test('requires explicit production configuration for a released build', () => {

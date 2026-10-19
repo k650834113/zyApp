@@ -1,3 +1,4 @@
+import { canMergeFilledField, mergeFilledField } from './filled-field-merge'
 import { randomUUID } from 'node:crypto'
 import type { PoolClient } from 'pg'
 import { processFinancialSyncOperation } from './financial-sync-operation-handler'
@@ -260,7 +261,8 @@ export function classifySyncOperation(
     operationType.startsWith('monthly_card.') ||
     operationType === 'order.completed' ||
     operationType.startsWith('refund.') ||
-    operationType.startsWith('financial_refund.')
+    operationType.startsWith('financial_refund.') ||
+    operationType === 'financial_command.reviewed'
   ) {
     return 'financial'
   }
@@ -1934,7 +1936,11 @@ async function prepareConcurrentProjection(
   const localChanged = operation.changed_fields.filter(
     (field): field is string => typeof field === 'string'
   )
-  const overlap = localChanged.filter((field) => remoteChanged.has(field))
+  const currentFields = current.payload_json.after as Record<string, unknown> | undefined
+  const proposedFields = operation.payload_json.after as Record<string, unknown> | undefined
+  const overlap = localChanged.filter((field) => remoteChanged.has(field) &&
+    JSON.stringify(currentFields?.[field]) !== JSON.stringify(proposedFields?.[field]) &&
+    !canMergeFilledField(classification, field, currentFields?.[field], proposedFields?.[field]))
   if (overlap.length > 0) {
     const conflictType =
       classification === 'member'
@@ -1948,7 +1954,7 @@ async function prepareConcurrentProjection(
         operation,
         conflictType,
         `concurrent fields changed: ${overlap.join(', ')}`,
-        { serverVersion: Number(current.sequence), fields: overlap }
+        { serverVersion: Number(current.sequence), fields: overlap, after: current.payload_json.after }
       )
     }
   }
@@ -1975,7 +1981,9 @@ async function prepareConcurrentProjection(
     ...(currentAfter as Record<string, unknown>)
   }
   for (const field of localChanged) {
-    mergedAfter[field] = (localAfter as Record<string, unknown>)[field]
+    const proposed = (localAfter as Record<string, unknown>)[field]
+    mergedAfter[field] = canMergeFilledField(classification, field, mergedAfter[field], proposed)
+      ? mergeFilledField(mergedAfter[field], proposed) : proposed
   }
   if ('updatedAt' in (localAfter as Record<string, unknown>)) {
     mergedAfter.updatedAt = (localAfter as Record<string, unknown>).updatedAt

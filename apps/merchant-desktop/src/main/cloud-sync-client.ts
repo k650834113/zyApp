@@ -40,6 +40,28 @@ import {
 
 type Fetch = typeof fetch
 
+export async function readCloudMiniappContent<T>(connection: CloudConnection, actorId: string,
+  action: 'read' | 'history' | 'command' | 'location-search', command?: unknown, fetchImpl: Fetch = fetch): Promise<T> {
+  const posting = action === 'command' || action === 'location-search'
+  const suffix = action === 'location-search' ? '/location-search' : action === 'history' ? '/history' : action === 'command' ? '/commands' : ''
+  const response = await fetchImpl(`${normalizeCloudBaseUrl(connection.baseUrl)}/v1/miniapp-content${suffix}?actorId=${encodeURIComponent(actorId)}`, {
+    method: posting ? 'POST' : 'GET', headers: headers(connection),
+    ...(posting ? { body: JSON.stringify(command) } : {}),
+    signal: AbortSignal.timeout(15_000)
+  })
+  return responseJson<T>(response)
+}
+
+export async function uploadCloudMiniappImage(connection: CloudConnection, actorId: string,
+  file: { buffer: Buffer; contentType: string; fileName: string }, fetchImpl: Fetch = fetch): Promise<{ cachedUrl: string }> {
+  const form = new FormData()
+  form.append('image', new Blob([Uint8Array.from(file.buffer)], { type: file.contentType }), file.fileName)
+  return responseJson(await fetchImpl(`${normalizeCloudBaseUrl(connection.baseUrl)}/v1/miniapp-content/media?actorId=${encodeURIComponent(actorId)}`, {
+    method: 'POST', headers: { authorization: `Bearer ${connection.token}`, 'x-zyapp-device-id': connection.deviceId },
+    body: form, signal: AbortSignal.timeout(25_000)
+  }))
+}
+
 const DEFAULT_CLOUD_REQUEST_TIMEOUT_MILLISECONDS = 10_000
 const BOARD_GAME_METADATA_REQUEST_TIMEOUT_MILLISECONDS = 25_000
 
@@ -853,4 +875,21 @@ export async function failCloudEmployeeFinancialCommand(
     }
   )
   return responseJson<EmployeeFinancialCommandSummary>(response)
+}
+
+export async function requireAtomicFinancialCloud(connection: CloudConnection): Promise<void> {
+  const response = await fetch(`${normalizeCloudBaseUrl(connection.baseUrl)}/v1/sync/capabilities`, {
+    headers: headers(connection), signal: AbortSignal.timeout(10000)
+  })
+  if (!response.ok || (await response.json() as { atomicFinancialCommands?: number }).atomicFinancialCommands !== 1) {
+    throw new Error('云端尚未支持整笔业务处理，请先升级配套 API 和同步服务')
+  }
+}
+
+export async function requestCloudLottery<T>(connection:CloudConnection,actorId:string,action:'read'|'member'|'command',value:{activityId:string;phone?:string}|import('@zyapp/contracts').LotteryCommand):Promise<T>{
+  const suffix=action==='command'?'/commands':action==='member'?'/member':''
+  const params=new URLSearchParams({actorId,activityId:value.activityId,...('phone' in value&&value.phone?{phone:value.phone}:{})})
+  return responseJson<T>(await fetch(`${normalizeCloudBaseUrl(connection.baseUrl)}/v1/activity-lottery${suffix}?${params}`,{
+    method:action==='command'?'POST':'GET',headers:headers(connection),...(action==='command'?{body:JSON.stringify(value)}:{}),signal:AbortSignal.timeout(30000)
+  }))
 }

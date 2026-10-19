@@ -6,6 +6,7 @@ import {
 } from '../../services/board-game-library'
 import { getMiniappClient } from '../../services/client'
 import { createShareAppMessage } from '../../services/share'
+import { getGameDetailContext } from '../../services/game-detail-context'
 
 type GameEvent = { detail: { gameId: string } }
 
@@ -31,6 +32,8 @@ Page({
   },
 
   data: {
+    baseCover: '',
+    searchOpen: false,
     baseGameId: '',
     baseGameName: '基础游戏',
     query: '',
@@ -46,8 +49,9 @@ Page({
   onLoad(options: { baseGameId?: string; baseGameName?: string }) {
     const baseGameId = options.baseGameId ?? ''
     const baseGameName = decodedPageOption(options.baseGameName, '基础游戏')
-    this.setData({ baseGameId, baseGameName })
-    wx.setNavigationBarTitle({ title: `${baseGameName}的扩展` })
+    const base = getGameDetailContext(baseGameId)
+    this.setData({ baseGameId, baseGameName: base?.name || baseGameName, baseCover: base?.imageUrl || '' })
+    wx.setNavigationBarTitle({ title: '游戏扩展' })
     void this.loadGames()
   },
 
@@ -56,7 +60,7 @@ Page({
   },
 
   async loadGames(append = false) {
-    if (!this.data.baseGameId) return
+    if (!this.data.baseGameId) { this.setData({ loading: false, hasMore: false }); return }
     const sequence = ++loadSequence
     const previous = this.data.games
     this.setData(append ? { loadingMore: true } : { loading: true })
@@ -114,6 +118,11 @@ Page({
   onQueryInput(event: { detail: { value: string } }) {
     this.setData({ query: event.detail.value })
   },
+  toggleSearch() { this.setData({ searchOpen: !this.data.searchOpen }) },
+  baseImageError() { this.setData({ baseCover: '' }) },
+  goBase() {
+    wx.navigateTo({ url: '/pages/game-detail/index?id=' + encodeURIComponent(this.data.baseGameId) })
+  },
 
   search() {
     void this.loadGames()
@@ -121,15 +130,6 @@ Page({
 
   retry() {
     void this.loadGames()
-  },
-
-  toggleGame(event: GameEvent) {
-    const gameId = event.detail.gameId
-    this.setData({
-      games: this.data.games.map((game) =>
-        game.id === gameId ? { ...game, expanded: !game.expanded } : game
-      )
-    })
   },
 
   imageError(event: GameEvent) {

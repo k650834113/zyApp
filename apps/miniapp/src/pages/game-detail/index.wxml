@@ -1,0 +1,22 @@
+<view class="detail-page">
+  <view wx:if="{{loading}}" class="empty-state">正在加载…</view>
+  <view wx:elif="{{!game}}" class="empty-state">{{errorMessage}}<button bindtap="goGames">返回桌游库</button></view>
+  <block wx:else>
+    <view class="game-header">
+      <image wx:if="{{game.imageUrl && !game.imageFailed}}" class="cover" src="{{game.imageUrl}}" mode="aspectFill" binderror="imageError"/><view wx:else class="cover placeholder">暂无封面</view>
+      <view class="game-summary"><view class="title-row"><text class="game-name">{{game.name}}</text><view bindtap="likeGame" aria-role="button" aria-label="收藏游戏"><image class="heart" src="/assets/icons/heart-{{game.likedByViewer ? 'green' : 'muted'}}.svg"/></view></view>
+        <view class="pills"><text>{{game.playersText}}</text><text>{{game.durationText}}</text></view>
+        <view class="facts"><view><image src="/assets/icons/people-green.svg"/><text>{{game.playersText}}</text><text class="muted">建议人数</text></view><view><image src="/assets/icons/clock-green.svg"/><text>{{game.durationText}}</text><text class="muted">游戏时长</text></view><view><image src="/assets/icons/games-green.svg"/><text>{{game.complexityText}}</text><text class="muted">难度</text></view></view>
+      </view>
+    </view>
+    <view class="section"><text class="section-title">简介</text><text class="intro-copy">{{game.introduction || '暂无简介，可向店员了解玩法。'}}</text></view>
+    <view wx:if="{{game.categories.length}}" class="pills detail-categories"><text wx:for="{{game.categories}}" wx:key="*this" data-category="{{item}}" bindtap="selectCategory">{{item}}</text></view>
+    <view wx:if="{{game.customerNote}}" class="recommendation-note"><view class="note-title"><image src="/assets/icons/store-green.svg"/><text>店家推荐</text></view><text>{{game.customerNote}}</text></view>
+    <view class="section"><view class="expansion-heading"><text class="section-title">扩展（{{game.expansionCount}}）</text><text wx:if="{{game.expansionCount}}" bindtap="goExpansions">查看全部　〉</text></view>
+      <text wx:if="{{expansionError}}" bindtap="goExpansions">扩展加载失败，点击查看全部重试</text><text wx:elif="{{!game.expansionCount}}" class="muted">暂无已收录扩展</text>
+      <view wx:for="{{expansions}}" wx:key="id" class="expansion" data-id="{{item.id}}" bindtap="openExpansion"><image wx:if="{{item.imageUrl && !item.imageFailed}}" src="{{item.imageUrl}}" mode="aspectFit" data-id="{{item.id}}" binderror="expansionImageError"/><view wx:else class="expansion-cover-missing">暂无封面</view><view><text>{{item.name}}</text><text class="muted expansion-copy">{{item.introduction}}</text></view><text>〉</text></view>
+    </view>
+    <text wx:if="{{game.sourceAttribution}}" class="attribution">Powered by BGG</text>
+    <view class="actions"><button class="record" bindtap="goRecord">记录对局</button><button class="meetup" bindtap="goMeetup">发起约局</button></view>
+  </block>
+</view>

@@ -1,4 +1,6 @@
 <view class="dice-page page-shell">
+  <text class="selection-label">已选择的骰子</text>
+  <view class="selected-dice"><block wx:for="{{groups}}" wx:key="id"><view wx:if="{{item.count > 0}}" class="selected-chip">D{{item.sides}} × {{item.count}}<text data-sides="{{item.sides}}" data-delta="-1" bindtap="adjustCount"> ×</text></view></block><button bindtap="toggleControls">＋ 添加骰子</button></view>
   <view class="dice-stage {{rolling ? 'rolling' : ''}}" bindtap="roll" hover-class="dice-stage-pressed" hover-stay-time="80">
     <view class="stage-topline">
       <text>{{rolled ? '本轮点数' : '等待投掷'}}</text>
@@ -7,17 +9,17 @@
     <view class="dice-grid">
       <view wx:for="{{results}}" wx:key="id" class="die-wrap die-wrap-{{index}}">
         <view class="die d{{item.sides}}">
-          <text class="die-value">{{item.value}}</text>
+          <view wx:if="{{item.sides === 6}}" class="pip-grid face-{{item.value}}"><view class="pip p1"/><view class="pip p2"/><view class="pip p3"/><view class="pip p4"/><view class="pip p5"/><view class="pip p6"/><view class="pip p7"/></view><text wx:else class="die-value">{{item.value}}</text>
           <text class="die-sides">D{{item.sides}}</text>
         </view>
-        <view class="die-shadow"></view>
+        <view class="die-shadow"></view><text class="result-label">D{{item.sides}}</text><text class="result-number">{{item.value}}</text>
       </view>
     </view>
     <view class="total-line">合计 <text>{{total}}</text></view>
     <text class="roll-hint">{{rolling ? '骰子滚动中…' : '点击结果区投掷'}}</text>
   </view>
 
-  <view class="dice-controls card">
+  <view wx:if="{{controlsVisible}}" class="dice-controls card">
     <view class="control-title">
       <text>选择骰子</text>
       <view class="control-actions">
@@ -36,4 +38,5 @@
       </view>
     </view>
   </view>
+  <button class="roll-button" bindtap="roll" disabled="{{rolling || results.length === 0}}">重掷</button>
 </view>

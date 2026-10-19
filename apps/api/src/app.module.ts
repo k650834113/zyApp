@@ -1,4 +1,11 @@
+import {ActivityLotteryController} from './activity-lottery.controller'
+import {ActivityLotteryService} from './activity-lottery.service'
+import { MapLocationService } from './map-location.service'
 import { Module } from '@nestjs/common'
+import { MiniappCommunityController } from './miniapp-community.controller'
+import { MiniappCommunityService } from './miniapp-community.service'
+import { MiniappContentController } from './miniapp-content.controller'
+import { MiniappContentService } from './miniapp-content.service'
 import { CashierCommandService } from './cashier-command.service'
 import { BoardGameLikeController } from './board-game-like.controller'
 import { BoardGameLikeService } from './board-game-like.service'
@@ -44,6 +51,9 @@ import { BoardGameCoverCacheService } from './board-game-cover-cache.service'
 @Module({
   imports: [InfrastructureModule],
   controllers: [
+    ActivityLotteryController,
+    MiniappCommunityController,
+    MiniappContentController,
     HealthController,
     DeviceController,
     DesktopMirrorController,
@@ -62,6 +72,10 @@ import { BoardGameCoverCacheService } from './board-game-cover-cache.service'
     BoardGameCoverController
   ],
   providers: [
+    ActivityLotteryService,
+    MiniappCommunityService,
+    MiniappContentService,
+    MapLocationService,
     DeviceService,
     DesktopMirrorService,
     DeviceAuthGuard,

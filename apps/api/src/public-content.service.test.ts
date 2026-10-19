@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Pool } from '@zyapp/cloud-db'
 import { PublicContentService } from './public-content.service'
 
@@ -6,6 +6,93 @@ const storeId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const viewerId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 describe('public content service', () => {
+  it('includes published recommendations within the store and preserves public availability filters', async () => {
+    const pool = { query: async (sql: string) => {
+      expect(sql).toContain("recommendation_content.published_json->'recommendationDisplays'")
+      expect(sql).not.toContain('draft_json')
+      expect(sql).toContain('recommendation_content.tenant_id = current_store.tenant_id')
+      expect(sql).toContain('recommendation_content.store_id = current_store.id')
+      expect(sql).toContain("display->>'gameId' = game.id::text")
+      expect(sql).toContain('COALESCE(config.private, game.private) = FALSE')
+      expect(sql).toContain('COALESCE(config.available, game.available) = TRUE')
+      expect(sql).toContain('COALESCE(config.quantity, game.quantity) > 0')
+      expect(sql).toContain('COALESCE(config.missing_pieces, game.missing_pieces) = FALSE')
+      expect(sql).toContain('game.base_game_id IS NULL')
+      return { rows: [] }
+    } } as unknown as Pool
+    await new PublicContentService(pool).listGames(storeId, {}, null, { recommendedOnly: true, baseGamesOnly: true })
+  })
+
+  it('returns more than eight recommendations with published copy for the recommendations page', async () => {
+    const content = {schemaVersion: 1, recommendationDisplays: [{gameId: 'game-9', reason: '新推荐', audience: '朋友', badge: '', sceneIds: []}]}
+    const service = new PublicContentService({query: async () => ({rows: [{published_json: content}]})} as unknown as Pool)
+    vi.spyOn(service, 'getStore').mockResolvedValue({} as Awaited<ReturnType<typeof service.getStore>>)
+    vi.spyOn(service, 'listAnnouncements').mockResolvedValue([])
+    vi.spyOn(service, 'listActivities').mockResolvedValue([])
+    const games = Array.from({length: 12}, (_, i) => ({id: `game-${i}`})) as Awaited<ReturnType<typeof service.listGames>>
+    const list = vi.spyOn(service, 'listGames').mockResolvedValue(games)
+    const home = await service.getHome(storeId)
+    expect(list).toHaveBeenCalledWith(storeId, {}, null, {recommendedOnly: true, baseGamesOnly: true})
+    expect(home.recommendedGames).toHaveLength(12)
+    expect(home.recommendedGames[9]).toMatchObject({id: 'game-9', recommendationReason: '新推荐'})
+  })
+  it('decorates only the matching activity with the published cover and independent poster', () => {
+    const service = new PublicContentService({} as Pool)
+    const items = [{id:'event'},{id:'other'}] as Parameters<typeof service.decorateActivities>[0]
+    const content = {schemaVersion:1 as const,revision:'r',publishedAt:'2026-10-16T00:00:00Z',activityDisplays:[{activityId:'event',coverUrl:'https://example.com/cover.jpg',posterUrl:'https://example.com/poster.jpg',locationText:'店内',tags:[]}]}
+    expect(service.decorateActivities(items,content)).toEqual([{id:'event',coverUrl:'https://example.com/cover.jpg',posterUrl:'https://example.com/poster.jpg',locationText:'店内',tags:[]},{id:'other'}])
+    expect(service.decorateActivities(items,null)).toEqual(items)
+  })
+  it('restricts public pricing to admission catalog items', async () => {
+    const pool = {query:async(sql:string)=>{
+      expect(sql).toContain("item.item_type = 'admission'")
+      expect(sql).not.toContain("IN ('admission','service')")
+      return {rows:[{name:'单人门票',regular:'4000',member:'3000'}]}
+    }} as unknown as Pool
+    expect(await new PublicContentService(pool).getPricingRows(storeId)).toEqual([{label:'单人门票',regular:'¥40',member:'¥30'}])
+  })
+  it('reads only the current store published snapshot, including withdrawal null', async () => {
+    let published: unknown = {schemaVersion:1,revision:'published',publishedAt:'2026-09-14T00:00:00Z',homeHeroTitle:'Published'}
+    const pool = {query:async(sql:string,parameters:unknown[])=>{
+      expect(parameters).toEqual([storeId])
+      expect(sql).toContain('content.store_id = $1')
+      expect(sql).toContain('store.tenant_id = content.tenant_id')
+      expect(sql).not.toContain('draft_json')
+      return {rows:[{published_json:published}]}
+    }} as unknown as Pool
+    const service = new PublicContentService(pool)
+    service.getStore = async()=>({id:storeId,name:'Store',address:null,contactPhone:null,businessHours:'13:00-23:00',isOpen:true,statusText:'Open'})
+    service.listAnnouncements = async()=>[]
+    service.listActivities = async()=>[]
+    service.listGames = async()=>[]
+    expect((await service.getHome(storeId)).content).toEqual(published)
+    published=null
+    expect((await service.getHome(storeId)).content).toBeNull()
+  })
+  it('allows published activity previews before their start without exposing private fields', async () => {
+    const pool = {
+      query: async (sql: string, parameters: unknown[]) => {
+        expect(parameters).toEqual([storeId])
+        expect(sql).toContain('store_id = $1')
+        expect(sql).toContain("status = 'published'")
+        expect(sql).toContain('ends_at > CURRENT_TIMESTAMP')
+        expect(sql).not.toContain('starts_at <= CURRENT_TIMESTAMP')
+        return { rows: [{
+          id: 'future-activity', title: '下周桌游', summary: '预告', content: '欢迎到店',
+          activity_type: 'recharge', starts_at: '2099-01-01T00:00:00Z',
+          ends_at: '2099-01-02T00:00:00Z', pinned: false,
+          regular_price_fen: null, advanced_price_fen: null,
+          allow_stored_value: false, allow_wechat: true, recharge_tiers_json: [],
+          internal_note: 'private staff note'
+        }] }
+      }
+    } as unknown as Pool
+    const activities = await new PublicContentService(pool).listActivities(storeId)
+    expect(activities).toHaveLength(1)
+    expect(activities[0]?.startsAt).toBe('2099-01-01T00:00:00.000Z')
+    expect(JSON.stringify(activities)).not.toContain('private staff note')
+  })
+
   it('returns only playable games using current-store filters and viewer likes', async () => {
     const pool = {
       query: async (sql: string, parameters?: unknown[]) => {

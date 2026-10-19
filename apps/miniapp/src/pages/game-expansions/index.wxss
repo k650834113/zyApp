@@ -3,6 +3,15 @@
   padding-bottom: 60rpx;
 }
 
+.base-game { display: flex; align-items: center; gap: 28rpx; padding: 26rpx; border: 1rpx solid #e9e7e1; border-radius: 22rpx; background: #fff; color: #646d78; font-size: 28rpx; }
+.base-game > image, .base-placeholder { width: 120rpx; height: 136rpx; flex-shrink: 0; border-radius: 12rpx; }
+.base-placeholder { display: flex; align-items: center; justify-content: center; background: #edf2e9; }
+.base-placeholder image { width: 52rpx; height: 52rpx; }
+.base-name { color: #1d2522; font-weight: 600; }
+.base-arrow { margin-left: auto; }
+.search-toggle { display: flex; align-items: center; justify-content: flex-end; gap: 10rpx; margin-top: 16rpx; color: #7c8588; font-size: 22rpx; }
+.search-toggle image { width: 28rpx; height: 28rpx; }
+
 .expansion-title,
 .expansion-subtitle {
   display: block;

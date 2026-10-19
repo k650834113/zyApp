@@ -1,0 +1,196 @@
+.profile-page {
+  padding-top: 20rpx;
+}
+
+.profile-page.complete-mode {
+  padding-bottom: 50rpx;
+}
+
+.profile-heading {
+  text-align: center;
+}
+
+.heading-title,
+.heading-subtitle,
+.count-text,
+.privacy-tip {
+  display: block;
+}
+
+.heading-title {
+  font-size: 38rpx;
+  font-weight: 750;
+}
+
+.heading-subtitle {
+  margin-top: 14rpx;
+  color: #92918a;
+  font-size: 23rpx;
+}
+
+.avatar-section {
+  margin-top: 46rpx;
+  text-align: center;
+}
+
+.profile-page:not(.complete-mode) .avatar-section {
+  margin-top: 12rpx;
+}
+
+.avatar-picker-button {
+  position: relative;
+  width: 188rpx;
+  height: 188rpx;
+  margin: 0 auto;
+  padding: 0;
+  border: 1rpx solid #e4d9c9;
+  border-radius: 50%;
+  color: inherit;
+  background: #fffdf8;
+  line-height: normal;
+  overflow: visible;
+}
+
+.avatar-picker-button::after {
+  border: 0;
+}
+
+.profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 188rpx;
+  height: 188rpx;
+  border: 8rpx solid #fff;
+  border-radius: 50%;
+  background: #e8e0d4;
+}
+
+.avatar-fallback {
+  color: #174f3b;
+  font-size: 66rpx;
+  font-weight: 800;
+}
+
+.camera-badge {
+  position: absolute;
+  right: -2rpx;
+  bottom: 6rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58rpx;
+  height: 58rpx;
+  border: 5rpx solid #fffdf8;
+  border-radius: 50%;
+  color: #fff;
+  background: #174f3b;
+  font-size: 25rpx;
+}
+
+.profile-form {
+  position: relative;
+  margin-top: 48rpx;
+}
+
+.nickname-input {
+  padding-right: 92rpx;
+}
+
+.count-text {
+  position: absolute;
+  right: 22rpx;
+  top: 84rpx;
+  color: #99978f;
+  font-size: 22rpx;
+}
+
+.account-card {
+  margin-top: 34rpx;
+  padding: 8rpx 28rpx;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 88rpx;
+  border-bottom: 1rpx solid #eee5d9;
+}
+
+.account-row:last-child {
+  border-bottom: 0;
+}
+
+.account-label {
+  color: #6f746f;
+  font-size: 25rpx;
+}
+
+.account-value {
+  color: #28352f;
+  font-size: 25rpx;
+  font-weight: 600;
+}
+
+.favorites-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 24rpx;
+  padding: 28rpx;
+}
+
+.favorites-title,
+.favorites-subtitle,
+.guest-title,
+.guest-subtitle {
+  display: block;
+}
+
+.favorites-title,
+.guest-title {
+  color: #28352f;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.favorites-subtitle,
+.guest-subtitle {
+  margin-top: 8rpx;
+  color: #888a85;
+  font-size: 23rpx;
+}
+
+.entry-arrow {
+  color: #a29c91;
+  font-size: 36rpx;
+}
+
+.guest-profile {
+  padding-top: 36rpx;
+}
+
+.guest-card {
+  padding: 34rpx 28rpx;
+}
+
+.guest-card .secondary-button {
+  margin-top: 28rpx;
+}
+
+.save-button {
+  margin-top: 42rpx;
+  box-shadow: 0 14rpx 28rpx rgba(23, 79, 59, 0.18);
+}
+
+.privacy-tip {
+  margin-top: 30rpx;
+  color: #888a85;
+  text-align: center;
+  font-size: 21rpx;
+  line-height: 1.7;
+}
+.profile-page{padding-top:40rpx}.profile-page:not(.complete-mode) .avatar-section{margin:26rpx 0 70rpx}.avatar-picker-button,.profile-avatar{width:220rpx;height:220rpx}.camera-badge image{width:34rpx;height:34rpx}.profile-form{margin-top:50rpx}.nickname-row{display:flex;align-items:center;background:#fff;padding:0 28rpx;min-height:110rpx;border-bottom:1rpx solid #eee;font-size:30rpx}.nickname-input{flex:1;min-width:0;text-align:right;padding:0;margin-left:28rpx;font-size:30rpx}.account-card{border:0;box-shadow:none;border-radius:0;background:#fff;margin:0;padding:0 28rpx}.account-row{min-height:110rpx}.account-label,.account-value{font-size:30rpx;font-weight:400;color:#172029}.profile-page .save-button{width:100%;box-shadow:none;border-radius:14rpx;margin-top:72rpx}.privacy-tip{font-size:24rpx;margin-top:36rpx}.profile-page .profile-form:after{content:"";display:block;width:210rpx;height:90rpx;margin:105rpx auto 0;background:url('/assets/icons/meeples-muted.svg') center/contain no-repeat;opacity:.4}
+.profile-page .avatar-picker-button{width:220rpx;min-width:220rpx;max-width:220rpx;height:220rpx;box-sizing:border-box}.profile-page .profile-form:after{display:none}.profile-decoration{display:block;width:210rpx;height:90rpx;margin:100rpx auto 0;opacity:.4}

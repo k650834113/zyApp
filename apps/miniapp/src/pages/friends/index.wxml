@@ -1,0 +1,12 @@
+<view class="friends-page">
+  <view wx:if="{{!pick}}" class="friends-header"><text class="muted">{{self ? '我的会员编号：' + self.memberNumber : ''}}</text><view class="friend-actions"><button class="icon-button" aria-label="我的好友码" bindtap="showCode" disabled="{{busy}}"><image src="/assets/icons/qrcode-green.svg"/></button><button class="icon-button" aria-label="扫一扫" bindtap="scan" disabled="{{busy}}"><image src="/assets/icons/scan-green.svg"/></button></view></view>
+  <text class="error" wx:if="{{error}}">{{error}}</text><button wx:if="{{error}}" bindtap="load">重新加载</button>
+  <block wx:if="{{!pick}}">
+  <view class="friend-search"><input value="{{number}}" bindinput="inputNumber" maxlength="40" placeholder="输入准确会员编号"/><button bindtap="search" disabled="{{busy}}">查找</button></view>
+  <view wx:if="{{found}}" class="friend-row"><image src="{{found.avatarUrl || '/assets/icons/user-green.svg'}}"/><view><text>{{found.name}}</text><text class="muted">{{found.memberNumber}}</text></view><button data-action="request" data-member-id="{{found.memberId}}" bindtap="act" disabled="{{busy}}">加好友</button></view>
+  <text class="section-title">好友申请</text><text wx:if="{{!requests.length}}" class="muted">暂无申请</text>
+  <view wx:for="{{requests}}" wx:key="id" class="friend-row"><image src="{{item.member.avatarUrl || '/assets/icons/user-green.svg'}}"/><view><text>{{item.member.name}}</text><text class="muted">{{item.incoming ? '申请添加你为好友' : '等待对方确认'}}</text></view><block wx:if="{{item.incoming}}"><button data-action="accept" data-id="{{item.id}}" bindtap="act" disabled="{{busy}}">接受</button><button data-action="reject" data-id="{{item.id}}" bindtap="act" disabled="{{busy}}">拒绝</button></block></view></block>
+  <text class="section-title">{{pick ? '选择好友加入本局' : '我的好友'}}</text><text wx:if="{{!friends.length}}" class="muted">暂无好友，可扫码或按会员编号添加</text>
+  <view wx:for="{{friends}}" wx:key="memberId" class="friend-row" data-id="{{item.memberId}}" bindtap="select"><image src="{{item.avatarUrl || '/assets/icons/user-green.svg'}}"/><view><text>{{item.name}}</text><text class="muted">{{item.memberNumber}}</text></view><button wx:if="{{!pick}}" data-action="remove" data-member-id="{{item.memberId}}" catchtap="act" disabled="{{busy}}">删除</button><text wx:else>＋</text></view>
+  <view wx:if="{{codePath}}" class="code-panel"><text>好友扫码后发送申请，双方确认成为好友</text><image src="{{codePath}}" mode="aspectFit"/><text class="muted">此码24小时有效</text><button bindtap="hideCode">收起</button></view>
+</view>

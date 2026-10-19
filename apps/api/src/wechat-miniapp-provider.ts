@@ -157,6 +157,23 @@ async function getWechatAccessToken(
   return payload.access_token
 }
 
+/** Returns the platform's binary miniapp code; never expose the access token. */
+export async function createCommunityMiniappCode(config:ApiConfig,redis:Redis,scene:string,envVersion:'release'|'trial'|'develop'='release'):Promise<string> {
+  if(!/^[a-f0-9]{32}$/.test(scene))throw new BadRequestException('邀请码无效')
+  const token=await getWechatAccessToken(config,redis)
+  let response:Response
+  try {
+    response=await fetch('https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token='+encodeURIComponent(token),{
+      method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(10000),
+      body:JSON.stringify({scene,page:'pages/community-invite/index',check_path:envVersion==='release',env_version:envVersion,width:430})})
+  } catch {throw new ServiceUnavailableException('生成小程序码失败，请重试')}
+  if(!response.ok)throw new ServiceUnavailableException('生成小程序码失败，请重试')
+  const image=Buffer.from(await response.arrayBuffer())
+  if(!response.headers.get('content-type')?.startsWith('image/'))throw new ServiceUnavailableException('微信未返回小程序码，请确认对应版本已包含邀请页面')
+  const mime=image[0]===0x89?'image/png':'image/jpeg'
+  return `data:${mime};base64,${image.toString('base64')}`
+}
+
 export async function resolveWechatPhoneNumber(
   config: ApiConfig,
   redis: Redis,

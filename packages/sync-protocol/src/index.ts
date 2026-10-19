@@ -62,6 +62,7 @@ export type SyncCommandResult = {
 }
 
 export type SyncConflictType =
+  | 'atomic_group_rejected'
   | 'member_phone_duplicate'
   | 'member_version_mismatch'
   | 'wallet_authority_conflict'

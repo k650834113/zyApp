@@ -1,3 +1,5 @@
+import { queueFinancialReconciliation, readCloudFinancialConflict, resolveCloudFinancialConflict, prepareCloudFinancialCommand } from '@zyapp/local-db'
+import { requireAtomicFinancialCloud } from './cloud-sync-client'
 import {
   app,
   BrowserWindow,
@@ -11,12 +13,15 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  writeFileSync,
   rmSync,
   statSync
 } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { basename, join, resolve } from 'node:path'
+import { checkStartupUpdate } from './startup-update'
+import { requestCloudLottery, readCloudMiniappContent, uploadCloudMiniappImage } from './cloud-sync-client'
 import {
   IPC_CHANNELS,
   type AdjustMemberTierRequest,
@@ -126,8 +131,6 @@ import {
   bootstrapStore as bootstrapLocalStore,
   adjustMemberTier,
   applyPendingInboundEvents,
-  autoResolveNonCriticalInboundConflicts,
-  autoResolveNonCriticalOutboundConflicts,
   applyCloudMirrorPage,
   applySyncPullResult,
   applySyncPushResult,
@@ -154,6 +157,10 @@ import {
   extendMonthlyCard,
   enrichCloudSyncOperation,
   findEmployeeRecordById,
+  readCloudFinancialCommandOutcome,
+  readConfirmedFinancialResult,
+  findCashierCommandExecution,
+  findEmployeeFinancialCommandExecution,
   findEmployeeByUsername,
   getStoreContext,
   getStoreProfile,
@@ -376,6 +383,8 @@ let storeProfileRegistry: StoreProfileRegistry | null = null
 let activeRuntimeProfileId = ''
 let activeDataEnvironment: DataEnvironment = 'production'
 let databaseRelocating = false
+let financialCommandRunning = false
+let installationPreparing = false
 let backupInProgress = false
 let secondaryBackupDirectory: string | null = null
 let automaticBackupTimer: NodeJS.Timeout | null = null
@@ -562,6 +571,7 @@ function initializeOpenedStoreRuntime(): void {
 
 function storeProfileSwitchBlockReason(): string | null {
   if (!localDatabase) return '本地数据库尚未准备好'
+  if (financialCommandRunning || installationPreparing || mirrorReads.size > 0) return '正在处理收款、刷新或更新，请稍候'
   const context = getStoreContext(localDatabase.connection)
   const runtime = context
     ? getCloudRuntimeState(localDatabase.connection, context)
@@ -836,11 +846,31 @@ async function reportCashierCommandExecution(
   )
 }
 
+async function refreshFinancialMirrors(connection: CloudConnection, context: StoreContext): Promise<void> {
+  for (const resource of ['members','business_templates','wallet_accounts','wallet_ledger','monthly_cards','monthly_card_events','orders','order_items','refunds','refund_events','financial_refunds'] as CloudMirrorResource[]) {
+    await refreshCloudResourceMirror(connection, requireDatabase(), context, resource)
+  }
+}
+
+async function reportMobileCloudCommands(_connection: CloudConnection, context: StoreContext): Promise<void> {
+  const db = requireDatabase().connection
+  const commands = db.prepare(`SELECT * FROM cloud_financial_command WHERE tenant_id=? AND store_id=? AND device_id=?
+    AND channel IN ('mobile_cashier','mobile_financial') AND reported_at IS NULL ORDER BY created_at`).all(context.tenantId,context.storeId,context.deviceId)
+  for (const command of commands) {
+    const outcome = readCloudFinancialCommandOutcome(db, context.deviceId, String(command.group_id))
+    if (outcome === 'pending') continue
+    // New mobile groups finish the phone command inside the same cloud
+    // transaction as the money movement. No second completion request is needed.
+    db.prepare('UPDATE cloud_financial_command SET reported_at=? WHERE id=?').run(new Date().toISOString(),command.id!)
+  }
+}
+
 async function processCloudCashierCommands(
   connection: CloudConnection,
   context: StoreContext
 ): Promise<void> {
   const database = requireDatabase().connection
+  await reportMobileCloudCommands(connection, context)
   for (const pending of listPendingCashierCommandReports(
     database,
     context,
@@ -850,6 +880,8 @@ async function processCloudCashierCommands(
   }
 
   for (let index = 0; index < 10; index += 1) {
+    const state = getLocalSyncStatus(database, context)
+    if (state.pendingOperations || state.pendingConflicts) return
     const command = await claimCloudCashierCommand(connection)
     if (!command) break
     const employee = findEmployeeRecordById(
@@ -868,6 +900,9 @@ async function processCloudCashierCommands(
       ) {
         throw new Error('发起收银的员工没有收银权限')
       }
+      await requireAtomicFinancialCloud(connection)
+      prepareCloudFinancialCommand(database, { ...context, actor: employee }, 'mobile_cashier',
+        { requestId: command.commandId, command }, () => {
       createSalesOrder(
         database,
         { ...context, actor: employee },
@@ -880,6 +915,8 @@ async function processCloudCashierCommands(
           }
         }
       )
+        return findCashierCommandExecution(database, context, command.commandId)!
+      })
     } catch (error) {
       recordFailedCashierCommand(database, context, {
         commandId: command.commandId,
@@ -889,14 +926,15 @@ async function processCloudCashierCommands(
         ).slice(0, 500)
       })
     }
+    await pushPendingOperationsCloudFirst(connection, context)
+    await refreshFinancialMirrors(connection, context)
+    await reportMobileCloudCommands(connection, context)
     const result = listPendingCashierCommandReports(
       database,
       context,
       20
     ).find((item) => item.commandId === command.commandId)
-    if (!result) {
-      throw new Error('本地收银命令执行结果缺失')
-    }
+    if (!result) continue
     await reportCashierCommandExecution(connection, context, result)
   }
 }
@@ -944,6 +982,8 @@ async function processCloudEmployeeFinancialCommands(
   }
 
   for (let index = 0; index < 10; index += 1) {
+    const state = getLocalSyncStatus(database, context)
+    if (state.pendingOperations || state.pendingConflicts) return
     const command = await claimCloudEmployeeFinancialCommand(connection)
     if (!command) break
     const employee = findEmployeeRecordById(
@@ -968,6 +1008,7 @@ async function processCloudEmployeeFinancialCommands(
       ) {
         throw new Error('发起员工没有执行该财务操作的权限')
       }
+      const execute = () => {
       const sourceFinancialCommand = {
         commandId: command.commandId,
         requestedByEmployeeId: command.requestedBy
@@ -1052,6 +1093,14 @@ async function processCloudEmployeeFinancialCommands(
           break
         }
       }
+        return findEmployeeFinancialCommandExecution(database, context, command.commandId)!
+      }
+      if (command.request.type === 'apply_activity_recharge_tiers') execute()
+      else {
+        await requireAtomicFinancialCloud(connection)
+        prepareCloudFinancialCommand(database, { ...context, actor: employee }, 'mobile_financial',
+          { requestId: command.commandId, command }, execute)
+      }
     } catch (error) {
       recordFailedEmployeeFinancialCommand(database, context, {
         commandId: command.commandId,
@@ -1062,14 +1111,15 @@ async function processCloudEmployeeFinancialCommands(
         ).slice(0, 500)
       })
     }
+    await pushPendingOperationsCloudFirst(connection, context)
+    await refreshFinancialMirrors(connection, context)
+    await reportMobileCloudCommands(connection, context)
     const result = listPendingEmployeeFinancialCommandReports(
       database,
       context,
       20
     ).find((item) => item.commandId === command.commandId)
-    if (!result) {
-      throw new Error('本地财务操作命令执行结果缺失')
-    }
+    if (!result) continue
     await reportEmployeeFinancialCommandExecution(
       connection,
       context,
@@ -1091,12 +1141,14 @@ class AmbiguousCloudOperationError extends Error {
 
 async function pushPendingOperationsCloudFirst(
   connection: CloudConnection,
-  context: StoreContext
+  context: StoreContext,
+  retryAtomic = true
 ): Promise<void> {
   const database = requireDatabase()
   const batch = listPendingSyncBatch(database.connection, context, 100)
   if (!batch) return
   let contactedCloud = false
+  let deferredAtomic = false
   for (const operation of batch.operations) {
     const cloudOperation = enrichCloudSyncOperation(
       database.connection,
@@ -1126,6 +1178,7 @@ async function pushPendingOperationsCloudFirst(
     }
     const outcome = result.outcome
     if (outcome.status === 'received' || outcome.status === 'processing') {
+      if (JSON.parse(cloudOperation.payloadJson).atomicGroup) { deferredAtomic = true; continue }
       break
     }
     applySyncPushResult(database.connection, context, {
@@ -1156,12 +1209,24 @@ async function pushPendingOperationsCloudFirst(
         outcome.status === 'conflict' ? outcome.conflictType : null
     })
   }
+  if (deferredAtomic && retryAtomic) await pushPendingOperationsCloudFirst(connection, context, false)
   if (contactedCloud) {
     recordSyncBatchAccepted(database.connection, context)
   }
 }
 
-async function runCloudSyncOnce(
+let cloudSyncPromise: Promise<CloudConnectionStatus> | null = null
+function runCloudSyncOnce(throwOnError = false): Promise<CloudConnectionStatus> {
+  if (!cloudSyncPromise) {
+    cloudSyncPromise = performCloudSyncOnce().finally(() => { cloudSyncPromise = null })
+  }
+  return cloudSyncPromise.then((status) => {
+    if (throwOnError && cloudSyncLastError) throw new Error(cloudSyncLastError)
+    return status
+  })
+}
+
+async function performCloudSyncOnce(
   throwOnError = false
 ): Promise<CloudConnectionStatus> {
   if (cloudSyncInProgress) {
@@ -1213,15 +1278,6 @@ async function runCloudSyncOnce(
     if (repairedLegacyImports.created > 0) {
       logger?.write('info', 'legacy_import_cloud_sync_repaired', repairedLegacyImports)
     }
-    const resolvedExistingContentConflicts =
-      autoResolveNonCriticalOutboundConflicts(
-        localDatabase.connection,
-        context
-      )
-    if (resolvedExistingContentConflicts.resolved > 0) {
-      logger?.write('info', 'noncritical_outbound_conflicts_auto_resolved',
-        resolvedExistingContentConflicts)
-    }
     const cachedLocalCovers = await cacheExistingLocalBoardGameCovers(
       cloudConnection,
       context
@@ -1244,14 +1300,6 @@ async function runCloudSyncOnce(
     if (completed.receipts.length > 0) {
       applySyncPushResult(localDatabase.connection, context, completed)
     }
-    const resolvedContentConflicts = autoResolveNonCriticalOutboundConflicts(
-      localDatabase.connection,
-      context
-    )
-    if (resolvedContentConflicts.resolved > 0) {
-      logger?.write('info', 'noncritical_outbound_conflicts_auto_resolved',
-        resolvedContentConflicts)
-    }
     let pullCursor = getSyncPullCursor(
       localDatabase.connection,
       context.deviceId
@@ -1271,8 +1319,8 @@ async function runCloudSyncOnce(
       `SELECT 1 FROM cloud_read_model_cache
        WHERE tenant_id = ? AND store_id = ? LIMIT 1`
     ).get(context.tenantId, context.storeId))
-    if (receivedCloudEvents || !hasCloudMirrorCache) {
-      let mirrorCursor = pullCursor ?? '0'
+    if (receivedCloudEvents || !hasCloudMirrorCache || getLocalSyncStatus(localDatabase.connection, context).pendingInboundEvents > 0) {
+      let mirrorCursor: string | null = null
       for (const resource of CLOUD_MIRROR_REFRESH_ORDER) {
         const cursor = await refreshCloudResourceMirror(
           cloudConnection,
@@ -1280,27 +1328,15 @@ async function runCloudSyncOnce(
           context,
           resource
         )
-        if (BigInt(cursor) > BigInt(mirrorCursor)) mirrorCursor = cursor
+        if (mirrorCursor === null || BigInt(cursor) < BigInt(mirrorCursor)) mirrorCursor = cursor
       }
       markCloudMirrorEventsApplied(
         localDatabase.connection,
         context,
-        mirrorCursor
+        mirrorCursor ?? '0'
       )
     }
     applyPendingInboundEvents(localDatabase.connection, context)
-    const resolvedInboundContentConflicts =
-      autoResolveNonCriticalInboundConflicts(
-        localDatabase.connection,
-        context
-      )
-    if (
-      resolvedInboundContentConflicts.applied > 0 ||
-      resolvedInboundContentConflicts.skippedSuperseded > 0
-    ) {
-      logger?.write('info', 'noncritical_inbound_conflicts_auto_resolved',
-        resolvedInboundContentConflicts)
-    }
     await processCloudCashierCommands(cloudConnection, context)
     await processCloudEmployeeFinancialCommands(
       cloudConnection,
@@ -1327,6 +1363,7 @@ async function runCloudSyncOnce(
         ? Date.now() + CLOUD_RETRY_DELAYS_MS[0]
         : 0
     updateCloudRuntime('cloud_online', { reachable: true, error: null })
+    mainWindow?.webContents.send('zyapp:cloud-data-changed')
   } catch (error) {
     cloudSyncLastError =
       error instanceof Error ? error.message : String(error)
@@ -1480,24 +1517,40 @@ async function refreshCloudResourceMirror(
   return eventCursor
 }
 
+const mirrorReads = new Map<string, Promise<string>>()
+const mirrorReadTimes = new Map<string, number>()
+async function refreshSharedMirror(resource: CloudMirrorResource): Promise<void> {
+  const connection = cloudConnection
+  const database = localDatabase
+  if (!connection || !database) return
+  const context = getStoreContext(database.connection)
+  if (!context) return
+  const key = `${context.deviceId}:${resource}`
+  const existing = mirrorReads.get(key)
+  if (existing) { await existing; return }
+  if (Date.now() - (mirrorReadTimes.get(key) ?? 0) < 1_500) return
+  const request = refreshCloudResourceMirror(connection, database, context, resource)
+  mirrorReads.set(key, request)
+  try { await request; mirrorReadTimes.set(key, Date.now()) }
+  finally { mirrorReads.delete(key) }
+}
+
 async function refreshCloudResourcesBeforeRead(
   resources: CloudMirrorResource[]
 ): Promise<void> {
-  if (!cloudConnection || !localDatabase || cloudSyncInProgress) return
+  if (!cloudConnection || !localDatabase) return
+  if (cloudSyncPromise) {
+    await cloudSyncPromise
+    return
+  }
   const context = getStoreContext(localDatabase.connection)
   if (!context || context.deviceId !== cloudConnection.deviceId) return
   const runtime = getCloudRuntimeState(localDatabase.connection, context)
   if (!runtime.cloudPrimaryActivated) return
   try {
     for (const resource of resources) {
-      await refreshCloudResourceMirror(
-        cloudConnection,
-        localDatabase,
-        context,
-        resource
-      )
+      await refreshSharedMirror(resource)
     }
-    await runCloudSyncOnce()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     cloudSyncLastError = message
@@ -2423,6 +2476,7 @@ function createMainWindow(): void {
   mainWindow.once('ready-to-show', () => {
     mainWindow?.maximize()
     mainWindow?.show()
+    void promptStartupUpdate()
   })
   const senderId = mainWindow.webContents.id
   mainWindow.webContents.once('destroyed', () => {
@@ -2467,7 +2521,50 @@ function createMainWindow(): void {
   }
 }
 
+let startupUpdateChecked = false
+async function promptStartupUpdate(): Promise<void> {
+  if (startupUpdateChecked || !app.isPackaged) return
+  startupUpdateChecked = true
+  const path = join(app.getPath('userData'), 'ignored-update-versions.json')
+  let acceptedUpdate = false
+  let ignored: string[] = []
+  try {
+    const value: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    if (Array.isArray(value)) ignored = value.filter((item): item is string => typeof item === 'string')
+  } catch { /* No preference has been saved yet. */ }
+  try {
+    await checkStartupUpdate({
+      check: checkApplicationUpdate,
+      ignored: () => ignored,
+      ignore: (key) => writeFileSync(path, JSON.stringify([...ignored, key].slice(-100)), 'utf8'),
+      ask: async (update) => {
+        const choice = await dialog.showMessageBox(mainWindow!, {
+          type: 'question', title: '发现新版本',
+          message: `发现新版本 ${update.availableVersion}`,
+          detail: '立即更新将下载并重启安装，安装前会备份数据。“不再提醒”仅适用于此版本，仍可手动检查更新。',
+          buttons: ['立即更新', '不再提醒', '稍后'], defaultId: 0, cancelId: 2
+        })
+        acceptedUpdate = choice.response === 0
+        return choice.response === 0 ? 'update' : choice.response === 1 ? 'ignore' : 'later'
+      },
+      download: downloadApplicationUpdate,
+      install: prepareAndInstallApplicationUpdate
+    })
+  } catch (error) {
+    logger?.write('error', 'startup_update_failed', { message: error instanceof Error ? error.message : String(error) })
+    if (acceptedUpdate && mainWindow && !mainWindow.isDestroyed()) {
+      await dialog.showMessageBox(mainWindow, { type: 'error', title: '更新未完成',
+        message: '未能完成更新，请稍后重试', detail: error instanceof Error ? error.message : String(error), buttons: ['知道了'] })
+    }
+  }
+}
+
 async function prepareAndInstallApplicationUpdate(): Promise<void> {
+  if (financialCommandRunning || cloudSyncInProgress || mirrorReads.size > 0 || installationPreparing) {
+    throw new Error('正在处理业务或同步，请稍后安装已下载的更新')
+  }
+  installationPreparing = true
+  try {
   const database = requireDatabase()
   const backup = await createPreUpgradeBackup({
     databasePath,
@@ -2483,9 +2580,84 @@ async function prepareAndInstallApplicationUpdate(): Promise<void> {
     secondaryError: backup.secondaryError
   })
   installApplicationUpdate()
+  } finally { installationPreparing = false }
 }
 
 function registerIpcHandlers(): void {
+  for(const [channel,action] of [[IPC_CHANNELS.lotteryRead,'read'],[IPC_CHANNELS.lotteryMember,'member'],[IPC_CHANNELS.lotteryCommand,'command']] as const){
+    ipcMain.handle(channel,async(event,value)=>{
+      const session=requireSession(event,PERMISSIONS.activityRead)
+      if(!cloudConnection)throw new Error('报名和开奖需要先连接云端')
+      return requestCloudLottery(cloudConnection,session.id,action,value)
+    })
+  }
+  const financialHandlers = new Map<string, (event: IpcMainInvokeEvent, request: any) => unknown>()
+  for (const [channel, action] of [[IPC_CHANNELS.miniappContentRead, 'read'],
+    [IPC_CHANNELS.miniappLocationSearch, 'location-search'], [IPC_CHANNELS.miniappContentHistory, 'history'], [IPC_CHANNELS.miniappContentCommand, 'command']] as const) {
+    ipcMain.handle(channel, async (event, request) => {
+      const session = requireSession(event, PERMISSIONS.contentManage)
+      if (!cloudConnection) throw new Error('页面装修需要先连接云端')
+      return readCloudMiniappContent(cloudConnection, session.id, action, request)
+    })
+  }
+  ipcMain.handle(IPC_CHANNELS.miniappContentUpload, async (event) => {
+    const session = requireSession(event, PERMISSIONS.contentManage)
+    const connection = cloudConnection
+    if (!connection) throw new Error('上传图片需要先连接云端')
+    const options: OpenDialogOptions = { title: '选择小程序图片', properties: ['openFile'],
+      filters: [{ name: '图片（最大 10 MB）', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }] }
+    const selected = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options)
+    if (selected.canceled || !selected.filePaths[0]) return null
+    requireSession(event, PERMISSIONS.contentManage)
+    if (connection !== cloudConnection) throw new Error('门店已切换，请重新选择图片')
+    const imported = importBoardGameImage(selected.filePaths[0], baseDataRoot)
+    const file = readManagedBoardGameImageFile(imported.managedPath, baseDataRoot)
+    if (!file) throw new Error('图片读取失败')
+    return uploadCloudMiniappImage(connection, session.id, file)
+  })
+  // Financial commands on a cloud store finish only after an authoritative
+  // receipt. Never allow a second command while the first outcome is unknown.
+  function registerFinancialHandler(
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, request: any) => unknown
+  ): void {
+    financialHandlers.set(channel, handler)
+    ipcMain.handle(channel, async (event, request) => {
+      const initiatingSession = requireSession(event)
+      if (installationPreparing) throw new Error('正在准备更新安装，请稍候')
+      if (financialCommandRunning) throw new Error('上一笔收款正在确认，请稍候')
+      financialCommandRunning = true
+      try {
+        if (!cloudConnection) return await handler(event, request)
+        await requireAtomicFinancialCloud(cloudConnection)
+        await runCloudSyncOnce(true)
+        const database = requireDatabase()
+        const context = getStoreContext(database.connection)
+        if (!context) throw new Error('门店配置缺失')
+        const status = getLocalSyncStatus(database.connection, context)
+        if (status.pendingOperations || status.pendingConflicts) {
+          throw new Error('尚有操作未获云端确认，请先完成同步或处理差异，避免重复扣款')
+        }
+        // Refresh even when no SSE hint arrived (e.g. a different till just wrote).
+        for (const resource of ['members', 'business_templates', 'wallet_accounts', 'wallet_ledger',
+          'monthly_cards', 'monthly_card_events', 'orders'] as CloudMirrorResource[]) {
+          await refreshCloudResourceMirror(cloudConnection, database, context, resource)
+        }
+        const before = Number((database.connection.prepare(
+          'SELECT COALESCE(MAX(device_seq), 0) value FROM outbox_operation WHERE device_id = ?'
+        ).get(context.deviceId) as { value: number }).value)
+        if (requireSession(event).id !== initiatingSession.id) throw new Error('登录用户已变化，请重新核对本笔操作')
+        const result = prepareCloudFinancialCommand(database.connection, requireMemberWriteContext(initiatingSession), channel, request, () => handler(event, request))
+        await runCloudSyncOnce(true)
+        const unresolved = database.connection.prepare(
+          `SELECT sync_status FROM outbox_operation WHERE device_id = ?
+           AND device_seq > ? AND sync_status <> 'confirmed' LIMIT 1`
+        ).get(context.deviceId, before)
+        if (unresolved) throw new Error('本笔操作尚未获得云端确认，请勿重复收款；请在云端资料合并中核对')
+        return readConfirmedFinancialResult(database.connection, context, result)
+      } finally { financialCommandRunning = false }
+    })
+  }
   ipcMain.handle(IPC_CHANNELS.systemStatus, (): SystemStatus => getSystemStatus())
   ipcMain.handle(
     IPC_CHANNELS.systemSwitchDataEnvironment,
@@ -2494,6 +2666,9 @@ function registerIpcHandlers(): void {
         throw new Error('Data environment must be production or test')
       }
       if (request.environment === activeDataEnvironment) return
+      if (financialCommandRunning || cloudSyncInProgress || installationPreparing || mirrorReads.size > 0) {
+        throw new Error('正在处理业务或同步，请稍后切换环境')
+      }
 
       const database = requireDatabase()
       const context = getStoreContext(database.connection)
@@ -2624,9 +2799,53 @@ function registerIpcHandlers(): void {
   })
   ipcMain.handle(
     IPC_CHANNELS.cloudInboundConflictResolve,
-    (event, request: ResolveInboundSyncConflictRequest): void => {
+    async (event, request: ResolveInboundSyncConflictRequest): Promise<void> => {
       const session = requireSession(event, PERMISSIONS.cloudManage)
       const database = requireDatabase()
+      const context = requireMemberWriteContext(session)
+      if (request.sequence.startsWith('outbound:') && readCloudFinancialConflict(database.connection, context, request.sequence.slice('outbound:'.length))) {
+        if (!cloudConnection) throw new Error('请连接云端后处理资金差异')
+        if (financialCommandRunning) throw new Error('正在处理其他收款，请稍候')
+        financialCommandRunning = true
+        try {
+          await requireAtomicFinancialCloud(cloudConnection)
+          await runCloudSyncOnce(true)
+          if (requireSession(event).id !== session.id) throw new Error('登录状态已变化，请重新核对')
+          resolveCloudFinancialConflict(database.connection, context, request, (channel, nextRequest) => {
+            if (channel === 'mobile_cashier' || channel === 'mobile_financial') {
+              const command = nextRequest.command as {request: Record<string,unknown>}
+              const mobile = command.request
+              if (channel === 'mobile_cashier') channel = IPC_CHANNELS.orderCreate
+              else {
+                const channels: Record<string,string> = { cash_recharge: IPC_CHANNELS.walletCashRecharge,
+                  monthly_card_purchase: IPC_CHANNELS.monthlyCardPurchase, monthly_card_pause: IPC_CHANNELS.monthlyCardPause,
+                  monthly_card_resume: IPC_CHANNELS.monthlyCardResume }
+                channel = channels[String(mobile.type)] ?? ''
+              }
+              nextRequest = { ...mobile, requestId: nextRequest.requestId }
+            }
+            const handler = financialHandlers.get(channel)
+            if (!handler) throw new Error('此业务需要更新客户端后重试')
+            prepareCloudFinancialCommand(database.connection, context, channel, nextRequest, () => handler(event, nextRequest))
+          })
+          await runCloudSyncOnce(true)
+          return
+        } finally { financialCommandRunning = false }
+      }
+      const selected = listInboundSyncConflicts(database.connection, context).find(item => item.sequence === request.sequence)
+      if (selected?.resolutionMode === 'financial_balance') {
+        if (!cloudConnection) throw new Error('请连接云端后更正资金记录')
+        if (financialCommandRunning) throw new Error('正在处理其他收款，请稍候')
+        financialCommandRunning = true
+        try {
+          await requireAtomicFinancialCloud(cloudConnection)
+          await runCloudSyncOnce(true)
+          if (requireSession(event).id !== session.id) throw new Error('登录状态已变化，请重新核对')
+          queueFinancialReconciliation(database.connection, context, request)
+          await runCloudSyncOnce(true)
+          return
+        } finally { financialCommandRunning = false }
+      }
       resolveInboundSyncConflict(
         database.connection,
         requireMemberWriteContext(session),
@@ -4138,7 +4357,7 @@ function registerIpcHandlers(): void {
       requireText(request?.memberId, '会员编号', { min: 1, max: 100 })
     )
   })
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.walletCashRecharge,
     (event, request: CashRechargeRequest) => {
       const session = requireSession(event, PERMISSIONS.walletRechargeCash)
@@ -4157,7 +4376,7 @@ function registerIpcHandlers(): void {
       })
     }
   )
-  ipcMain.handle(IPC_CHANNELS.walletDebit, (event, request: WalletDebitRequest) => {
+  registerFinancialHandler(IPC_CHANNELS.walletDebit, (event, request: WalletDebitRequest) => {
     const session = requireSession(event, PERMISSIONS.walletDebit)
     const database = requireDatabase()
     const context = requireMemberWriteContext(session)
@@ -4168,7 +4387,7 @@ function registerIpcHandlers(): void {
       reason: requireText(request?.reason, '扣款原因', { min: 2, max: 200 })
     })
   })
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.walletReverseCashRecharge,
     (event, request: ReverseCashRechargeRequest) => {
       const session = requireSession(event, PERMISSIONS.walletAdjust)
@@ -4221,7 +4440,7 @@ function registerIpcHandlers(): void {
       )
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.monthlyCardPurchase,
     (event, request: PurchaseMonthlyCardRequest) => {
       const session = requireSession(event, PERMISSIONS.monthlyCardManage)
@@ -4242,7 +4461,7 @@ function registerIpcHandlers(): void {
     channel: string,
     action: typeof pauseMonthlyCard | typeof resumeMonthlyCard | typeof useMonthlyCard
   ): void => {
-    ipcMain.handle(channel, (event, request: MonthlyCardActionRequest | MonthlyCardUseRequest) => {
+    registerFinancialHandler(channel, (event, request: MonthlyCardActionRequest | MonthlyCardUseRequest) => {
       const session = requireSession(event, PERMISSIONS.monthlyCardManage)
       const database = requireDatabase()
       const context = requireMemberWriteContext(session)
@@ -4256,7 +4475,7 @@ function registerIpcHandlers(): void {
   registerMonthlyCardAction(IPC_CHANNELS.monthlyCardPause, pauseMonthlyCard)
   registerMonthlyCardAction(IPC_CHANNELS.monthlyCardResume, resumeMonthlyCard)
   registerMonthlyCardAction(IPC_CHANNELS.monthlyCardUse, useMonthlyCard)
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.monthlyCardExtend,
     (event, request: ExtendMonthlyCardRequest) => {
       const session = requireSession(event, PERMISSIONS.monthlyCardManage)
@@ -4271,7 +4490,7 @@ function registerIpcHandlers(): void {
       })
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.monthlyCardRefund,
     (event, request: MonthlyCardActionRequest) => {
       const session = requireSession(event, PERMISSIONS.refundApprove)
@@ -4686,7 +4905,7 @@ function registerIpcHandlers(): void {
       )
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.orderCreate,
     (event, request: CreateSalesOrderRequest) => {
       const session = requireSession(event, PERMISSIONS.orderCreate)
@@ -4816,7 +5035,7 @@ function registerIpcHandlers(): void {
       requireText(request?.query, '订单号', { min: 1, max: 100 })
     )
   })
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.refundCreate,
     (event, request: CreateRefundRequest) => {
       const session = requireSession(event, PERMISSIONS.refundRequest)
@@ -4834,7 +5053,7 @@ function registerIpcHandlers(): void {
       })
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.refundApprove,
     (event, request: ApproveRefundRequest) => {
       const session = requireSession(event, PERMISSIONS.refundApprove)
@@ -4858,7 +5077,7 @@ function registerIpcHandlers(): void {
       })
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.refundReject,
     (event, request: RejectRefundRequest) => {
       const session = requireSession(event, PERMISSIONS.refundApprove)
@@ -4871,7 +5090,7 @@ function registerIpcHandlers(): void {
       })
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.refundDirect,
     (event, request: DirectRefundRequest) => {
       const session = requireSession(event, PERMISSIONS.refundApprove)
@@ -4970,7 +5189,7 @@ function registerIpcHandlers(): void {
       }
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.financialRefundCreate,
     (event, request: CreateFinancialRefundRequest) => {
       const session = requireSession(event, PERMISSIONS.refundRequest)
@@ -4988,7 +5207,7 @@ function registerIpcHandlers(): void {
       })
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.financialRefundApprove,
     (event, request: ApproveFinancialRefundRequest) => {
       const session = requireSession(event, PERMISSIONS.refundApprove)
@@ -5013,7 +5232,7 @@ function registerIpcHandlers(): void {
       })
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.financialRefundReject,
     (event, request: RejectFinancialRefundRequest) => {
       const session = requireSession(event, PERMISSIONS.refundApprove)
@@ -5029,7 +5248,7 @@ function registerIpcHandlers(): void {
       })
     }
   )
-  ipcMain.handle(
+  registerFinancialHandler(
     IPC_CHANNELS.financialRefundDirect,
     (event, request: DirectFinancialRefundRequest) => {
       const session = requireSession(event, PERMISSIONS.refundApprove)

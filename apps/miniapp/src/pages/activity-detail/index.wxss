@@ -1,0 +1,23 @@
+.activity-detail { min-height:85vh; background:#fff; padding-bottom:calc(150rpx + env(safe-area-inset-bottom)); }
+.hero { display:block; width:100%; height:auto; background:#eef1e8; }
+.hero-empty { min-height:320rpx; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20rpx; color:#83907e; font-size:26rpx; }
+.hero-empty image { width:72rpx; height:72rpx; }
+.detail-content { padding:26rpx 32rpx; }
+.detail-title { display:block; font-size:42rpx; font-weight:650; color:#1c2520; }
+.tags { display:flex; flex-wrap:wrap; gap:12rpx; margin-top:18rpx; }
+.tags text { color:#41725d; background:#e8f2ec; border-radius:6rpx; padding:6rpx 16rpx; font-size:24rpx; }
+.information { margin:26rpx 0 0; padding-bottom:20rpx; border-bottom:1rpx solid #eee; }
+.information > view { display:flex; align-items:center; gap:22rpx; padding:12rpx 0; color:#333e37; font-size:26rpx; }
+.information image { width:32rpx; height:32rpx; flex-shrink:0; }
+.trailing { margin-left:auto; flex-shrink:0; color:#174f3b; font-size:25rpx; }
+.section { margin-top:30rpx; }
+.section-title { display:block; font-size:30rpx; font-weight:600; margin-bottom:16rpx; }
+.body { display:block; color:#424d46; white-space:pre-wrap; overflow-wrap:break-word; font-size:27rpx; line-height:1.7; }
+.participation { display:flex; align-items:center; gap:24rpx; padding:22rpx; border:1rpx solid #e8e9e5; border-radius:16rpx; }
+.participation image { width:60rpx; height:60rpx; }
+.participation > view > text { display:block; font-size:28rpx; }
+.participation .muted { font-size:23rpx; margin-top:6rpx; color:#838a83; }
+.detail-actions { position:fixed; bottom:0; left:0; right:0; display:flex; gap:18rpx; padding:20rpx 32rpx calc(24rpx + env(safe-area-inset-bottom)); background:#fff; border-top:1rpx solid #eee; }
+.detail-actions button { flex:1; min-width:0; margin:0; padding:0; line-height:90rpx; border-radius:14rpx; font-size:28rpx; }
+.share { background:#fff; color:#174f3b; border:1rpx solid #174f3b; }
+.meetups { background:#174f3b; color:#fff; }

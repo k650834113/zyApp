@@ -125,3 +125,14 @@ button::after {
   background: #fff;
   font-size: 28rpx;
 }
+
+/* Shared visual rhythm across public, account and community pages. */
+page { line-height:1.55; }
+.card { border-color:#e8e5dc; box-shadow:0 8rpx 28rpx rgba(29,64,46,.045); }
+.section-title { letter-spacing:1rpx; }
+.primary-button { box-shadow:0 8rpx 22rpx rgba(23,79,59,.12); }
+.primary-button[disabled] { box-shadow:none; }
+.empty-state { color:#67756b; font-size:25rpx; line-height:1.7; }
+.empty-art { display:block;width:250rpx;height:250rpx;margin:0 auto 16rpx; }
+.form-input { border-color:#dedfd5; background:#fffefa; }
+.secondary-button { border-color:#d7dfd3; }

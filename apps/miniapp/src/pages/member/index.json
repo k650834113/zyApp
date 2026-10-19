@@ -1,6 +1,6 @@
 {
-  "navigationBarTitleText": "我的资料",
+  "navigationBarTitleText": "我的",
   "navigationBarBackgroundColor": "#fbf7ef",
   "navigationBarTextStyle": "black",
-  "backgroundColor": "#fbf7ef"
+  "usingComponents": {"ui-nav":"/components/ui-nav/index"}
 }

@@ -1,0 +1,63 @@
+<view class="page-shell profile-page {{mode === 'complete' ? 'complete-mode' : ''}}">
+  <view wx:if="{{loading}}" class="empty-state">正在加载会员资料…</view>
+
+  <block wx:elif="{{member}}">
+    <view wx:if="{{mode === 'complete'}}" class="profile-heading">
+      <text class="heading-title">完善会员资料</text>
+      <text class="heading-subtitle">完善资料，享受更好的会员体验</text>
+    </view>
+
+    <view class="avatar-section">
+      <button
+        class="avatar-picker-button"
+        bindtap="chooseAvatar"
+      >
+        <image
+          wx:if="{{localAvatarPath || member.avatarUrl}}"
+          class="profile-avatar"
+          src="{{localAvatarPath || member.avatarUrl}}"
+          mode="aspectFill"
+        />
+        <view wx:else class="profile-avatar avatar-fallback">{{avatarText}}</view>
+        <view class="camera-badge"><image src="/assets/icons/camera-white.svg"/></view>
+      </button>
+    </view>
+
+    <view class="profile-form">
+      <view class="nickname-row"><text>昵称</text><input class="nickname-input" type="nickname" maxlength="12" value="{{nickname}}" placeholder="请输入昵称" bindinput="inputNickname"/></view>
+
+      <view class="account-card card">
+        <view class="account-row">
+          <text class="account-label">绑定手机号</text>
+          <text class="account-value">{{member.phoneMasked}}</text>
+        </view>
+        <view class="account-row">
+          <text class="account-label">会员等级</text>
+          <text class="account-value">{{member.tier === 'advanced' ? '高级会员' : '普通会员'}}</text>
+        </view>
+      </view>
+
+      <button class="primary-button save-button" loading="{{saving}}" bindtap="saveProfile">
+        {{mode === 'complete' ? '保存并进入' : '保存修改'}}
+      </button>
+      <text class="privacy-tip">♡　我们将保护您的个人信息安全，仅用于会员服务</text>
+      <image class="profile-decoration" src="/assets/icons/meeples-muted.svg" mode="aspectFit"/>
+    </view>
+  </block>
+
+  <view wx:elif="{{mode !== 'complete'}}" class="guest-profile">
+    <view class="guest-card card">
+      <text class="guest-title">登录后完善会员资料</text>
+      <text class="guest-subtitle">可同步会员权益、消费明细与头像昵称</text>
+      <button class="secondary-button" bindtap="goHome">前往我的登录</button>
+    </view>
+    <view class="favorites-entry card" bindtap="goFavorites">
+      <view>
+        <text class="favorites-title">♡　我喜欢的</text>
+        <text class="favorites-subtitle">已收藏 {{favoriteCount}} 款桌游</text>
+      </view>
+      <text class="entry-arrow">〉</text>
+    </view>
+  </view>
+
+</view>

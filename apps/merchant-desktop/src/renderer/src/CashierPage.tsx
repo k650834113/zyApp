@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type {
   CashierMemberOption,
   CatalogItemSummary,
@@ -12,6 +12,7 @@ import type {
 } from '@zyapp/contracts'
 import { getDesktopApi, readableError } from './api'
 import { refreshCashierSnapshot } from './cashier-refresh'
+import { MemberSelection } from './member-selection'
 
 type CatalogCartLine = {
   kind: 'catalog'
@@ -148,6 +149,9 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [busy, setBusy] = useState(false)
+  const selection = useRef(new MemberSelection())
+  const submitting = useRef(false)
+  const [memberLoading, setMemberLoading] = useState(false)
 
   const filteredMembers = useMemo(() => {
     const normalized = memberQuery.trim().toLowerCase()
@@ -177,6 +181,12 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
   }, [rechargeYuan, walletDetails])
 
   async function selectMember(member: CashierMemberOption): Promise<void> {
+    if (submitting.current) return
+    const generation = selection.current.select(member.id)
+    setMemberLoading(true)
+    setWalletDetails(null)
+    setMonthlyCard(null)
+    setMemberAction(null)
     setSelectedMember(member)
     setPaymentMethod('stored_value')
     setError(null)
@@ -185,21 +195,27 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
         getDesktopApi().getWalletDetails({ memberId: member.id }),
         getDesktopApi().getMonthlyCardDetails({ memberId: member.id })
       ])
+      if (!selection.current.accepts(generation, member.id)) return
       setWalletDetails(wallet)
       setMonthlyCard(card)
     } catch (reason) {
+      if (!selection.current.accepts(generation, member.id)) return
       setWalletDetails(null)
       setMonthlyCard(null)
       setError(cashierError(reason))
+    } finally {
+      if (selection.current.accepts(generation, member.id)) setMemberLoading(false)
     }
   }
 
   async function refreshSelectedMember(memberId: string): Promise<void> {
+    const generation = selection.current.capture()
     const [wallet, card, memberOptions] = await Promise.all([
       getDesktopApi().getWalletDetails({ memberId }),
       getDesktopApi().getMonthlyCardDetails({ memberId }),
       getDesktopApi().listCashierMembers()
     ])
+    if (!selection.current.accepts(generation, memberId)) return
     setWalletDetails(wallet)
     setMonthlyCard(card)
     setMembers(memberOptions)
@@ -230,18 +246,21 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
   }
 
   async function manualRefresh(): Promise<void> {
-    if (syncing) return
+    if (syncing || submitting.current) return
+    const generation = selection.current.capture()
+    const memberId = selection.current.memberId
     setSyncing(true)
     setError(null)
     setNotice(null)
     try {
       const snapshot = await refreshCashierSnapshot(
         getDesktopApi(),
-        selectedMember?.id ?? null
+        memberId
       )
       setCatalog(snapshot.catalog)
       setOrders(snapshot.orders)
       setMembers(snapshot.members)
+      if (!selection.current.accepts(generation, memberId)) return
       setSelectedMember(snapshot.selectedMember)
       setWalletDetails(snapshot.walletDetails)
       setMonthlyCard(snapshot.monthlyCard)
@@ -259,6 +278,18 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
 
   useEffect(() => {
     void load()
+    return () => { selection.current.select(null) }
+  }, [])
+
+  useEffect(() => {
+    let refreshing = false
+    return getDesktopApi().onCloudDataChanged(() => {
+      if (refreshing || submitting.current) return
+      const memberId = selection.current.memberId
+      if (!memberId) return
+      refreshing = true
+      void refreshSelectedMember(memberId).catch(() => {}).finally(() => { refreshing = false })
+    })
   }, [])
 
   useEffect(() => {
@@ -274,6 +305,9 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
   }, [error])
 
   function clearMember(): void {
+    if (submitting.current) return
+    selection.current.select(null)
+    setMemberLoading(false)
     setSelectedMember(null)
     setWalletDetails(null)
     setMonthlyCard(null)
@@ -374,11 +408,17 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
 
   async function completeOrder(event: FormEvent): Promise<void> {
     event.preventDefault()
-    if (busy || cart.length === 0) return
+    if (submitting.current || memberLoading || syncing || cart.length === 0) return
+    if ((selectedMember?.id ?? null) !== selection.current.memberId) return
+    if (selectedMember && walletDetails?.wallet.memberId !== selectedMember.id) {
+      setError('会员资料尚未刷新完成，请稍候再收款')
+      return
+    }
     if (paymentMethod === 'stored_value' && !selectedMember) {
       setError('储值支付需要先选择付款会员')
       return
     }
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -423,13 +463,15 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
     } catch (reason) {
       setError(cashierError(reason))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   async function submitRecharge(event: FormEvent): Promise<void> {
     event.preventDefault()
-    if (!selectedMember || busy) return
+    if (!selectedMember || submitting.current || memberLoading || syncing || selection.current.memberId !== selectedMember.id) return
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -452,12 +494,14 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
     } catch (reason) {
       setError(cashierError(reason))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   async function purchaseMonthlyCard(): Promise<void> {
-    if (!selectedMember || !monthlyCard || busy) return
+    if (!selectedMember || !monthlyCard || submitting.current || memberLoading || syncing || selection.current.memberId !== selectedMember.id) return
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -477,17 +521,19 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
     } catch (reason) {
       setError(cashierError(reason))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   async function changeMonthlyCardStatus(): Promise<void> {
     const card = monthlyCard?.current
-    if (!selectedMember || !card || busy) return
+    if (!selectedMember || !card || submitting.current || memberLoading || syncing || selection.current.memberId !== selectedMember.id || card.memberId !== selectedMember.id) return
     if (monthlyReason.trim().length < 2) {
       setError('月卡操作原因至少填写 2 个字')
       return
     }
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -514,6 +560,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
     } catch (reason) {
       setError(cashierError(reason))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
@@ -528,7 +575,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
         <div className="page-header-actions">
           <button
             className="secondary-button"
-            disabled={syncing}
+            disabled={syncing || busy}
             type="button"
             onClick={() => void manualRefresh()}
           >
@@ -561,7 +608,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
               <h2>会员列表</h2>
               <p>最近活跃会员默认靠前</p>
             </div>
-            <button className="text-button" type="button" onClick={clearMember}>
+            <button className="text-button" disabled={busy} type="button" onClick={clearMember}>
               散客收银
             </button>
           </div>
@@ -582,6 +629,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
               <button
                 className={selectedMember?.id === member.id ? 'active' : ''}
                 key={member.id}
+                disabled={busy}
                 type="button"
                 onClick={() => void selectMember(member)}
               >
@@ -633,7 +681,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
                   </div>
                   <div className="cashier-inline-fact">
                     <span>月卡</span>
-                    <strong>{monthlyCardText(monthlyCard)}</strong>
+                    <strong>{memberLoading ? '读取中' : monthlyCardText(monthlyCard)}</strong>
                   </div>
                   <div className="cashier-inline-fact">
                     <span>生日</span>
@@ -643,7 +691,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
                     {session.permissions.includes('wallet.recharge.cash') ? (
                       <button
                         className="secondary-button"
-                        disabled={!walletDetails}
+                        disabled={busy || memberLoading || !walletDetails}
                         type="button"
                         onClick={() => setMemberAction('recharge')}
                       >
@@ -653,7 +701,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
                     {session.permissions.includes('monthly-card.manage') ? (
                       <button
                         className="secondary-button"
-                        disabled={!monthlyCard}
+                        disabled={busy || memberLoading || !monthlyCard}
                         type="button"
                         onClick={() => setMemberAction('monthly')}
                       >
@@ -769,7 +817,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
               </div>
               <button
                 className="primary-button"
-                disabled={busy || cart.length === 0}
+                disabled={busy || memberLoading || syncing || cart.length === 0}
                 type="submit"
               >
                 {busy ? '正在结账...' : '确认收款'}
@@ -959,7 +1007,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
               >
                 取消
               </button>
-              <button className="primary-button" disabled={busy} type="submit">
+              <button className="primary-button" disabled={busy || memberLoading || syncing} type="submit">
                 确认已收现金并充值
               </button>
             </div>
@@ -1034,7 +1082,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
               {monthlyCard.current ? (
                 <button
                   className="primary-button"
-                  disabled={busy}
+                  disabled={busy || memberLoading || syncing}
                   type="button"
                   onClick={() => void changeMonthlyCardStatus()}
                 >
@@ -1043,7 +1091,7 @@ export function CashierPage({ session }: { session: SessionUser }): React.JSX.El
               ) : (
                 <button
                   className="primary-button"
-                  disabled={busy}
+                  disabled={busy || memberLoading || syncing}
                   type="button"
                   onClick={() => void purchaseMonthlyCard()}
                 >

@@ -1,3 +1,9 @@
 {
-  "navigationBarTitleText": "近期活动"
+  "navigationBarTitleText": "活动列表",
+  "navigationBarBackgroundColor": "#fbf7ef",
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "ui-art": "/components/ui-art/index",
+    "activity-cover": "/components/activity-cover/index"
+  }
 }

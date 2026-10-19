@@ -1,8 +1,11 @@
 {
   "navigationBarTitleText": "桌游库",
+  "navigationBarBackgroundColor": "#fbf7ef",
+  "navigationBarTextStyle": "black",
   "onReachBottomDistance": 180,
   "usingComponents": {
     "board-game-card": "/components/board-game-card/index",
-    "range-slider": "/components/range-slider/index"
+    "range-slider": "/components/range-slider/index",
+    "ui-nav": "/components/ui-nav/index"
   }
 }

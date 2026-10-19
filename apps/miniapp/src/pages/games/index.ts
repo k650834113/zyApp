@@ -17,6 +17,9 @@ type RangeValue = { lower: number; upper: number }
 type RangeBounds = { min: number; max: number; step: number }
 type RangeEvent = { detail: RangeValue }
 type CategoryEvent = { detail: { value: string[] } }
+type PlayerEvent = {
+  currentTarget: { dataset: { playerCount?: number | string } }
+}
 type GameEvent = { detail: { gameId: string } }
 type ExpansionEvent = { detail: { gameId: string; gameName: string } }
 type FilterKind = 'category' | 'players' | 'minutes' | 'complexity'
@@ -25,6 +28,7 @@ type SortValue = NonNullable<PublicBoardGameFilters['sort']>
 type SortEvent = { currentTarget: { dataset: { sort?: SortValue } } }
 
 type CategoryView = { name: string; selected: boolean }
+type PlayerOption = { value: number; label: string; selected: boolean }
 type FilterChip = {
   key: string
   label: string
@@ -32,12 +36,10 @@ type FilterChip = {
   category?: string
 }
 
-let loadSequence = 0
 
 const PAGE_SIZE = 24
 const COMMON_CATEGORY_LIMIT = 12
 
-const defaultPlayerBounds: RangeBounds = { min: 1, max: 8, step: 1 }
 const defaultMinuteBounds: RangeBounds = { min: 15, max: 240, step: 5 }
 const defaultComplexityBounds: RangeBounds = { min: 0, max: 5, step: 0.1 }
 
@@ -78,6 +80,17 @@ function discoveredCategories(games: BoardGameCardView[]): string[] {
     .map(([category]) => category)
 }
 
+function playerOptions(selected: number | null): PlayerOption[] {
+  return Array.from({ length: 12 }, (_, index) => {
+    const value = index + 1
+    return {
+      value,
+      label: value === 12 ? '12+' : String(value),
+      selected: value === selected
+    }
+  })
+}
+
 function decodedCategory(value: string | undefined): string {
   if (!value) return ''
   try {
@@ -95,9 +108,14 @@ function chips(filters: PublicBoardGameFilters): FilterChip[] {
     category
   }))
   if (filters.minPlayers !== undefined || filters.maxPlayers !== undefined) {
+    const minimum = filters.minPlayers
+    const maximum = filters.maxPlayers
     result.push({
       key: 'players',
-      label: `${filters.minPlayers}–${filters.maxPlayers} 人`,
+      label:
+        minimum !== undefined && minimum === maximum
+          ? `${minimum} 人`
+          : `${minimum}–${maximum} 人`,
       kind: 'players'
     })
   }
@@ -122,6 +140,8 @@ function chips(filters: PublicBoardGameFilters): FilterChip[] {
 }
 
 Page({
+  loadSequence:0,
+  onUnload(){this.loadSequence++},
   onShareAppMessage() {
     return createShareAppMessage('桌游库')
   },
@@ -147,13 +167,10 @@ Page({
     categoryViews: [] as CategoryView[],
     categoryQuery: '',
     draftCategories: [] as string[],
-    playerBounds: defaultPlayerBounds,
+    playerOptions: playerOptions(null),
+    draftPlayerCount: null as number | null,
     minuteBounds: defaultMinuteBounds,
     complexityBounds: defaultComplexityBounds,
-    draftPlayers: {
-      lower: defaultPlayerBounds.min,
-      upper: defaultPlayerBounds.max
-    } as RangeValue,
     draftMinutes: {
       lower: defaultMinuteBounds.min,
       upper: defaultMinuteBounds.max
@@ -196,12 +213,9 @@ Page({
       query: this.data.query,
       categories: this.data.draftCategories
     }
-    if (
-      this.data.draftPlayers.lower !== this.data.playerBounds.min ||
-      this.data.draftPlayers.upper !== this.data.playerBounds.max
-    ) {
-      filters.minPlayers = this.data.draftPlayers.lower
-      filters.maxPlayers = this.data.draftPlayers.upper
+    if (this.data.draftPlayerCount !== null) {
+      filters.minPlayers = this.data.draftPlayerCount
+      filters.maxPlayers = this.data.draftPlayerCount
     }
     if (
       this.data.draftMinutes.lower !== this.data.minuteBounds.min ||
@@ -225,20 +239,22 @@ Page({
       const options = await getMiniappClient().getGameFilterOptions()
       const categoryOptions = visibleCategories(options.categories, '')
       const selectedCategories = this.data.appliedFilters.categories ?? []
-      const playerBounds = { ...options.playerBounds, step: 1 }
+      const nextPlayerOptions = playerOptions(this.data.draftPlayerCount)
+      const draftPlayerCount = nextPlayerOptions.some(
+        (option) => option.selected
+      )
+        ? this.data.draftPlayerCount
+        : null
       const minuteBounds = { ...options.minuteBounds, step: 5 }
       const complexityBounds = { ...options.complexityBounds, step: 0.1 }
       this.setData({
         allCategoryOptions: options.categories,
         categoryOptions,
         categoryViews: categoryViews(categoryOptions, selectedCategories),
-        playerBounds,
+        playerOptions: nextPlayerOptions,
+        draftPlayerCount,
         minuteBounds,
         complexityBounds,
-        draftPlayers: {
-          lower: playerBounds.min,
-          upper: playerBounds.max
-        },
         draftMinutes: {
           lower: minuteBounds.min,
           upper: minuteBounds.max
@@ -254,7 +270,7 @@ Page({
   },
 
   async loadGames(filters?: PublicBoardGameFilters, append = false) {
-    const sequence = ++loadSequence
+    const sequence = ++this.loadSequence
     const previousCards = this.data.games.flatMap((game) => [
       game,
       ...game.expansions
@@ -270,7 +286,7 @@ Page({
           offset
         })
       )
-      if (sequence !== loadSequence) return
+      if (sequence !== this.loadSequence) return
       const existing = new Map(previousCards.map((game) => [game.id, game]))
       const expandedBaseGameIds = new Set(
         this.data.games
@@ -320,7 +336,7 @@ Page({
           : {})
       })
     } catch (error) {
-      if (sequence !== loadSequence) return
+      if (sequence !== this.loadSequence) return
       if (!append) this.setData({ loadFailed: true })
       wx.showToast({
         title:
@@ -332,8 +348,8 @@ Page({
         icon: 'none'
       })
     } finally {
-      if (sequence === loadSequence) {
-        this.setData(append ? { loadingMore: false } : { loading: false })
+      if (sequence === this.loadSequence) {
+        this.setData({loadingMore:false,loading:false})
       }
     }
   },
@@ -397,6 +413,11 @@ Page({
       complexity: '按复杂度筛选'
     }
     const filters = this.data.appliedFilters
+    const draftPlayerCount =
+      filters.minPlayers !== undefined &&
+      filters.minPlayers === filters.maxPlayers
+        ? filters.minPlayers
+        : null
     const draftCategories = [...(filters.categories ?? [])]
     const categoryOptions = visibleCategories(this.data.allCategoryOptions, '')
     this.setData({
@@ -408,10 +429,11 @@ Page({
       categoryQuery: '',
       categoryOptions,
       categoryViews: categoryViews(categoryOptions, draftCategories),
-      draftPlayers: {
-        lower: filters.minPlayers ?? this.data.playerBounds.min,
-        upper: filters.maxPlayers ?? this.data.playerBounds.max
-      },
+      draftPlayerCount,
+      playerOptions: this.data.playerOptions.map((option) => ({
+        ...option,
+        selected: option.value === draftPlayerCount
+      })),
       draftMinutes: {
         lower: filters.minMinutes ?? this.data.minuteBounds.min,
         upper: filters.maxMinutes ?? this.data.minuteBounds.max
@@ -456,8 +478,16 @@ Page({
     })
   },
 
-  changePlayers(event: RangeEvent) {
-    this.setData({ draftPlayers: event.detail })
+  selectPlayer(event: PlayerEvent) {
+    const draftPlayerCount = Number(event.currentTarget.dataset.playerCount)
+    if (!Number.isSafeInteger(draftPlayerCount) || draftPlayerCount < 1) return
+    this.setData({
+      draftPlayerCount,
+      playerOptions: this.data.playerOptions.map((option) => ({
+        ...option,
+        selected: option.value === draftPlayerCount
+      }))
+    })
   },
 
   changeMinutes(event: RangeEvent) {
@@ -475,10 +505,11 @@ Page({
       categoryQuery: '',
       categoryOptions,
       categoryViews: categoryViews(categoryOptions, []),
-      draftPlayers: {
-        lower: this.data.playerBounds.min,
-        upper: this.data.playerBounds.max
-      },
+      draftPlayerCount: null,
+      playerOptions: this.data.playerOptions.map((option) => ({
+        ...option,
+        selected: false
+      })),
       draftMinutes: {
         lower: this.data.minuteBounds.min,
         upper: this.data.minuteBounds.max
@@ -546,24 +577,6 @@ Page({
       success: () => {
         wx.showToast({ title: 'BGG 来源链接已复制', icon: 'none' })
       }
-    })
-  },
-
-  toggleGame(event: GameEvent) {
-    const gameId = event.detail.gameId
-    this.setData({
-      games: this.data.games.map((game) =>
-        game.id === gameId
-          ? { ...game, expanded: !game.expanded }
-          : {
-              ...game,
-              expansions: game.expansions.map((expansion) =>
-                expansion.id === gameId
-                  ? { ...expansion, expanded: !expansion.expanded }
-                  : expansion
-              )
-            }
-      )
     })
   },
 
@@ -642,6 +655,8 @@ Page({
       wx.showToast({ title: '操作失败，请重试', icon: 'none' })
     }
   },
+
+  goRecommendations() { wx.navigateTo({ url: '/pages/recommendations/index' }) },
 
   goHome() {
     wx.reLaunch({ url: '/pages/home/index' })

@@ -1,7 +1,12 @@
+import { getMiniappClient } from '../../services/client'
+import {communityApi,requireMember,chooseFriend,operationKey,inviteEnvironment,writeInviteImage,scanCommunityInvite} from '../../services/social'
+import type {CommunityMember} from '@zyapp/contracts'
 import { scoreTotals } from '../../services/tabletop-tools'
+import {rememberScoreDraft} from '../../services/community-model'
+import {openCommunityPage} from '../../services/community-page'
 import { createShareAppMessage } from '../../services/share'
 
-type ScorePlayer = { id: number; name: string }
+type ScorePlayer = { id: number; name: string; memberId?:string; avatarUrl?:string|null }
 type ScoreRow = { id: number; values: string[] }
 type IndexEvent = { currentTarget: { dataset: { index?: number | string } } }
 type ScoreCellEvent = WechatMiniprogram.Input & {
@@ -16,23 +21,23 @@ type NameEvent = WechatMiniprogram.Input & {
 type StoredSheet = {
   players: ScorePlayer[]
   rows: ScoreRow[]
+  tableId?:string
 }
 
 const storageKey = 'zyapp-tabletop-score-v2'
-let nextPlayerId = 3
+let nextPlayerId = 2
 let nextRowId = 2
 let pendingSheet: StoredSheet | null = null
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 
 function defaultPlayers(): ScorePlayer[] {
   return [
-    { id: 1, name: '玩家 1' },
-    { id: 2, name: '玩家 2' }
+    { id: 1, name: '玩家 1' }
   ]
 }
 
 function defaultRows(): ScoreRow[] {
-  return [{ id: 1, values: ['', ''] }]
+  return [{ id: 1, values: [''] }]
 }
 
 function validStoredSheet(value: unknown): value is StoredSheet {
@@ -40,6 +45,7 @@ function validStoredSheet(value: unknown): value is StoredSheet {
   const sheet = value as Partial<StoredSheet>
   if (!Array.isArray(sheet.players) || sheet.players.length < 1 || sheet.players.length > 8) return false
   if (!Array.isArray(sheet.rows) || sheet.rows.length < 1 || sheet.rows.length > 100) return false
+  if (sheet.tableId !== undefined && typeof sheet.tableId !== 'string') return false
   if (!sheet.players.every((player) =>
     player && typeof player.id === 'number' && typeof player.name === 'string'
   )) return false
@@ -88,14 +94,18 @@ Page({
   data: {
     players: defaultPlayers(),
     rows: defaultRows(),
-    totals: ['0', '0'],
-    tableWidth: 500
+    totals: ['0'],
+    tableWidth: 312,
+    tableId:'',codePath:'',socialError:'',socialBusy:false,tableClosed:false,tableMembers:[] as CommunityMember[]
   },
 
+  visible:false,restored:false,memberInitialized:false,selfPlayer:null as ScorePlayer|null,pollTimer:null as ReturnType<typeof setTimeout>|null,sequence:0,suppressed:new Set<string>(),
   onLoad() {
     try {
       const stored = wx.getStorageSync(storageKey) as unknown
       if (validStoredSheet(stored)) {
+        this.restored=true
+        this.setData({tableId:stored.tableId??''})
         nextPlayerId = Math.max(...stored.players.map((player) => player.id)) + 1
         nextRowId = Math.max(...stored.rows.map((row) => row.id)) + 1
         this.setSheet(stored.players, stored.rows, false)
@@ -106,15 +116,54 @@ Page({
   },
 
   onHide() {
+    this.visible=false;this.sequence++;this.stopPolling()
     this.flushPersist()
   },
 
   onUnload() {
+    this.visible=false;this.sequence++;this.stopPolling()
     this.flushPersist()
   },
 
+  onShow(){this.visible=true;void this.initializeMember();void this.pollTable()},
+  async initializeMember(){
+    if(this.memberInitialized)return
+    const sequence=this.sequence
+    try{const member=await getMiniappClient().getMemberSummary();if(!member||!this.visible||sequence!==this.sequence)return
+      this.selfPlayer={id:1,name:member.nickname,memberId:member.memberId,avatarUrl:member.avatarUrl};this.memberInitialized=true
+      if(this.restored)return
+      this.setSheet(this.data.players.map((p,i)=>i===0?{...p,...this.selfPlayer!}:p),this.data.rows)
+    }catch{/* Guests can keep using the local tool. */}
+  },
+  stopPolling(){if(this.pollTimer)clearTimeout(this.pollTimer);this.pollTimer=null},
+  async pollTable(){
+    this.stopPolling();if(!this.visible||!this.data.tableId)return
+    const sequence=this.sequence
+    try{const table=await communityApi().getTable(this.data.tableId);if(!this.visible||sequence!==this.sequence)return
+      if(!table.owned)throw new Error('请由同桌发起者计分')
+      this.setData({tableClosed:table.closed,tableMembers:table.members,socialError:''})
+      for(const member of table.members)if(!this.suppressed.has(member.memberId))this.addMember(member)
+      if(table.closed)return
+    }catch(e){if(this.visible&&sequence===this.sequence)this.setData({socialError:e instanceof Error?e.message:'同桌加载失败'})}
+    if(this.visible&&sequence===this.sequence)this.pollTimer=setTimeout(()=>void this.pollTable(),4000)
+  },
+  addMember(member:CommunityMember){
+    if(this.data.players.some(p=>p.memberId===member.memberId))return
+    let index=this.data.players.findIndex((p,i)=>!p.memberId&&p.name===`玩家 ${i+1}`&&this.data.rows.every(r=>!r.values[i]))
+    if(index>=0){this.setSheet(this.data.players.map((p,i)=>i===index?{...p,name:member.name,memberId:member.memberId,avatarUrl:member.avatarUrl}:p),this.data.rows);return}
+    if(this.data.players.length>=8){this.setData({socialError:'计分表已满8人，请移除临时玩家后重试'});return}
+    this.setSheet([...this.data.players,{id:nextPlayerId++,name:member.name,memberId:member.memberId,avatarUrl:member.avatarUrl}],this.data.rows.map(r=>({...r,values:[...r.values,'']})))
+  },
+  async socialRun(run:()=>Promise<void>){if(this.data.socialBusy)return;this.setData({socialBusy:true,socialError:''});try{await run()}catch(e){this.setData({socialError:e instanceof Error?e.message:'操作失败'})}finally{this.setData({socialBusy:false})}},
+  async addFriend(){await this.socialRun(async()=>{const m=await chooseFriend(this.data.players.flatMap(p=>p.memberId?[p.memberId]:[]));if(m)this.addMember(m)})},
+  async showTableCode(){await this.socialRun(async()=>{await requireMember();if(!this.data.tableId||this.data.tableClosed){const t=await communityApi().createTable(operationKey());this.suppressed.clear();this.setData({tableId:t.id,tableClosed:false});this.schedulePersist(this.data.players,this.data.rows)}
+    const invite=await communityApi().createInvite({requestId:operationKey(),tableId:this.data.tableId,envVersion:inviteEnvironment()});this.setData({codePath:await writeInviteImage(invite.imageDataUrl)});void this.pollTable()
+  })},
+  async closeTable(){await this.socialRun(async()=>{await communityApi().closeTable(this.data.tableId,operationKey());this.stopPolling();this.setData({tableClosed:true,codePath:''})})},
+  hideCode(){this.setData({codePath:''})},scan:scanCommunityInvite,
+  async requestTableFriend(e:{currentTarget:{dataset:{id:string}}}){await this.socialRun(async()=>{await communityApi().friendCommand('request',{requestId:operationKey(),memberId:e.currentTarget.dataset.id});wx.showToast({title:'申请已发送',icon:'none'})})},
   schedulePersist(players: ScorePlayer[], rows: ScoreRow[]) {
-    pendingSheet = { players, rows }
+    pendingSheet = { players, rows,...(this.data.tableId?{tableId:this.data.tableId}:{}) }
     if (persistTimer) clearTimeout(persistTimer)
     persistTimer = setTimeout(() => this.flushPersist(), 180)
   },
@@ -140,7 +189,8 @@ Page({
   inputName(event: NameEvent) {
     const index = Number(event.currentTarget.dataset.index)
     if (!Number.isSafeInteger(index) || !this.data.players[index]) return
-    const name = String(event.detail.value ?? '').slice(0, 10)
+    if(this.data.players[index]?.memberId)return
+    const name = String(event.detail.value ?? '').slice(0, 12)
     const players = this.data.players.map((player, playerIndex) =>
       playerIndex === index ? { ...player, name } : player
     )
@@ -181,6 +231,7 @@ Page({
   removePlayer(event: IndexEvent) {
     const index = Number(event.currentTarget.dataset.index)
     if (this.data.players.length <= 1 || !this.data.players[index]) return
+    const removed=this.data.players[index];if(removed?.memberId)this.suppressed.add(removed.memberId)
     const players = this.data.players.filter((_, playerIndex) => playerIndex !== index)
     const rows = this.data.rows.map((row) => ({
       ...row,
@@ -210,6 +261,26 @@ Page({
     )
   },
 
+  finishGame(){
+    if(this.data.socialBusy)return
+    wx.showModal({
+      title:'结束并重置',content:'是否保存本局？保存成功后重置；直接重置将不保存本局。',
+      confirmText:'保存对局',cancelText:'直接重置',confirmColor:'#175540',
+      success:result=>{
+        if(result.confirm){
+          rememberScoreDraft({...(this.data.tableId?{tableId:this.data.tableId}:{}),players:this.data.players.map((player,index)=>({name:player.name,...(player.memberId?{memberId:player.memberId,avatarUrl:player.avatarUrl??null}:{}),score:this.data.totals[index]??'0',rank:index+1})),onSaved:()=>this.resetGame()})
+          void openCommunityPage('play-create')
+        }else if(result.cancel)this.resetGame()
+      }
+    })
+  },
+  resetGame(){
+    this.sequence++;this.stopPolling();this.suppressed.clear();this.restored=false
+    this.setData({tableId:'',tableClosed:false,tableMembers:[],codePath:'',socialError:''})
+    this.setSheet(this.selfPlayer?[{...this.selfPlayer}]:defaultPlayers(),defaultRows())
+    this.flushPersist()
+    if(this.visible)void this.initializeMember()
+  },
   resetScores() {
     wx.showModal({
       title: '清空所有分值？',

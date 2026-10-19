@@ -1,0 +1,9 @@
+<view class="pricing-page">
+  <view class="pricing-heading"><image src="/assets/icons/receipt-green.svg"/><view><text>收费说明</text><text class="subtitle">简单透明 · 专注桌游</text></view></view>
+  <view wx:if="{{unavailable}}" class="pricing-unavailable">门店完整价目表正在核对，请联系门店确认当前收费。<button bindtap="goAbout">联系门店</button></view>
+  <view wx:else class="price-table"><view class="table-row table-head"><text>收费项目</text><text>普通价</text><text>会员价</text></view><view wx:for="{{rows}}" wx:key="label" class="table-row"><text>{{item.label}}</text><text>{{item.regular}}</text><text>{{item.member}}</text></view></view>
+  <text class="membership-threshold">单次充值满500元，即可永久享受会员价。</text>
+  <view class="price-card"><view class="price-row"><image src="/assets/icons/receipt-green.svg"/><view class="row-copy"><view><text>单人月卡</text><text>{{monthlyPrice}}</text></view><text class="note">{{monthlyDuration}}</text></view></view><view wx:for="{{extras}}" wx:key="label" class="price-row"><image src="/assets/icons/{{item.icon}}-green.svg"/><view class="row-copy"><view><text>{{item.label}}</text><text>{{item.value}}</text></view><text wx:if="{{item.note}}" class="note">{{item.note}}</text></view></view></view>
+  <view wx:if="{{memberNote}}" class="membership-note"><image src="/assets/icons/user-green.svg"/><view><text>会员说明</text><text>{{memberNote}}</text></view></view>
+  <view class="recharge-link" bindtap="goRecharge">充值活动与说明　→</view>
+</view>

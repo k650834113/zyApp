@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { MemberSummary, MonthlyCardDetails, SessionUser } from '@zyapp/contracts'
 import { getDesktopApi, readableError } from './api'
+import { MemberSelection } from './member-selection'
 
 function formatFen(value: number): string {
   return `¥${Math.floor(value / 100)}.${String(value % 100).padStart(2, '0')}`
@@ -25,6 +26,12 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const selection = useRef(new MemberSelection())
+  const submitting = useRef(false)
+  useEffect(() => () => { selection.current.select(null) }, [])
+  useEffect(() => getDesktopApi().onCloudDataChanged(() => {
+    if (!submitting.current) void refresh().catch(() => {})
+  }), [member])
   const canApprove = session.permissions.includes('refund.approve')
   const canExtend = session.role === 'manager'
   const extendableCard =
@@ -43,29 +50,35 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
   }
 
   async function selectMember(nextMember: MemberSummary): Promise<void> {
+    if (submitting.current) return
+    const generation = selection.current.select(nextMember.id)
+    setMember(nextMember)
+    setDetails(null)
+    setError(null)
+    setNotice(null)
+    setReason('')
+    setRefundSpecialOverride(false)
     try {
-      setMember(nextMember)
-      setDetails(
-        await getDesktopApi().getMonthlyCardDetails({ memberId: nextMember.id })
-      )
+      const next = await getDesktopApi().getMonthlyCardDetails({ memberId: nextMember.id })
+      if (!selection.current.accepts(generation, nextMember.id)) return
+      setDetails(next)
       setResults([])
-      setError(null)
-      setNotice(null)
-      setReason('')
-      setRefundSpecialOverride(false)
-    } catch (value) {
-      setError(readableError(value))
+    } catch (reason) {
+      if (selection.current.accepts(generation, nextMember.id)) setError(readableError(reason))
     }
   }
 
   async function refresh(): Promise<void> {
-    if (member) {
-      setDetails(await getDesktopApi().getMonthlyCardDetails({ memberId: member.id }))
-    }
+    const memberId = selection.current.memberId
+    if (!memberId) return
+    const generation = selection.current.capture()
+    const next = await getDesktopApi().getMonthlyCardDetails({ memberId })
+    if (selection.current.accepts(generation, memberId)) setDetails(next)
   }
 
   async function purchase(): Promise<void> {
-    if (!member || busy) return
+    if (!member || submitting.current || !details || selection.current.memberId !== member.id) return
+    submitting.current = true
     setBusy(true)
     try {
       await getDesktopApi().purchaseMonthlyCard({
@@ -79,17 +92,19 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
     } catch (value) {
       setError(readableError(value))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   async function action(type: 'pause' | 'resume' | 'use'): Promise<void> {
     const card = details?.current
-    if (!card || busy) return
+    if (!card || submitting.current || !details || selection.current.memberId !== card.memberId) return
     if (reason.trim().length < 2) {
       setError('请先填写至少 2 个字的操作原因')
       return
     }
+    submitting.current = true
     setBusy(true)
     try {
       const request = {
@@ -113,13 +128,14 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
     } catch (value) {
       setError(readableError(value))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   async function submitRefund(direct: boolean): Promise<void> {
     const card = details?.current
-    if (!card || busy) return
+    if (!card || submitting.current || !details || selection.current.memberId !== card.memberId) return
     if (direct && card.usageCount > 0 && !refundSpecialOverride) {
       setError('该月卡已经使用，店长直接退款时必须勾选特殊退款')
       return
@@ -128,6 +144,7 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
       setError('月卡特殊退款必须填写至少 2 个字的原因')
       return
     }
+    submitting.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -159,12 +176,13 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
     } catch (value) {
       setError(readableError(value))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
   async function extendCard(): Promise<void> {
-    if (!extendableCard || busy) return
+    if (!extendableCard || submitting.current || !details || selection.current.memberId !== extendableCard.memberId) return
     if (!Number.isInteger(extensionDays) || extensionDays < 1 || extensionDays > 365) {
       setError('延长天数必须为 1-365 的整数')
       return
@@ -173,6 +191,7 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
       setError('请填写至少 2 个字的延长原因')
       return
     }
+    submitting.current = true
     setBusy(true)
     try {
       const card = await getDesktopApi().extendMonthlyCard({
@@ -188,6 +207,7 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
     } catch (value) {
       setError(readableError(value))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
@@ -372,7 +392,7 @@ export function MonthlyCardPage({ session }: { session: SessionUser }): React.JS
               {details.events.length === 0 ? <div className="empty-row">暂无记录</div> : null}
               {details.events.map((event) => (
                 <div key={event.id}>
-                  <strong>{event.eventType}</strong>
+                  <strong>{event.eventType === 'reconciled' ? '差异核对更正' : event.eventType}</strong>
                   <span>{event.reason}</span>
                   <small>{new Date(event.occurredAt).toLocaleString('zh-CN')}</small>
                 </div>

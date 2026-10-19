@@ -1,10 +1,8 @@
 <view class="page-shell expansion-page">
-  <view class="expansion-heading">
-    <text class="expansion-title">{{baseGameName}}的扩展</text>
-    <text class="expansion-subtitle">这里只展示与该基础游戏直接关联的扩展</text>
-  </view>
+  <view class="base-game" bindtap="goBase"><image wx:if="{{baseCover}}" src="{{baseCover}}" mode="aspectFit" binderror="baseImageError"/><view wx:else class="base-placeholder"><image src="/assets/icons/games-green.svg"/></view><text>所属游戏：<text class="base-name">{{baseGameName}}</text></text><text class="base-arrow">〉</text></view>
+  <view class="search-toggle" bindtap="toggleSearch">{{searchOpen ? '收起搜索' : '搜索扩展'}}<image src="/assets/icons/search-muted.svg"/></view>
 
-  <view class="search-row">
+  <view wx:if="{{searchOpen}}" class="search-row">
     <input
       class="form-input search-input"
       placeholder="搜索扩展名称"
@@ -16,14 +14,14 @@
     <button class="search-button" bindtap="search">搜索</button>
   </view>
 
-  <view class="result-head">已展示 {{resultCount}} 个扩展</view>
+  <view wx:if="{{searchOpen}}" class="result-head">已展示 {{resultCount}} 个扩展<text class="expansion-subtitle">这里只展示与该基础游戏直接关联的扩展</text></view>
   <view wx:if="{{loadFailed}}" class="load-error" bindtap="retry">加载失败，点击重试</view>
 
   <board-game-card
+    variant="expansion"
     wx:for="{{games}}"
     wx:key="id"
     game="{{item}}"
-    bindtoggle="toggleGame"
     bindlike="likeGame"
     bindimageerror="imageError"
   />

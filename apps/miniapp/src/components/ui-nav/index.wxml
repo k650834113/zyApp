@@ -1,0 +1,1 @@
+<view class="navigation"><view wx:for="{{items}}" wx:key="key" id="nav-{{item.key}}" class="item {{active === item.key ? 'selected' : ''}}" data-key="{{item.key}}" bindtap="go"><image src="/assets/icons/{{item.icon}}-{{active === item.key ? 'green' : 'muted'}}.svg"/><text>{{item.label}}</text></view></view>

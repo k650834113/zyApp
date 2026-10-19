@@ -1,3 +1,4 @@
+import { beginFinancialTransaction, commitFinancialTransaction } from './financial-transaction'
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
@@ -430,7 +431,7 @@ export function purchaseMonthlyCard(
   const cardId = randomUUID()
   const expiresAt = new Date(now.getTime() + plan.durationDays * DAY_MS).toISOString()
 
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const currentRows = database
       .prepare(
@@ -520,7 +521,7 @@ export function purchaseMonthlyCard(
         }
       )
     }
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return after
   } catch (error) {
     database.exec('ROLLBACK')
@@ -543,10 +544,10 @@ function cardAction(
     }
   }
 ): MonthlyCardSummary {
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const result = cardActionInOpenTransaction(database, context, input)
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return result
   } catch (error) {
     database.exec('ROLLBACK')
@@ -739,7 +740,7 @@ export function extendMonthlyCard(
   }
   assertCloudMirrorSafeForFinancialWrite(database, context, 'monthly_card')
   const now = input.now ?? new Date()
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const repeated = existingEventCard(
       database,
@@ -749,7 +750,7 @@ export function extendMonthlyCard(
       now
     )
     if (repeated) {
-      database.exec('COMMIT')
+      commitFinancialTransaction(database, transactionStart)
       return repeated
     }
     const before = findCard(database, context.tenantId, input.cardId, now)
@@ -801,7 +802,7 @@ export function extendMonthlyCard(
         reactivated: before.status === 'expired'
       }
     })
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return after
   } catch (error) {
     database.exec('ROLLBACK')
@@ -817,10 +818,10 @@ export function refundMonthlyCard(
   if (context.actor.role !== 'manager') {
     throw new Error('Only managers can refund a monthly card directly')
   }
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const result = refundMonthlyCardInOpenTransaction(database, context, input)
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return result
   } catch (error) {
     database.exec('ROLLBACK')

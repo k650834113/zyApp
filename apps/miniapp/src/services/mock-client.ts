@@ -105,7 +105,7 @@ const games: MockBoardGameSeed[] = [
     minMinutes: 30,
     maxMinutes: 45,
     complexityRating: 1.9,
-    imageUrl: null,
+    imageUrl: 'https://judian.icu/v1/public/board-game-covers/1c311df4a56c57bfbd2233253a98dda032db4fbd358ad7cfb90113b1e94a0dc2.jpg',
     customerNote: '适合第一次接触现代桌游的顾客。',
     sourceAttribution: null,
     likeCount: 12,
@@ -129,7 +129,7 @@ const games: MockBoardGameSeed[] = [
     minMinutes: 30,
     maxMinutes: 45,
     complexityRating: 2.3,
-    imageUrl: null,
+    imageUrl: 'https://judian.icu/v1/public/board-game-covers/68234f85034ee24fb5a609c8a20823b7a98a01c3d628e75df2cbbeac272e9db8.png',
     customerNote: '经典入门策略游戏。',
     sourceAttribution: {
       label: 'Powered by BGG',
@@ -415,7 +415,6 @@ export function activeActivities(now = new Date()): PublicActivitySummary[] {
     .filter(
       (activity) =>
         activity.status === 'published' &&
-        timestamp >= Date.parse(activity.startsAt) &&
         timestamp < Date.parse(activity.endsAt)
     )
     .sort((left, right) => Number(right.pinned) - Number(left.pinned))
@@ -591,6 +590,15 @@ function demoMemberHistory(): MemberSelfServiceHistory {
 }
 
 export class MockMiniappClient implements MiniappClient {
+  async getPublicPricing():Promise<import('@zyapp/contracts').PublicPricing> {
+    return {rows:[],monthlyCard:{planName:'30天月卡',priceFen:20000,durationDays:30}}
+  }
+  async logout():Promise<void> { throw new Error('开发演示不保存正式会话') }
+  async getGame(id: string): Promise<PublicBoardGameSummary> {
+    const game = (await this.listGames()).find(item => item.id === id)
+    if (!game) throw new Error('该游戏已下架或暂不可用')
+    return game
+  }
   private readonly likedGameIds = new Set<string>()
   private readonly likeCounts = new Map(
     games.map((game) => [game.id, game.likeCount])
@@ -697,8 +705,9 @@ export class MockMiniappClient implements MiniappClient {
     }
   }
 
-  async listFavoriteGames(): Promise<PublicBoardGameSummary[]> {
-    return this.publicGames().filter((game) => game.likedByViewer)
+  async listFavoriteGames(filters:PublicBoardGameFilters={}): Promise<PublicBoardGameSummary[]> {
+    const items=this.publicGames().filter((game) => game.likedByViewer && matchesBoardGameFilters(game,filters))
+    return items.slice(filters.offset??0,(filters.offset??0)+(filters.limit??items.length))
   }
 
   async setGameLiked(

@@ -81,6 +81,17 @@ function service(options: {
 }
 
 describe('board-game metadata service', () => {
+  it.each([
+    ['blocked', 'BGG access blocked by Cloudflare'],
+    ['unauthorized', 'BGG authorization failed'],
+    ['throttled', 'BGG request was throttled']
+  ] as const)('preserves the %s failure category without upstream details', async (code, message) => {
+    const fixture = service({ adapter: adapter({
+      search: vi.fn().mockRejectedValue(new BggMetadataError(code, 'private upstream details'))
+    }) })
+    await expect(fixture.instance.search(principal, actorId, 'Catan'))
+      .rejects.toMatchObject({ status: 503, message })
+  })
   it('authorizes an active manager in the authenticated tenant and store', async () => {
     const fixture = service()
     await expect(fixture.instance.status(principal, actorId)).resolves.toEqual({

@@ -55,6 +55,42 @@ function emptyClient() {
 }
 
 describe('cloud financial sync operation handler', () => {
+  it('accumulates a simultaneous monthly-card use without replacing the cloud count', async () => {
+    const cardId = '88888888-8888-4888-8888-888888888888'
+    const before = { id: cardId, memberId: '77777777-7777-4777-8777-777777777777',
+      planName: '月卡', priceFen: 20000, paymentMethod: 'cash', status: 'active',
+      purchasedAt: '2026-06-01T00:00:00.000Z', startsAt: '2026-06-01T00:00:00.000Z',
+      expiresAt: '2026-07-01T00:00:00.000Z', pausedAt: null, usageCount: 2,
+      issuingStoreId: '44444444-4444-4444-8444-444444444444', scopeType: 'store' }
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => ({ rows: sql.includes('FROM cloud_monthly_card WHERE id')
+      ? [{ tenant_id: '33333333-3333-4333-8333-333333333333', store_id: before.issuingStoreId,
+          member_id: before.memberId, status: 'active', usage_count: 3, expires_at: before.expiresAt, scope_type: 'store' }]
+      : [], rowCount: 1 }))
+    const callbacks = support()
+    expect(await processFinancialSyncOperation({ query } as unknown as PoolClient,
+      operation('monthly_card.used', cardId, { before, after: { ...before, usageCount: 3 } }), callbacks.value)).toBe('confirmed')
+    const write = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO cloud_monthly_card\n'))
+    expect(write?.[1]).toContain(4)
+    expect(callbacks.markConflict).not.toHaveBeenCalled()
+  })
+  it('rejects a refund after a concurrent monthly-card use', async () => {
+    const cardId = '88888888-8888-4888-8888-888888888888'
+    const before = { id: cardId, memberId: '77777777-7777-4777-8777-777777777777',
+      planName: '月卡', priceFen: 20000, paymentMethod: 'cash', status: 'active',
+      purchasedAt: '2026-06-01T00:00:00.000Z', startsAt: '2026-06-01T00:00:00.000Z',
+      expiresAt: '2026-07-01T00:00:00.000Z', pausedAt: null, usageCount: 2,
+      issuingStoreId: '44444444-4444-4444-8444-444444444444', scopeType: 'store' }
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => ({ rows: sql.includes('FROM cloud_monthly_card WHERE id')
+      ? [{ tenant_id: '33333333-3333-4333-8333-333333333333', store_id: before.issuingStoreId,
+          member_id: before.memberId, status: 'active', usage_count: 3, expires_at: before.expiresAt, scope_type: 'store' }]
+      : [], rowCount: 1 }))
+    const callbacks = support()
+    expect(await processFinancialSyncOperation({ query } as unknown as PoolClient,
+      operation('monthly_card.refunded', cardId, { before, after: { ...before, status: 'refunded' } }), callbacks.value)).toBe('conflict')
+    expect(callbacks.markConflict).toHaveBeenCalled()
+    expect(callbacks.appendEvent).not.toHaveBeenCalled()
+    expect(query.mock.calls.some(([sql]) => sql.includes('INSERT INTO cloud_monthly_card'))).toBe(false)
+  })
   it('projects a valid wallet snapshot into account and append-only ledger writes', async () => {
     const walletId = '66666666-6666-4666-8666-666666666666'
     const client = emptyClient()
@@ -208,6 +244,77 @@ describe('cloud financial sync operation handler', () => {
     expect(accountWrite?.[1]?.[6]).toBe(2_000)
   })
 
+  it('recalculates a cloud command debit from the latest gift balance without a false conflict', async () => {
+    const localWalletId = '66666666-6666-4666-8666-666666666666'
+    const cloudWalletId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const query = vi.fn(async (sql: string, _parameters: unknown[] = []) => {
+      if (sql.includes('SELECT id FROM cloud_member')) {
+        return {
+          rows: [{ id: '77777777-7777-4777-8777-777777777777' }],
+          rowCount: 1
+        }
+      }
+      if (sql.includes('FROM cloud_wallet_account')) {
+        return {
+          rows: [
+            {
+              id: cloudWalletId,
+              tenant_id: '33333333-3333-4333-8333-333333333333',
+              store_id: '44444444-4444-4444-8444-444444444444',
+              member_id: '77777777-7777-4777-8777-777777777777',
+              principal_balance_fen: 80_000,
+              gift_balance_fen: 2_000
+            }
+          ],
+          rowCount: 1
+        }
+      }
+      return { rows: [], rowCount: 0 }
+    })
+    const client = { query } as unknown as PoolClient
+    const callbacks = support()
+
+    const result = await processFinancialSyncOperation(
+      client,
+      operation('wallet.debited', localWalletId, {
+        action: 'wallet.debited', cloudCommand: true,
+        before: {
+          accountId: localWalletId,
+          memberId: '77777777-7777-4777-8777-777777777777',
+          principalBalanceFen: 50_000,
+          giftBalanceFen: 5_000,
+          totalBalanceFen: 55_000,
+          status: 'active',
+          updatedAt: '2026-06-12T00:00:00.000Z'
+        },
+        after: {
+          operationId: 'local-debit-1',
+          wallet: {
+            accountId: localWalletId,
+            memberId: '77777777-7777-4777-8777-777777777777',
+            principalBalanceFen: 45_000,
+            giftBalanceFen: 0,
+            totalBalanceFen: 45_000,
+            status: 'active',
+            updatedAt: '2026-06-13T00:00:00.000Z'
+          },
+          principalDeltaFen: -5_000,
+          giftDeltaFen: -5_000
+        },
+        reason: 'offline debit'
+      }),
+      callbacks.value
+    )
+
+    expect(result).toBe('confirmed')
+    const accountWrite = query.mock.calls.find(([sql]) =>
+      String(sql).includes('INSERT INTO cloud_wallet_account')
+    )
+    expect(accountWrite?.[1]?.[0]).toBe(cloudWalletId)
+    expect(accountWrite?.[1]?.[5]).toBe(72_000)
+    expect(accountWrite?.[1]?.[6]).toBe(0)
+  })
+
   it('serializes and confirms a valid expired-card manual extension', async () => {
     const cardId = '88888888-8888-4888-8888-888888888888'
     const memberId = '77777777-7777-4777-8777-777777777777'
@@ -336,3 +443,68 @@ describe('cloud financial sync operation handler', () => {
     expect(callbacks.completeOperation).not.toHaveBeenCalled()
   })
 })
+
+for (const scenario of ['confirmed','stale','staff','other_member'] as const) {
+  it(`validates wallet reconciliation authority and current version: ${scenario}`,async()=>{
+    const walletId='66666666-6666-4666-8666-666666666666'
+    const memberId='77777777-7777-4777-8777-777777777777'
+    const op=operation('wallet.reconciled',walletId,{rejectedOperationId:'99999999-9999-4999-8999-999999999999',reason:'核对现金凭证',
+      before:{serverVersion:9},after:{operationId:'correction',wallet:{accountId:walletId,memberId,principalBalanceFen:7000,giftBalanceFen:0,totalBalanceFen:7000,status:'active',updatedAt:'2026-06-13T00:00:00.000Z'},principalDeltaFen:2000,giftDeltaFen:0}})
+    const query=vi.fn(async(sql:string,_params?:unknown[])=>({rows:
+      sql.includes('FROM sync_operation o JOIN')?[{operation_type:'wallet.cash_recharged',payload_json:{after:{wallet:{memberId:scenario==='other_member'?'other':memberId}}}}]:
+      sql.includes('SELECT 1 FROM cloud_employee e JOIN')?(scenario==='staff'?[]:[{valid:1}]):
+      sql.includes('SELECT id FROM cloud_member')?[{id:memberId}]:
+      sql.includes('FROM cloud_wallet_account')?[{id:walletId,tenant_id:op.tenant_id,store_id:op.store_id,member_id:memberId,server_version:scenario==='stale'?10:9,principal_balance_fen:5000,gift_balance_fen:0,status:'active'}]:[],rowCount:1}))
+    const callbacks=support()
+    expect(await processFinancialSyncOperation({query} as unknown as PoolClient,op,callbacks.value)).toBe(scenario==='confirmed'?'confirmed':'conflict')
+    if(scenario==='confirmed') {
+      expect(callbacks.appendEvent).toHaveBeenCalledOnce()
+      expect(query.mock.calls.some(([sql])=>sql.includes("UPDATE sync_conflict SET status='resolved'"))).toBe(true)
+      const ledger=query.mock.calls.find(([sql])=>sql.includes('INSERT INTO cloud_wallet_ledger'))
+      expect(ledger?.[1]).toContain(2000)
+    } else expect(callbacks.appendEvent).not.toHaveBeenCalled()
+  })
+}
+
+it('refuses to use an old conflict to change a different card of the same member',async()=>{
+  const memberId='77777777-7777-4777-8777-777777777777'
+  const query=vi.fn(async(sql:string)=>({rows:sql.includes('FROM sync_operation o JOIN')?[{operation_type:'monthly_card.used',payload_json:{after:{id:'original-card',memberId}}}]:[{valid:1}],rowCount:1}))
+  const callbacks=support()
+  expect(await processFinancialSyncOperation({query} as unknown as PoolClient,operation('monthly_card.reconciled','different-card',{
+    rejectedOperationId:'original',reason:'核对月卡',after:{id:'different-card',memberId}}),callbacks.value)).toBe('conflict')
+  expect(callbacks.appendEvent).not.toHaveBeenCalled()
+})
+
+for (const sourceStatus of ['conflict','confirmed'] as const) {
+  it(`only closes genuinely rejected command groups (${sourceStatus})`,async()=>{
+    const groupId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const query=vi.fn(async(sql:string)=>({rows:sql.includes('FROM sync_operation o JOIN')?
+      [{operation_id:'99999999-9999-4999-8999-999999999999',status:sourceStatus,conflict_type:'atomic_group_rejected',payload_json:{atomicGroup:{id:groupId,size:1,index:0}}}]:
+      sql.includes('SELECT 1 FROM cloud_employee e JOIN')?[{valid:1}]:[],rowCount:1}))
+    const callbacks=support()
+    const result=await processFinancialSyncOperation({query} as unknown as PoolClient,operation('financial_command.reviewed',groupId,
+      {reviewedGroupId:groupId,choice:'apply_cloud',reason:'核对后取消'}),callbacks.value)
+    expect(result).toBe(sourceStatus==='conflict'?'confirmed':'conflict')
+    expect(query.mock.calls.some(([sql])=>sql.includes("UPDATE sync_conflict SET status='resolved'"))).toBe(sourceStatus==='conflict')
+  })
+}
+
+for (const scenario of ['member','amount','quantity','duplicate_target'] as const) {
+  it(`rejects a cloud refund which conflicts with authoritative ${scenario}`,async()=>{
+    const id='99999999-9999-4999-8999-999999999999'
+    const query=vi.fn(async(sql:string)=>({rows:
+      sql.includes('SELECT total_fen, payment_method')?[{total_fen:1000,payment_method:'stored_value',wallet_member_id:scenario==='member'?'another':'member'}]:
+      sql.includes('SUM(total_fen)')?[{total:scenario==='amount'?500:0}]:
+      sql.includes('SELECT quantity, applied_unit_price_fen')?[{quantity:1,applied_unit_price_fen:1000}]:
+      sql.includes("SUM((item->>'quantity')")?[{quantity:1}]:
+      sql.includes('SELECT 1 FROM cloud_financial_refund_request')?[{found:1}]:[],rowCount:1}))
+    const callbacks=support()
+    const result=await processFinancialSyncOperation({query} as unknown as PoolClient,operation(
+      scenario==='duplicate_target'?'financial_refund.completed':'refund.completed',id,{cloudCommand:true,after:{
+        id,status:'completed',orderId:'order',walletMemberId:'member',paymentMethod:'stored_value',totalFen:1000,
+        targetId:'recharge',targetType:'cash_recharge',items:[{orderItemId:'item',quantity:1,unitRefundFen:1000}]
+      }}),callbacks.value)
+    expect(result).toBe('conflict')
+    expect(callbacks.appendEvent).not.toHaveBeenCalled()
+  })
+}

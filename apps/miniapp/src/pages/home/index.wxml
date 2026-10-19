@@ -1,182 +1,31 @@
-<view class="home-page page-shell">
-  <view wx:if="{{loading}}" class="empty-state">正在加载会员信息…</view>
-
-  <block wx:elif="{{member}}">
-    <view class="member-hero">
-      <view class="profile-row">
-        <image wx:if="{{member.avatarUrl}}" class="avatar" src="{{member.avatarUrl}}" mode="aspectFill" />
-        <view wx:else class="avatar avatar-fallback">{{member.avatarText}}</view>
-        <view class="profile-copy">
-          <view class="profile-name-row">
-            <view class="profile-identity">
-              <text class="profile-name">{{member.nickname}}</text>
-              <text class="member-tier">{{member.tierText}}</text>
-            </view>
-            <button class="edit-profile" bindtap="goProfile">编辑</button>
-          </view>
-          <text class="phone-text">{{member.phoneMasked}}</text>
-        </view>
-      </view>
-    </view>
-
-    <view class="balance-card card">
-      <text class="balance-label">储值余额</text>
-      <text class="balance-value">{{member.totalBalanceText}}</text>
-    </view>
-
-    <view wx:if="{{monthlyCardEnabled && monthlyCardConfiguration}}" class="monthly-card-feature card">
-      <view class="monthly-card-feature-head">
-        <view>
-          <text class="monthly-card-eyebrow">桌游畅玩月卡</text>
-          <text class="monthly-card-feature-title">{{monthlyCardConfiguration.planName}}</text>
-        </view>
-        <text class="monthly-card-badge">{{monthlyCardState === 'active' ? '续费顺延' : monthlyCardState === 'paused' ? '已暂停' : '立即生效'}}</text>
-      </view>
-      <block wx:if="{{monthlyCardState === 'unopened'}}">
-        <text class="monthly-card-price">{{monthlyCardPriceText}}</text>
-        <text class="monthly-card-state">{{monthlyCardStatusText}}</text>
-        <button
-          class="primary-button monthly-card-button"
-          loading="{{busy}}"
-          disabled="{{busy || !monthlyCardConfiguration.purchaseAllowed}}"
-          bindtap="purchaseMonthlyCard"
-        >{{monthlyCardActionText}}</button>
-      </block>
-      <block wx:elif="{{monthlyCardState === 'active'}}">
-        <view class="monthly-card-expiry">
-          <text class="monthly-card-expiry-label">有效期至</text>
-          <text class="monthly-card-expiry-date">{{monthlyCardExpiresOn}}</text>
-          <text class="monthly-card-remaining-days">{{monthlyCardRemainingDaysText}}</text>
-        </view>
-        <text class="monthly-card-plan-price">{{monthlyCardPriceText}}</text>
-        <text class="monthly-card-state">{{monthlyCardStatusText}}</text>
-        <button
-          class="monthly-card-renew-button"
-          loading="{{busy}}"
-          disabled="{{busy || !monthlyCardConfiguration.purchaseAllowed}}"
-          bindtap="purchaseMonthlyCard"
-        >{{monthlyCardActionText}}</button>
-      </block>
-      <block wx:else>
-        <view class="monthly-card-expiry">
-          <text class="monthly-card-expiry-label">有效期至</text>
-          <text class="monthly-card-expiry-date">{{monthlyCardExpiresOn}}</text>
-          <text class="monthly-card-remaining-days monthly-card-paused-badge">已暂停</text>
-        </view>
-        <text class="monthly-card-plan-price">{{monthlyCardPriceText}}</text>
-        <text class="monthly-card-blocked">{{monthlyCardConfiguration.blockedReason || monthlyCardStatusText}}</text>
-        <button
-          class="monthly-card-renew-button"
-          disabled
-        >{{monthlyCardActionText}}</button>
-      </block>
-    </view>
-
-    <view wx:if="{{rechargeEnabled}}" class="recharge-card card">
-      <view class="recharge-heading">
-        <text class="recharge-title">微信充值</text>
-        <text class="muted recharge-subtitle">选择快捷金额或输入自定义金额</text>
-      </view>
-      <view class="recharge-options">
-        <button
-          wx:for="{{quickRechargeAmounts}}"
-          wx:key="principalFen"
-          class="recharge-option {{selectedRechargeAmountFen == item.principalFen ? 'selected' : ''}}"
-          data-principal-fen="{{item.principalFen}}"
-          disabled="{{busy}}"
-          bindtap="selectRechargeAmount"
-        >
-          <text class="recharge-option-amount">{{item.label}}</text>
-          <text class="recharge-gift-estimate">{{item.giftText}}</text>
-          <text class="recharge-total-estimate">{{item.totalText}}</text>
-        </button>
-      </view>
-      <view class="custom-recharge">
-        <text class="custom-currency">¥</text>
-        <input
-          class="custom-recharge-input"
-          type="digit"
-          value="{{customRechargeAmount}}"
-          disabled="{{busy}}"
-          placeholder="自定义金额，最低 0.01 元"
-          bindinput="inputCustomRechargeAmount"
-        />
-      </view>
-      <button
-        class="primary-button recharge-button"
-        loading="{{busy}}"
-        disabled="{{busy}}"
-        bindtap="recharge"
-      >微信支付</button>
-      <view class="recharge-rule-note">
-        <text class="muted recharge-hint">实际赠送以创建充值订单时的规则为准</text>
-        <button
-          class="recharge-rule-info"
-          aria-label="查看当前充赠规则"
-          bindtap="showRechargeRules"
-        >!</button>
-      </view>
-    </view>
-
-    <view wx:if="{{rechargeOrder}}" class="recharge-result card">
-      <view>
-        <text class="result-title">{{rechargeOrder.statusText}}</text>
-        <text class="muted result-copy">预计到账 {{rechargeOrder.amountText}}</text>
-      </view>
-      <button
-        wx:if="{{rechargeOrder.providerMode === 'mock' && rechargeOrder.status === 'pending_payment'}}"
-        class="small-action"
-        bindtap="settleMockRecharge"
-      >完成测试支付</button>
-    </view>
-
-    <view class="section-head">
-      <text class="section-title">最近明细</text>
-      <text class="section-link" bindtap="goHistory">全部明细 〉</text>
-    </view>
-    <view class="activity-list card">
-      <view wx:if="{{recentActivities.length === 0}}" class="empty-state">暂无明细</view>
-      <view wx:for="{{recentActivities}}" wx:key="activityId" class="activity-row">
-        <view class="activity-icon {{item.kind}}">{{item.iconText}}</view>
-        <view class="activity-main">
-          <text class="activity-title">{{item.title}}</text>
-          <text class="activity-meta">{{item.timeText}}　{{item.businessNumber ? '单号：' + item.businessNumber : ''}}</text>
-        </view>
-        <view class="activity-right">
-          <text class="activity-amount {{item.amountClass}}">{{item.amountText}}</text>
-          <text class="activity-status">{{item.statusText}}</text>
-        </view>
-      </view>
-    </view>
-  </block>
-
-  <view wx:else class="guest-panel">
-    <view class="guest-mark">会</view>
-    <text class="guest-title">登录会员账户</text>
-    <text class="guest-copy">查询余额、月卡和历史明细，并使用微信安全充值。</text>
-    <button
-      class="primary-button login-button"
-      open-type="getPhoneNumber"
-      bindgetphonenumber="loginWithWechat"
-      loading="{{busy}}"
-    >手机号快捷登录</button>
-    <view wx:if="{{loginFallbackVisible}}" class="fallback-card card">
-      <text class="fallback-title">手机号验证码登录</text>
-      <input class="form-input" type="number" maxlength="11" placeholder="手机号" bindinput="inputPhone" />
-      <view class="code-row">
-        <input class="form-input code-input" type="number" maxlength="8" placeholder="验证码" bindinput="inputCode" />
-        <button class="code-button" bindtap="requestVerification" loading="{{verificationBusy}}">获取验证码</button>
-      </view>
-      <text wx:if="{{loginHint}}" class="muted hint">{{loginHint}}</text>
-      <button class="primary-button" bindtap="submitFallbackLogin" loading="{{busy}}">登录并完善资料</button>
+<view class="page-shell discovery-page">
+  <swiper class="activity-banner" indicator-dots="{{bannerActivities.length > 0}}" indicator-active-color="#174f3b" autoplay="{{bannerActivities.length > 0}}" interval="6000" circular>
+    <swiper-item><view class="banner-inner" bindtap="goGames"><ui-art kind="hero" class="banner-image" src="{{heroUrl}}" mode="aspectFill"/><view class="banner-copy"><ui-art wx:if="{{!heroTitle || heroTitle === home.store.name}}" kind="logo" class="banner-brand"/><text wx:else class="banner-title">{{heroTitle}}</text><text class="banner-summary">{{heroSubtitle}}</text></view></view></swiper-item>
+    <swiper-item wx:for="{{bannerActivities}}" wx:key="id"><view class="banner-inner" data-id="{{item.id}}" bindtap="goActivity"><activity-cover src="{{item.coverUrl}}" title="{{item.coverTitle}}" status="{{item.statusText}}" date="{{item.coverDateText}}"/></view></swiper-item>
+  </swiper>
+  <view class="store-links"><view bindtap="goAbout"><image src="/assets/icons/pin-green.svg"/>到店导航<text>›</text></view><view bindtap="goPricing"><image src="/assets/icons/receipt-green.svg"/>收费说明<text>›</text></view></view>
+  <view class="shortcuts">
+    <view bindtap="goGames"><image src="/assets/icons/search-green.svg"/><text>找桌游</text><text class="muted">按喜好发现</text></view>
+    <view bindtap="goTools"><image src="/assets/icons/tools-green.svg"/><text>桌游工具</text><text class="muted">计分 · 分队</text></view>
+    <view bindtap="goRecord"><image src="/assets/icons/edit-green.svg"/><text>记录对局</text><text class="muted">留住精彩时刻</text></view>
+  </view>
+  <view wx:if="{{errorMessage}}" class="notice"><text>{{errorMessage}}</text><button bindtap="load">重新加载</button></view>
+  <view wx:if="{{loading}}" class="empty-state">正在加载门店内容…</view>
+  <view class="section-head"><text class="section-title">店家推荐</text><text class="section-link" bindtap="goRecommendations">查看全部 ›</text></view>
+  <view class="recommendation-grid" wx:if="{{home.recommendedGames.length}}">
+    <view wx:for="{{home.recommendedGames}}" wx:key="id" class="recommendation-card" data-id="{{item.id}}" bindtap="goGameDetail">
+      <image wx:if="{{item.imageUrl}}" class="recommendation-cover" src="{{item.imageUrl}}" mode="aspectFill" data-id="{{item.id}}" binderror="imageError"/><view wx:else class="cover-placeholder">桌游</view>
+      <view class="recommendation-title"><text class="game-name">{{item.name}}</text><image src="/assets/icons/heart-{{item.likedByViewer ? 'green' : 'muted'}}.svg" data-id="{{item.id}}" catchtap="likeRecommendation"/></view>
+      <text class="recommendation-note">{{item.customerNote || item.minPlayers + '–' + item.maxPlayers + '人'}}</text>
     </view>
   </view>
-
-  <view class="bottom-nav">
-    <view class="nav-item active" bindtap="goHome"><text class="nav-icon">⌂</text><text>首页</text></view>
-    <view class="nav-item" bindtap="goGames"><text class="nav-icon">♟</text><text>桌游库</text></view>
-    <view class="nav-item" bindtap="goTools"><text class="nav-icon">◈</text><text>工具</text></view>
-    <view class="nav-item" bindtap="goHistory"><text class="nav-icon">▤</text><text>明细</text></view>
-    <view class="nav-item" bindtap="goProfile"><text class="nav-icon">○</text><text>我的</text></view>
+  <view wx:elif="{{!loading}}" class="quiet-empty">店家正在挑选推荐，也可以先逛逛桌游库。</view>
+  <view class="section-head"><text class="section-title">近期活动</text><text class="section-link" bindtap="goActivities">查看全部 ›</text></view>
+  <view wx:for="{{activities}}" wx:key="id" class="event-row" data-id="{{item.id}}" bindtap="goActivity">
+    <activity-cover class="event-cover" src="{{item.coverUrl}}" compact="{{true}}"/>
+    <view class="event-copy"><view class="event-heading"><text class="event-title">{{item.title}}</text><text class="event-status">{{item.statusText}}</text></view><text class="event-time">{{item.startsAtText}}</text><text class="event-summary">{{item.summary}}</text></view><text class="event-arrow">›</text>
   </view>
+  <view wx:if="{{!loading && !activities.length}}" class="quiet-empty">暂无近期活动，过段时间再来看看。</view>
+  <text wx:if="{{home.recommendedGames.length}}" class="attribution">Powered by BGG</text>
+  <ui-nav active="home"/>
 </view>

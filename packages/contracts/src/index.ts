@@ -555,6 +555,7 @@ export type MonthlyCardEventSummary = {
     | 'refunded'
     | 'expired'
     | 'manual_extended'
+    | 'reconciled'
   reason: string
   occurredAt: string
 }
@@ -1235,6 +1236,12 @@ export type PublicAnnouncementSummary = {
 }
 
 export type PublicActivitySummary = {
+  lottery?: import('./activity-lottery').LotteryConfig | null
+  /** PC-published presentation fields; absent on older servers. */
+  posterUrl?: string | null
+  coverUrl?: string | null
+  locationText?: string | null
+  tags?: string[]
   id: Identifier
   title: string
   summary: string
@@ -1259,6 +1266,10 @@ export type BoardGameSourceAttribution = {
 }
 
 export type PublicBoardGameSummary = {
+  recommendationReason?: string | null
+  recommendationAudience?: string | null
+  recommendationBadge?: string | null
+  recommendationSceneIds?: string[]
   id: Identifier
   baseGameId: Identifier | null
   expansionCount?: number
@@ -1312,11 +1323,43 @@ export type BoardGameLikeResult = {
   likeCount: number
 }
 
+/** Published content only. Payment and membership configuration remain authoritative. */
+export type { MiniappContentDraft, MiniappContentWorkspace, MiniappContentCommand, MapLocationSearch, MapLocationCandidate } from './miniapp-content'
+
+export type PublicMiniappContent = {
+  activityDisplays?: Array<{activityId:string;coverUrl?:string|null;posterUrl:string|null;locationText:string;tags:string[]}>
+  recommendationDisplays?: Array<{gameId:string;reason:string;audience:string;badge:string;sceneIds:string[]}>
+  schemaVersion: 1
+  revision: string
+  publishedAt: string
+  storePhotoUrl?: string | null
+  storeCaption?: string | null
+  storeFooter?: string | null
+  location?: { latitude: number; longitude: number } | null
+  contacts?: Array<{ id: string; label: string; value: string; action: 'copy' | 'phone' }>
+  homeHeroUrl?: string | null
+  homeHeroTitle?: string | null
+  homeHeroSubtitle?: string | null
+  recommendationHeroUrl?: string | null
+  recommendationHeroTitle?: string | null
+  pricing?: {
+    rows: Array<{ label: string; regular: string; member: string }>
+    extras: Array<{ icon: 'user' | 'people' | 'games' | 'clock' | 'receipt'; label: string; value: string; note: string }>
+    memberNote: string
+  } | null
+  documents?: Array<{ key: 'agreement' | 'privacy' | 'help'; title: string; version: string; body: string; updatedAt: string }>
+}
+
 export type MiniappHomeSnapshot = {
+  content?: PublicMiniappContent | null
   store: PublicStoreSummary
   announcements: PublicAnnouncementSummary[]
   activities: PublicActivitySummary[]
   recommendedGames: PublicBoardGameSummary[]
+}
+export type PublicPricing = {
+  rows:Array<{label:string;regular:string;member:string}>
+  monthlyCard:{planName:string;priceFen:number;durationDays:number}
 }
 
 export type MemberSelfServiceSummary = {
@@ -1350,6 +1393,7 @@ export type FillMemberBirthdayRequest = {
 export type MemberOrderHistoryItem = {
   orderId: Identifier
   orderNumber: string
+  /** Admission subtotal shown to members; excludes non-admission items. */
   totalFen: number
   paymentMethod: 'cash' | 'stored_value'
   completedAt: string
@@ -1988,6 +2032,14 @@ export type JoinCloudStoreBeforeLoginResult = {
 }
 
 export type InboundSyncConflictSummary = {
+  direction?: 'inbound' | 'outbound'
+  localSnapshot?: Record<string, unknown> | null
+  cloudSnapshot?: Record<string, unknown> | null
+  displayName?: string
+  canKeepLocal?: boolean
+  resolutionMode?: 'financial_command' | 'financial_balance'
+  resolutionSupported?: boolean
+  reviewToken?: string
   sequence: string
   eventId: Identifier
   aggregateType: string
@@ -1999,6 +2051,7 @@ export type InboundSyncConflictSummary = {
 }
 
 export type ResolveInboundSyncConflictRequest = {
+  reviewToken?: string
   sequence: string
   resolution: 'keep_local' | 'apply_cloud'
   reason: string
@@ -2026,6 +2079,14 @@ export type ApplicationUpdateStatus = {
 }
 
 export const IPC_CHANNELS = {
+  miniappLocationSearch: 'miniapp-content:location-search',
+  lotteryRead:'lottery:read',
+  lotteryCommand:'lottery:command',
+  lotteryMember:'lottery:member',
+  miniappContentRead: 'miniapp-content:read',
+  miniappContentCommand: 'miniapp-content:command',
+  miniappContentHistory: 'miniapp-content:history',
+  miniappContentUpload: 'miniapp-content:upload',
   systemStatus: 'system:get-status',
   systemSwitchDataEnvironment: 'system:switch-data-environment',
   storeProfilesList: 'store-profiles:list',
@@ -2136,6 +2197,15 @@ export const IPC_CHANNELS = {
 } as const
 
 export type DesktopApi = {
+  searchMiniappLocation(request: import('./miniapp-content').MapLocationSearch): Promise<import('./miniapp-content').MapLocationCandidate[]>
+  getLottery(activityId:string):Promise<import('./activity-lottery').LotteryWorkspace>
+  executeLottery(command:import('./activity-lottery').LotteryCommand):Promise<import('./activity-lottery').LotteryWorkspace>
+  findLotteryMember(activityId:string,phone:string):Promise<import('./activity-lottery').LotteryMember|null>
+  getMiniappContent(): Promise<import('./miniapp-content').MiniappContentWorkspace>
+  executeMiniappContent(request: import('./miniapp-content').MiniappContentCommand): Promise<import('./miniapp-content').MiniappContentWorkspace>
+  getMiniappContentHistory(): Promise<Array<{ revision: string; action: string; createdAt: string }>>
+  uploadMiniappContentImage(): Promise<{ cachedUrl: string } | null>
+  onCloudDataChanged(listener: () => void): () => void
   getSystemStatus(): Promise<SystemStatus>
   switchDataEnvironment(request: SwitchDataEnvironmentRequest): Promise<void>
   listStoreProfiles(): Promise<StoreConfigurationSummary[]>
@@ -2302,3 +2372,8 @@ export type DesktopApi = {
     request: ExportBusinessReportRequest
   ): Promise<ExportBusinessReportResult>
 }
+export * from './miniapp-community'
+
+export * from './miniapp-play-rules'
+
+export type { LotteryConfig, LotteryEntry, LotteryResult, LotteryWorkspace, LotteryCommand, LotteryMember } from './activity-lottery'

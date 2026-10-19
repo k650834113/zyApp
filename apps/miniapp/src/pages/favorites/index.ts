@@ -13,58 +13,71 @@ function requestId(): string {
 }
 
 Page({
+  sequence:0,
+  searchTimer:null as ReturnType<typeof setTimeout>|null,
+  onUnload(){this.sequence++;if(this.searchTimer)clearTimeout(this.searchTimer)},
+  onReachBottom(){if(!this.data.loading&&this.data.hasMore)void this.loadFavorites(true)},
   onShareAppMessage() {
     return createShareAppMessage('我喜欢的桌游')
   },
 
   data: {
+    query: '',
+    visibleGames: [] as BoardGameCardView[],
     loading: true,
     loadFailed: false,
+    hasMore:false,
     games: [] as BoardGameCardView[]
   },
 
   onShow() {
     void this.loadFavorites()
   },
+  onQueryInput(event: { detail: { value: string } }) {
+    this.setData({ query: event.detail.value }); this.applySearch()
+    if(this.searchTimer)clearTimeout(this.searchTimer)
+    this.searchTimer=setTimeout(()=>{this.searchTimer=null;void this.loadFavorites()},300)
+  },
+  applySearch() {
+    const query = this.data.query.trim().toLocaleLowerCase('zh-CN')
+    this.setData({ visibleGames: this.data.games.filter(game => game.name.toLocaleLowerCase('zh-CN').includes(query)) })
+  },
 
-  async loadFavorites() {
+  async loadFavorites(append=false) {
+    const sequence=++this.sequence
     this.setData({ loading: true })
     try {
-      const result = await getMiniappClient().listFavoriteGames()
+      const result = await getMiniappClient().listFavoriteGames({query:this.data.query,limit:24,offset:append?this.data.games.length:0})
+      if(sequence!==this.sequence)return
       const existing = new Map(this.data.games.map((game) => [game.id, game]))
       this.setData({
-        games: result.map((game) => {
+        hasMore:result.length===24,
+        games: [...(append?this.data.games:[]),...result.map((game) => {
           const previous = existing.get(game.id)
           return toBoardGameCardView(game, {
             expanded: previous?.expanded ?? false,
             imageFailed: previous?.imageFailed ?? false,
             likeBusy: false
           })
-        }),
+        })],
         loadFailed: false
       })
     } catch (error) {
+      if(sequence!==this.sequence)return
       this.setData({ loadFailed: true })
       wx.showToast({
         title: error instanceof Error ? error.message : '收藏加载失败',
         icon: 'none'
       })
     } finally {
+      if(sequence!==this.sequence)return
       this.setData({ loading: false })
+      this.applySearch()
     }
   },
 
   retry() {
     void this.loadFavorites()
-  },
-
-  toggleGame(event: GameEvent) {
-    const gameId = event.detail.gameId
-    this.setData({
-      games: this.data.games.map((game) =>
-        game.id === gameId ? { ...game, expanded: !game.expanded } : game
-      )
-    })
   },
 
   imageError(event: GameEvent) {
@@ -74,6 +87,7 @@ Page({
         game.id === gameId ? { ...game, imageFailed: true } : game
       )
     })
+    this.applySearch()
   },
 
   async likeGame(event: GameEvent) {
@@ -93,6 +107,7 @@ Page({
           : game
       )
     })
+    this.applySearch()
     try {
       const result = await getMiniappClient().setGameLiked(gameId, {
         liked,
@@ -111,7 +126,7 @@ Page({
         )
       })
       wx.showToast({ title: '操作失败，请重试', icon: 'none' })
-    }
+    } finally { this.applySearch() }
   },
 
   goLibrary() {

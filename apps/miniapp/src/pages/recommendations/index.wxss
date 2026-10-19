@@ -1,0 +1,30 @@
+.recommendations-page { padding-bottom: 40rpx; }
+.intro { position: relative; height: 258rpx; overflow: hidden; background: #e7ddcd; }
+.intro-image { width: 100%; height: 100%; }
+.intro > text { position: absolute; top: 34rpx; left: 56rpx; white-space: pre-line; font-family: KaiTi, STKaiti, serif; font-size: 40rpx; font-weight: 600; line-height: 1.25; color: #152019; transform: rotate(-5deg); }
+.recommendations-body { padding: 0 24rpx; }
+.scenes { display: flex; gap: 18rpx; margin: 28rpx 0 32rpx; }
+.scenes button { flex: 1; min-width: 0; margin: 0; padding: 22rpx 4rpx; border: 1rpx solid #efeeea; border-radius: 20rpx; background: #fff; color: #19231f; font-size: 27rpx; line-height: 1.5; }
+.scenes text { display: block; }
+.scenes button { display: flex; align-items: center; justify-content: center; gap: 10rpx; }
+.scenes image { width: 36rpx; height: 36rpx; flex-shrink: 0; }
+.scenes .selected image { filter: brightness(0) invert(1); }
+.name-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6rpx; margin-bottom: 16rpx; }
+.name-row .name { margin: 8rpx 0; }
+.badge { border-radius: 20rpx; padding: 6rpx 14rpx; background: #e9efeb; color: #527568; font-size: 20rpx; }
+.scenes .scene-subtitle { font-size: 23rpx; color: #858a8c; }
+.scenes .selected { background: #174f3b; color: #fff; box-shadow: inset 0 0 0 5rpx #fff; border: 2rpx solid #497966; }
+.scenes .selected .scene-subtitle { color: #ccdfd5; }
+.recommendation { margin-bottom: 24rpx; padding: 22rpx; border: 1rpx solid #efeeea; border-radius: 24rpx; background: #fff; box-shadow: none; }
+.game-head { display: flex; align-items: flex-start; gap: 28rpx; }
+.game-head > image, .placeholder { width: 194rpx; height: 260rpx; border-radius: 10rpx; flex-shrink: 0; }
+.placeholder { background: #e9eadb; text-align: center; line-height: 260rpx; font-size: 60rpx; color: #174f3b; }
+.game-copy { flex: 1; min-width: 0; }
+.name { display: block; margin: 8rpx 0 20rpx; color: #17221c; font-size: 32rpx; font-weight: 600; }
+.reason { padding: 16rpx 18rpx; border-radius: 18rpx; background: #f1f2f3; color: #626972; font-size: 24rpx; line-height: 1.65; }
+.audience { display: block; margin-top: 20rpx; color: #7c8288; font-size: 23rpx; line-height: 1.7; }
+.game-copy .view-game { width: 196rpx; min-width: 0; margin: 18rpx 0 0 auto; padding: 0; border-radius: 24rpx; background: #174f3b; color: #fff; font-size: 24rpx; line-height: 66rpx; }
+.introduction { display: block; margin-top: 22rpx; font-size: 26rpx; line-height: 1.8; white-space: pre-wrap; }
+.attribution { display: block; margin-top: 16rpx; color: #93988f; font-size: 18rpx; }
+
+.intro{height:310rpx;margin:20rpx 24rpx 0;border-radius:28rpx;background:#174f3b}.intro-image{display:block}.intro>text{top:34rpx;left:30rpx;right:30rpx;font-family:inherit;color:#fff;font-size:40rpx;transform:none;max-width:500rpx;text-shadow:0 2rpx 8rpx #173c2a;pointer-events:none}.scenes button{border-color:#e5e8df;background:#fffdf8;border-radius:22rpx}.recommendation{overflow:hidden}

@@ -1,0 +1,9 @@
+<view class="community-page">
+<view wx:if="{{loading}}" class="unavailable">正在加载…</view>
+<view wx:if="{{error}}" class="error">{{error}}<button bindtap="refresh" disabled="{{busy}}">重试加载</button></view>
+<view wx:if="{{!demo && !ready}}" class="unavailable">请先登录后使用此功能。</view>
+<block wx:else>
+<view class="summary-banner"><view><text>已加载 {{joinedCount}} 局 · {{gameCount}} 款游戏</text><text class="form-note">记录每一次相聚，让热爱有迹可循。</text></view><button class="solid" bindtap="createPlay">记一局</button></view>
+<block wx:for="{{plays}}" wx:key="id"><text wx:if="{{item.showMonth}}" class="month-label">{{item.monthLabel}}</text><view class="community-card play-card" data-id="{{item.id}}" bindtap="openPlay"><view class="game-row"><image lazy-load wx:if="{{item.game.imageUrl}}" class="game-cover" src="{{item.game.imageUrl}}" mode="aspectFit" data-id="{{item.game.id}}" binderror="imageError"/><view wx:else class="game-cover cover-empty">暂无封面</view><view class="game-copy"><text class="game-title">{{item.game.name}}</text><view class="tags"><text class="tag">{{item.visibility}}</text></view><view class="meta">{{item.players.length}} 人 · {{item.duration}} 分钟</view><view class="meta">{{item.date}}　›</view></view></view></view>
+</block><text wx:if="{{demo}}" class="demo-note">开发演示 · 无云端记录</text>
+</block></view>

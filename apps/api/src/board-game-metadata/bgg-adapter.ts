@@ -11,6 +11,7 @@ export const BOARD_GAME_METADATA_ADAPTER = Symbol(
 export type BggMetadataErrorCode =
   | 'disabled'
   | 'unauthorized'
+  | 'blocked'
   | 'throttled'
   | 'unavailable'
   | 'timeout'
@@ -172,6 +173,15 @@ implements BoardGameMetadataAdapter {
         throw new BggMetadataError('timeout', 'BGG request timed out')
       }
       throw new BggMetadataError('unavailable', 'BGG service is unavailable')
+    }
+    if (response.status === 403) {
+      const body = await boundedBody(response)
+      if (
+        /cloudflare/i.test(response.headers.get('server') ?? '') &&
+        /you have been blocked|challenge-platform|<title>\s*Just a moment/i.test(body)
+      ) {
+        throw new BggMetadataError('blocked', 'BGG access blocked by Cloudflare')
+      }
     }
     if (!response.ok) throw httpError(response.status)
     return boundedBody(response)

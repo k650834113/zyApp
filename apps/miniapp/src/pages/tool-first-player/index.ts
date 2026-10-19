@@ -71,6 +71,7 @@ Page({
   data: {
     markers: [] as Marker[],
     selected: false,
+    winnerColor: '',
     singleMode: false,
     statusText: '请至少两位玩家同时按住屏幕',
     helperText: '轻微移动没关系，保持触点约 1 秒即可'
@@ -193,6 +194,7 @@ Page({
     this.clearSelectionTimer()
     this.setData({
       selected: true,
+      winnerColor: ['#50d8ef','#d9ef52','#ffb547','#ff718d','#ae8cff','#6ca8ff','#ff876b','#60e2b3','#f4d34f','#75d1ff','#f591d2','#b4c5c1'][touchTones.indexOf(winner.tone)] ?? '#50d8ef',
       markers: this.data.markers.map((marker) => ({
         ...marker,
         selected: marker.id === winner.id
@@ -211,6 +213,7 @@ Page({
     this.setData({
       singleMode,
       selected: false,
+      winnerColor: '',
       markers: [],
       statusText: singleMode
         ? '依次点击不同位置添加玩家'
@@ -226,6 +229,7 @@ Page({
     this.clearTouchIdentity()
     this.setData({
       selected: false,
+      winnerColor: '',
       markers: [],
       statusText: this.data.singleMode
         ? '依次点击不同位置添加玩家'

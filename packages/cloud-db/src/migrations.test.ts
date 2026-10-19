@@ -31,7 +31,7 @@ describe('cloud migrations', () => {
   it('includes board-game metadata provenance after the miniapp library', () => {
     const migrations = discoverCloudMigrations(
       join(import.meta.dirname, '..', 'migrations')
-    )
+    ).filter(migration => migration.version <= 21)
 
     expect(migrations.slice(-5).map((migration) => migration.version)).toEqual([
       17, 18, 19, 20, 21

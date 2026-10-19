@@ -1,3 +1,4 @@
+import { beginFinancialTransaction, commitFinancialTransaction } from './financial-transaction'
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import {
@@ -537,7 +538,7 @@ export function updateRechargeGiftTiers(
       : beforeActiveTiers
     : normalizedTiers
   const timestamp = new Date().toISOString()
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     replaceActiveGiftTiersInOpenTransaction(database, context, normalizedTiers, timestamp)
     preserveRechargeTemplateOverrideInOpenTransaction(
@@ -576,7 +577,7 @@ export function updateRechargeGiftTiers(
         }
       )
     }
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return after
   } catch (error) {
     database.exec('ROLLBACK')
@@ -667,7 +668,7 @@ export function restoreExpiredActivityRechargeGiftTiers(
     return null
   }
   const now = input.now ?? new Date()
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const state = ensureGiftRuleState(database, context)
     if (
@@ -679,7 +680,7 @@ export function restoreExpiredActivityRechargeGiftTiers(
         now
       )
     ) {
-      database.exec('COMMIT')
+      commitFinancialTransaction(database, transactionStart)
       return null
     }
     const restoreInput: {
@@ -698,7 +699,7 @@ export function restoreExpiredActivityRechargeGiftTiers(
       context,
       restoreInput
     )
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return result
   } catch (error) {
     database.exec('ROLLBACK')
@@ -1037,7 +1038,7 @@ export function cashRecharge(
   const timestamp = (input.now ?? new Date()).toISOString()
   const rechargeId = randomUUID()
 
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const wallet = ensureWalletRow(database, context, input.memberId, timestamp)
     if (wallet.status !== 'active') {
@@ -1169,7 +1170,7 @@ export function cashRecharge(
         }
       )
     }
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return result
   } catch (error) {
     database.exec('ROLLBACK')
@@ -1289,10 +1290,10 @@ export function debitWallet(
   assertCloudMirrorSafeForFinancialWrite(database, context, 'wallet')
   requireMember(database, context.tenantId, input.memberId)
 
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const result = debitWalletInOpenTransaction(database, context, input)
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return result
   } catch (error) {
     database.exec('ROLLBACK')
@@ -1651,10 +1652,10 @@ export function reverseCashRecharge(
   if (context.actor.role !== 'manager') {
     throw new Error('Only managers can reverse a cash recharge directly')
   }
-  database.exec('BEGIN IMMEDIATE')
+  const transactionStart = beginFinancialTransaction(database)
   try {
     const result = reverseCashRechargeInOpenTransaction(database, context, input)
-    database.exec('COMMIT')
+    commitFinancialTransaction(database, transactionStart)
     return result
   } catch (error) {
     database.exec('ROLLBACK')

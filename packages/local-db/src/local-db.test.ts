@@ -52,7 +52,7 @@ describe('local database', () => {
       .all()
       .map((row) => (row as { name: string }).name)
 
-    expect(localDatabase.schemaVersion).toBe(31)
+    expect(localDatabase.schemaVersion).toBe(32)
     expect(boardGameColumns).toEqual(
       expect.arrayContaining([
         'complexity_tenths',
@@ -111,7 +111,7 @@ describe('local database', () => {
       .prepare('SELECT COUNT(*) AS count FROM schema_migrations')
       .get() as { count: number }
 
-    expect(migrationCount.count).toBe(31)
+    expect(migrationCount.count).toBe(32)
     reopened.close()
   })
 
@@ -241,7 +241,7 @@ describe('local database', () => {
       'pending'
     )
 
-    expect(migrateDatabase(connection)).toBe(31)
+    expect(migrateDatabase(connection)).toBe(32)
 
     const repaired = connection
       .prepare(
@@ -349,7 +349,7 @@ describe('local database', () => {
         randomUUID()
       )
 
-    expect(migrateDatabase(connection)).toBe(31)
+    expect(migrateDatabase(connection)).toBe(32)
     expect(
       connection
         .prepare(
@@ -400,7 +400,7 @@ describe('local database', () => {
       }
     )
 
-    expect(migrateDatabase(connection)).toBe(31)
+    expect(migrateDatabase(connection)).toBe(32)
     expect(
       getMonthlyCardDetails(connection, context, member.id).current
     ).toMatchObject({ id: card.id, paymentMethod: 'cash' })
@@ -721,7 +721,7 @@ describe('local database', () => {
     connection.close()
 
     const upgraded = openLocalDatabase(filePath)
-    expect(upgraded.schemaVersion).toBe(31)
+    expect(upgraded.schemaVersion).toBe(32)
     expect(
       upgraded.connection
         .prepare(
@@ -764,7 +764,7 @@ describe('local database', () => {
     const restored = openLocalDatabase(backupPath)
 
     expect(result.sha256).toMatch(/^[a-f0-9]{64}$/)
-    expect(restored.schemaVersion).toBe(31)
+    expect(restored.schemaVersion).toBe(32)
     restored.close()
     localDatabase.close()
   })

@@ -19,22 +19,24 @@ describe('miniapp mock client', () => {
     })
   })
 
-  it('only exposes active public activities', () => {
-    expect(activeActivities(new Date('2025-01-01T00:00:00.000Z'))).toEqual([])
+  it('exposes published upcoming activities and hides ended activities', () => {
+    expect(activeActivities(new Date('2025-01-01T00:00:00.000Z'))).toHaveLength(1)
     expect(activeActivities(new Date('2026-07-01T00:00:00.000Z'))).toHaveLength(1)
+    expect(activeActivities(new Date('2030-08-31T15:59:59.000Z'))).toEqual([])
   })
 
-  it('applies AND categories and complete player coverage to playable games', async () => {
+  it('applies AND categories and matches the current player count', async () => {
     await expect(
       client.listGames({ categories: ['德式', '策略'] })
     ).resolves.toEqual([
       expect.objectContaining({ name: '璀璨宝石' })
     ])
-    await expect(
-      client.listGames({ minPlayers: 3, maxPlayers: 6 })
-    ).resolves.toEqual([
-      expect.objectContaining({ name: '妙语说书人' })
+    const gamesForTwo = await client.listGames({ minPlayers: 2, maxPlayers: 2 })
+    expect(gamesForTwo.map((game) => game.name)).toEqual([
+      '卡斯卡迪亚',
+      '璀璨宝石'
     ])
+    expect(gamesForTwo.map((game) => game.name)).not.toContain('妙语说书人')
   })
 
   it('uses time overlap and closed numeric complexity ranges', async () => {

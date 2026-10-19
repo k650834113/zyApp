@@ -1,18 +1,23 @@
-<view class="game-card card">
-  <view class="game-card-body" bindtap="toggle">
-    <image
+<view class="game-card card {{variant}}">
+  <view wx:if="{{variant === 'expansion'}}" class="expansion-presentation" bindtap="viewDetail">
+    <image wx:if="{{game.imageUrl && !game.imageFailed}}" class="expansion-cover" src="{{game.imageUrl}}" mode="aspectFit" binderror="imageError" catchtap="viewDetail"/><view wx:else class="expansion-cover expansion-placeholder" catchtap="viewDetail"><image src="/assets/icons/games-green.svg"/><text>暂无扩展封面</text></view>
+    <view class="expansion-copy"><view class="expansion-title-row" catchtap="viewDetail"><text>{{game.name}}</text><text class="expansion-type">扩展</text></view><text class="expansion-description">{{game.introduction || '暂无扩展简介'}}</text><view class="expansion-controls"><text catchtap="viewDetail">查看详情　〉</text><view catchtap="like"><image class="favorite-heart" src="/assets/icons/heart-{{game.likedByViewer ? 'green' : 'muted'}}.svg"/></view></view></view>
+  </view>
+  <view wx:else class="game-card-body" bindtap="viewDetail">
+    <image lazy-load
       wx:if="{{game.imageUrl && !game.imageFailed}}"
       class="game-cover"
       src="{{game.imageUrl}}"
       mode="aspectFill"
       binderror="imageError"
+      catchtap="viewDetail"
     />
-    <view wx:else class="game-cover game-cover-placeholder">桌游</view>
+    <view wx:else class="game-cover game-cover-placeholder" catchtap="viewDetail">桌游</view>
 
     <view class="game-content">
-      <text class="game-name">{{game.name}}</text>
-      <text class="game-meta">{{game.playersText}} · {{game.durationText}} · {{game.complexityText}}</text>
-      <view wx:if="{{!game.expanded && game.previewCategories.length}}" class="category-row category-preview">
+      <text class="game-name" catchtap="viewDetail">{{game.name}}</text>
+      <text wx:if="{{variant !== 'favorite'}}" class="game-meta">{{game.playersText}} · {{game.durationText}} · {{game.complexityText}}</text>
+      <view wx:if="{{game.previewCategories.length}}" class="category-row category-preview">
         <text
           wx:for="{{game.previewCategories}}"
           wx:key="*this"
@@ -23,21 +28,7 @@
         <text wx:if="{{game.hasMoreCategories}}" class="category-more">…</text>
       </view>
       <text wx:if="{{game.isExpansion}}" class="expansion-badge">扩展</text>
-      <view wx:if="{{game.expanded}}" class="game-introduction">
-        <text class="detail-label">标签</text>
-        <view class="category-row">
-          <text
-            wx:for="{{game.categories}}"
-            wx:key="*this"
-            class="category-tag"
-            data-category="{{item}}"
-            catchtap="selectCategory"
-          >{{item}}</text>
-        </view>
-        <text class="detail-label introduction-label">简介</text>
-        <text>{{game.introduction}}</text>
-        <text class="collapse-hint">再次点击收起</text>
-      </view>
+      <view wx:if="{{variant === 'favorite'}}" class="favorite-facts"><view><image src="/assets/icons/people-muted.svg"/><text>{{game.playersText}}</text></view><view><image src="/assets/icons/clock-muted.svg"/><text>{{game.durationText}}</text></view><view><image src="/assets/icons/games-muted.svg"/><text>{{game.complexityText}}</text></view></view>
     </view>
 
     <view class="card-actions">
@@ -48,8 +39,9 @@
         aria-label="{{game.likedByViewer ? '取消点赞' : '点赞'}}"
         aria-disabled="{{game.likeBusy}}"
       >
-        <text class="heart">{{game.likeBusy ? '…' : (game.likedByViewer ? '♥' : '♡')}}</text>
-        <text wx:if="{{!game.likeBusy}}" class="like-count">{{game.likeCount}}</text>
+        <image wx:if="{{variant === 'favorite'}}" class="favorite-heart" src="/assets/icons/heart-{{game.likedByViewer ? 'filled' : 'muted'}}.svg"/>
+        <text wx:else class="heart">{{game.likeBusy ? '…' : (game.likedByViewer ? '♥' : '♡')}}</text>
+        <text wx:if="{{!game.likeBusy && variant !== 'favorite'}}" class="like-count">{{game.likeCount}}</text>
       </view>
       <view
         wx:if="{{showExpansionAction && game.expansionCount && !game.isExpansion}}"

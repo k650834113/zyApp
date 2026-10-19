@@ -1,6 +1,4 @@
-.library-page {
-  padding-top: 24rpx;
-}
+.library-page { padding-top: 16rpx; padding-bottom: 130rpx; }
 
 .library-title,
 .library-subtitle {
@@ -300,6 +298,35 @@
   line-height: 1.55;
 }
 
+.player-options {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 2.666%;
+  row-gap: 14rpx;
+}
+
+.player-option {
+  box-sizing: border-box;
+  width: 23%;
+  min-width: 0;
+  flex: 0 0 23%;
+  margin: 0 !important;
+  border: 2rpx solid transparent;
+  border-radius: 16rpx;
+  padding: 0;
+  color: #34443b;
+  background: #f0ede7;
+  font-size: 27rpx;
+  font-weight: 750;
+  line-height: 72rpx;
+}
+
+.player-option.selected {
+  border-color: #174f3b;
+  color: #fff;
+  background: #174f3b;
+}
+
 .category-search-input {
   min-height: 72rpx;
   margin-bottom: 18rpx;
@@ -380,3 +407,12 @@
   color: #e7eee9;
   background: #6f8b7b;
 }
+
+.recommendation-entry { display: flex; align-items: center; gap: 24rpx; padding: 22rpx; margin-top: 28rpx; margin-bottom: 22rpx; border: 1rpx solid #eeede9; border-radius: 24rpx; background: #fff; }
+.recommendation-icon { display: flex; align-items: center; justify-content: center; width: 104rpx; height: 104rpx; flex-shrink: 0; border-radius: 50%; background: #e3f2ec; }
+.recommendation-icon image { width: 66rpx; height: 66rpx; }
+.recommendation-copy { flex: 1; min-width: 0; }
+.recommendation-copy text { display: block; }
+.recommendation-title { color: #17211d; font-size: 32rpx; font-weight: 600; }
+.recommendation-subtitle { margin-top: 8rpx; color: #81858a; font-size: 24rpx; }
+.recommendation-arrow { width: 30rpx; height: 30rpx; flex-shrink: 0; }

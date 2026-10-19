@@ -1,3 +1,4 @@
+import {ActivityLotteryPanel} from './ActivityLotteryPanel'
 import { useEffect, useState, type FormEvent } from 'react'
 import type {
   ActivitySummary,
@@ -143,6 +144,7 @@ export function ActivityPage({
 }: {
   session: SessionUser
 }): React.JSX.Element {
+  const [lotteryActivity,setLotteryActivity]=useState<ActivitySummary|null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [editor, setEditor] = useState<Editor | null>(null)
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
@@ -264,6 +266,7 @@ export function ActivityPage({
 
   return (
     <>
+      {lotteryActivity&&<ActivityLotteryPanel activity={lotteryActivity} canManage={canManage} onClose={()=>setLotteryActivity(null)}/>}
       <header className="page-header">
         <div>
           <p className="eyebrow">宣传内容与充值活动快照</p>
@@ -308,7 +311,7 @@ export function ActivityPage({
                 {visibilityLabels[activity.visibility]}
               </em>
             </div>
-            <h2>{activity.title}</h2>
+            <h2>{activity.title}</h2><button type="button" className="secondary-button" onClick={()=>setLotteryActivity(activity)}>报名与抽奖</button>
             <p className="activity-summary">{activity.summary}</p>
             <div className="activity-schedule">
               <span>{formatTime(activity.startsAt)}</span>

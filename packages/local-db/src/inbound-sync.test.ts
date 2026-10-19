@@ -111,6 +111,86 @@ describe('safe inbound event application', () => {
     local.close()
   })
 
+  it('applies a miniapp profile patch without requiring tier or replacing other member fields', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-inbound-tier-reconcile-'))
+    temporaryDirectories.push(directory)
+    const local = openLocalDatabase(join(directory, 'zyapp.db'))
+    const bootstrap = bootstrapStore(local.connection, {
+      storeName: 'Store',
+      managerUsername: 'manager',
+      managerPasswordHash: 'scrypt$test',
+      managerDisplayName: 'Manager',
+      deviceName: 'Cashier'
+    })
+    const context = getStoreContext(local.connection)
+    if (!context) throw new Error('Missing store')
+    const actor = findEmployeeRecordById(
+      local.connection,
+      context.tenantId,
+      bootstrap.managerId
+    )
+    if (!actor) throw new Error('Missing manager')
+    const member = createMember(
+      local.connection,
+      { ...context, actor },
+      {
+        phone: '13800138000',
+        nickname: 'Profile must survive',
+        confirmedAtLeast14: true
+      }
+    )
+    local.connection.prepare(
+      `UPDATE outbox_operation SET sync_status = 'confirmed'`
+    ).run()
+    applySyncPullResult(local.connection, context, {
+      protocolVersion: 1,
+      deviceId: context.deviceId,
+      afterCursor: null,
+      nextCursor: '1',
+      hasMore: false,
+      serverTime: '2099-08-21T10:28:09.299Z',
+      events: [{
+        sequence: '1',
+        eventId: 'tier-reconciliation-event',
+        tenantId: context.tenantId,
+        storeId: context.storeId,
+        originDeviceId: null,
+        aggregateType: 'member',
+        aggregateId: member.id,
+        eventType: 'member.profile_updated',
+        payloadJson: payload({
+          nickname: 'New profile', avatarUrl: '/avatar.png', profileCompleted: true
+        }),
+        occurredAt: '2099-08-21T10:28:09.299Z'
+      }]
+    })
+
+    expect(applyPendingInboundEvents(local.connection, context)).toEqual({
+      applied: 1,
+      conflicts: 0,
+      skippedSuperseded: 0
+    })
+    expect(searchMembers(local.connection, context.tenantId, '13800138000', 10)[0])
+      .toMatchObject({
+        id: member.id,
+        nickname: 'New profile',
+        birthdayMonth: null,
+        birthdayDay: null,
+        tier: 'ordinary'
+      })
+    local.connection.prepare(`UPDATE sync_inbound_event SET apply_status='conflict',error_message='member.tier is invalid' WHERE sequence='1'`).run()
+    // A cache behind the rejected event is insufficient evidence to clear it.
+    const cache = {nickname:'New profile',server_version:0}
+    local.connection.prepare(`INSERT INTO cloud_read_model_cache VALUES(?,?,'members',?,?, '1',?)`)
+      .run(context.tenantId,context.storeId,member.id,JSON.stringify(cache),'2099-08-21T10:28:09.299Z')
+    expect(autoResolveNonCriticalInboundConflicts(local.connection,context).applied).toBe(0)
+    local.connection.prepare(`UPDATE cloud_read_model_cache SET payload_json=?`).run(JSON.stringify({...cache,server_version:1}))
+    expect(autoResolveNonCriticalInboundConflicts(local.connection,context).applied).toBe(1)
+    expect(autoResolveNonCriticalInboundConflicts(local.connection,context).applied).toBe(0)
+    expect(listInboundSyncConflicts(local.connection,context)).toHaveLength(0)
+    local.close()
+  })
+
   it('applies store-specific employee roles and invalidates older offline authorization', () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-inbound-access-'))
     temporaryDirectories.push(directory)
@@ -707,7 +787,7 @@ describe('safe inbound event application', () => {
     local.close()
   })
 
-  it('marks a conflict instead of overwriting an aggregate with local pending changes', () => {
+  it('defers an inbound update while an upload is pending without reporting a conflict', () => {
     const directory = mkdtempSync(join(tmpdir(), 'zyapp-inbound-conflict-'))
     temporaryDirectories.push(directory)
     const local = openLocalDatabase(join(directory, 'zyapp.db'))
@@ -764,28 +844,18 @@ describe('safe inbound event application', () => {
 
     expect(
       applyPendingInboundEvents(local.connection, context)
-    ).toEqual({ applied: 0, conflicts: 1, skippedSuperseded: 0 })
+    ).toEqual({ applied: 0, conflicts: 0, skippedSuperseded: 0 })
     expect(listAnnouncements(local.connection, context)[0]?.title).toBe(
       'Local notice'
     )
     expect(getLocalSyncStatus(local.connection, context)).toMatchObject({
-      pendingInboundEvents: 0,
-      inboundConflicts: 1
+      pendingInboundEvents: 1,
+      inboundConflicts: 0
     })
-    expect(listInboundSyncConflicts(local.connection, context)).toHaveLength(1)
-    resolveInboundSyncConflict(
-      local.connection,
-      { ...context, actor },
-      {
-        sequence: '1',
-        resolution: 'keep_local',
-        reason: 'Local draft is newer'
-      }
-    )
     expect(listInboundSyncConflicts(local.connection, context)).toHaveLength(0)
-    expect(listAnnouncements(local.connection, context)[0]?.title).toBe(
-      'Local notice'
-    )
+    local.connection.prepare("UPDATE outbox_operation SET sync_status = 'confirmed' WHERE aggregate_id = ?").run(localAnnouncement.id)
+    expect(applyPendingInboundEvents(local.connection, context).applied).toBe(1)
+    expect(listAnnouncements(local.connection, context)[0]?.title).toBe('Cloud overwrite attempt')
 
     local.close()
   })
@@ -843,7 +913,9 @@ describe('safe inbound event application', () => {
       }],
       serverTime: '2026-08-20T01:00:00.000Z'
     })
-    expect(applyPendingInboundEvents(local.connection, context).conflicts).toBe(1)
+    expect(applyPendingInboundEvents(local.connection, context).conflicts).toBe(0)
+    // A conflict recorded by an older PC version must still recover safely.
+    local.connection.prepare("UPDATE sync_inbound_event SET apply_status = 'conflict', error_message = 'Local pending changes exist for the same aggregate' WHERE sequence = '1'").run()
     local.connection.prepare(
       `UPDATE outbox_operation SET sync_status = 'confirmed'
        WHERE aggregate_id = ?`
@@ -916,6 +988,7 @@ describe('safe inbound event application', () => {
       serverTime: '2026-06-14T01:00:00.000Z'
     })
     applyPendingInboundEvents(local.connection, context)
+    local.connection.prepare("UPDATE sync_inbound_event SET apply_status = 'conflict' WHERE sequence = '1'").run()
 
     expect(() =>
       resolveInboundSyncConflict(
@@ -946,6 +1019,102 @@ describe('safe inbound event application', () => {
     expect(listAnnouncements(local.connection, context)[0]?.title).toBe(
       'Cloud title'
     )
+
+    local.close()
+  })
+
+  it('resubmits the chosen local snapshot instead of only dismissing an inbound conflict', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zyapp-inbound-resolve-'))
+    temporaryDirectories.push(directory)
+    const local = openLocalDatabase(join(directory, 'zyapp.db'))
+    const bootstrap = bootstrapStore(local.connection, {
+      storeName: 'Store',
+      managerUsername: 'manager',
+      managerPasswordHash: 'scrypt$test',
+      managerDisplayName: 'Manager',
+      deviceName: 'Cashier'
+    })
+    const context = getStoreContext(local.connection)
+    if (!context) throw new Error('Missing store')
+    const actor = findEmployeeRecordById(
+      local.connection,
+      context.tenantId,
+      bootstrap.managerId
+    )
+    if (!actor) throw new Error('Missing manager')
+    const localAnnouncement = createAnnouncement(
+      local.connection,
+      { ...context, actor },
+      {
+        title: 'Local title',
+        content: 'Local content',
+        pinned: false,
+        visibleFrom: '2026-06-14T00:00:00.000Z'
+      }
+    )
+    applySyncPullResult(local.connection, context, {
+      protocolVersion: 1,
+      deviceId: context.deviceId,
+      afterCursor: null,
+      nextCursor: '1',
+      hasMore: false,
+      events: [
+        {
+          sequence: '1',
+          eventId: 'cloud-choice',
+          tenantId: context.tenantId,
+          storeId: context.storeId,
+          originDeviceId: 'other-device',
+          aggregateType: 'announcement',
+          aggregateId: localAnnouncement.id,
+          eventType: 'announcement.updated',
+          payloadJson: payload({
+            ...localAnnouncement,
+            title: 'Cloud title',
+            updatedAt: '2026-06-14T01:00:00.000Z'
+          }),
+          occurredAt: '2026-06-14T01:00:00.000Z'
+        }
+      ],
+      serverTime: '2026-06-14T01:00:00.000Z'
+    })
+    applyPendingInboundEvents(local.connection, context)
+    local.connection.prepare("UPDATE sync_inbound_event SET apply_status = 'conflict' WHERE sequence = '1'").run()
+
+    expect(() =>
+      resolveInboundSyncConflict(
+        local.connection,
+        { ...context, actor },
+        {
+          sequence: '1',
+          resolution: 'keep_local',
+          reason: 'Use cloud copy'
+        }
+      )
+    ).toThrow('同一资料还有未确认的修改')
+    local.connection
+      .prepare(
+        `UPDATE outbox_operation SET sync_status = 'confirmed'
+         WHERE aggregate_id = ?`
+      )
+      .run(localAnnouncement.id)
+    resolveInboundSyncConflict(
+      local.connection,
+      { ...context, actor },
+      {
+        sequence: '1',
+        resolution: 'keep_local',
+        reason: 'Use cloud copy'
+      }
+    )
+    expect(listAnnouncements(local.connection, context)[0]?.title).toBe(
+      'Local title'
+    )
+    const pending = local.connection.prepare("SELECT payload_json, base_version FROM outbox_operation WHERE aggregate_id = ? AND sync_status = 'pending'").get(localAnnouncement.id) as { payload_json: string; base_version: number }
+    expect(JSON.parse(pending.payload_json).after.title).toBe('Local title')
+    expect(JSON.parse(pending.payload_json).before.title).toBe('Cloud title')
+    expect(pending.base_version).toBe(1)
+    expect(listInboundSyncConflicts(local.connection, context)).toHaveLength(0)
 
     local.close()
   })

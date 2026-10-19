@@ -298,10 +298,12 @@ async function confirmWallet(
     tenant_id: string
     store_id: string
     member_id: string
+    status?: string
+    server_version?: string | number
     principal_balance_fen: string | number
     gift_balance_fen: string | number
   }>(
-    `SELECT id, tenant_id, store_id, member_id, principal_balance_fen,
+    `SELECT id, tenant_id, store_id, member_id, status, server_version, principal_balance_fen,
             gift_balance_fen
      FROM cloud_wallet_account
      WHERE id = $1
@@ -324,6 +326,53 @@ async function confirmWallet(
       'wallet account belongs to another tenant or member',
       account
     )
+  }
+  if (operation.operation_type === 'wallet.reconciled') {
+    const before=record(operation.payload_json.before,'reconciliation before')
+    if (!account || Number(account.server_version)!==Number(before.serverVersion)) {
+      return support.markConflict(client,operation,'wallet_authority_conflict','核对后云端余额已变化，请重新选择',account)
+    }
+    principalDeltaFen=wallet.principalBalanceFen-Number(account.principal_balance_fen)
+    giftDeltaFen=wallet.giftBalanceFen-Number(account.gift_balance_fen)
+  }
+  if (operation.payload_json.cloudCommand === true && operation.operation_type === 'wallet.debited' && account) {
+    const amount = -(principalDeltaFen + giftDeltaFen)
+    if (!Number.isSafeInteger(amount) || amount <= 0 || principalDeltaFen > 0 || giftDeltaFen > 0 || (account.status && account.status !== 'active')) {
+      return support.markConflict(client, operation, 'wallet_authority_conflict', '扣款金额或账户状态无效', account)
+    }
+    giftDeltaFen = -Math.min(Number(account.gift_balance_fen), amount)
+    principalDeltaFen = -(amount + giftDeltaFen)
+  }
+  if (operation.payload_json.cloudCommand === true && operation.operation_type === 'wallet.order_refund_credited') {
+    const metadata = record(after.metadata, 'refund wallet metadata')
+    const original = await client.query<{principal_delta_fen:number;gift_delta_fen:number}>(
+      `SELECT principal_delta_fen,gift_delta_fen FROM cloud_wallet_ledger WHERE tenant_id=$1 AND member_id=$2
+       AND source_operation_id=$3 AND event_type='wallet.debited'`,
+      [operation.tenant_id,wallet.memberId,text(metadata.originalDebitSourceId,'original debit')])
+    const returned = await client.query<{p:string|number;g:string|number}>(
+      `SELECT COALESCE(SUM(principal_delta_fen),0) p, COALESCE(SUM(gift_delta_fen),0) g FROM cloud_wallet_ledger
+       WHERE tenant_id=$1 AND member_id=$2 AND event_type='wallet.order_refund_credited'
+       AND payload_json->'after'->'metadata'->>'originalDebitSourceId'=$3`,
+      [operation.tenant_id,wallet.memberId,metadata.originalDebitSourceId])
+    const amount=principalDeltaFen+giftDeltaFen
+    const availableP=-(Number(original.rows[0]?.principal_delta_fen??0))-Number(returned.rows[0]?.p??0)
+    const availableG=-(Number(original.rows[0]?.gift_delta_fen??0))-Number(returned.rows[0]?.g??0)
+    if (!original.rows[0] || amount<=0 || availableP<0 || availableG<0 || amount>availableP+availableG) {
+      return support.markConflict(client,operation,'refund_state_conflict','退款超过原储值扣款的剩余可退金额')
+    }
+    giftDeltaFen=Math.min(availableG,amount)
+    principalDeltaFen=amount-giftDeltaFen
+  }
+  if (operation.payload_json.cloudCommand === true && operation.operation_type === 'wallet.cash_recharge_reversed' && account) {
+    const before=record(operation.payload_json.before,'reversal before')
+    if (Number(account.principal_balance_fen)!==before.principalBalanceFen || Number(account.gift_balance_fen)!==before.giftBalanceFen) {
+      return support.markConflict(client,operation,'refund_state_conflict','退款核对期间余额发生变化，请按最新流水重新核对',account)
+    }
+    const metadata=record(after.metadata,'reversal metadata')
+    const prior=await client.query(`SELECT 1 FROM cloud_wallet_ledger WHERE tenant_id=$1 AND member_id=$2
+      AND event_type='wallet.cash_recharge_reversed' AND payload_json->'after'->'metadata'->>'rechargeId'=$3 LIMIT 1`,
+      [operation.tenant_id,wallet.memberId,metadata.rechargeId])
+    if (prior.rows[0]) return support.markConflict(client,operation,'refund_state_conflict','这笔充值已经冲正，不能重复退款')
   }
   const principalBalanceFen = account
     ? Number(account.principal_balance_fen) + principalDeltaFen
@@ -364,6 +413,10 @@ async function confirmWallet(
   }
   const authoritativeWalletId = account?.id ?? wallet.accountId
   const accountOriginStoreId = account?.store_id ?? operation.store_id
+  operation = { ...operation, payload_json: { ...operation.payload_json, after: {
+    ...after, principalDeltaFen, giftDeltaFen, wallet: { ...wallet, accountId: authoritativeWalletId,
+      principalBalanceFen, giftBalanceFen, totalBalanceFen: principalBalanceFen + giftBalanceFen }
+  } } }
   const version = await support.appendEvent(client, operation, 'wallet')
   await client.query(
     `INSERT INTO cloud_wallet_account
@@ -518,8 +571,9 @@ async function confirmMonthlyCard(
     usage_count: number
     expires_at: Date | string
     scope_type: 'tenant' | 'store'
+    server_version?: string | number
   }>(
-    `SELECT tenant_id, store_id, member_id, status, usage_count, expires_at, scope_type
+    `SELECT tenant_id, store_id, member_id, status, usage_count, expires_at, scope_type, server_version
      FROM cloud_monthly_card WHERE id = $1 LIMIT 1 FOR UPDATE`,
     [card.id]
   )
@@ -572,7 +626,10 @@ async function confirmMonthlyCard(
       )
     }
   }
-  if (existing) {
+  if (operation.operation_type === 'monthly_card.reconciled' && (!existing || Number(existing.server_version)!==Number(record(operation.payload_json.before,'reconciliation before').serverVersion))) {
+    return support.markConflict(client,operation,'monthly_card_state_conflict','核对后云端月卡已变化，请重新选择',existing)
+  }
+  if (existing && operation.operation_type !== 'monthly_card.reconciled') {
     const beforeValue = operation.payload_json.before
     if (!beforeValue) {
       return support.markConflict(
@@ -595,7 +652,7 @@ async function confirmMonthlyCard(
     }
     if (
       existing.status !== before.status ||
-      Number(existing.usage_count) !== before.usageCount ||
+      (operation.operation_type === 'monthly_card.refunded' && Number(existing.usage_count) !== before.usageCount) ||
       new Date(existing.expires_at).toISOString() !== before.expiresAt
     ) {
       return support.markConflict(
@@ -610,6 +667,17 @@ async function confirmMonthlyCard(
         }
       )
     }
+    // Usage is an append-only count. A use on another till does not conflict
+    // with this use (or a pause/extension which leaves the count unchanged).
+    const usageDelta = card.usageCount - before.usageCount
+    if ((operation.operation_type === 'monthly_card.used' && usageDelta !== 1) || usageDelta < 0 || usageDelta > 1 ||
+        (usageDelta === 1 && operation.operation_type !== 'monthly_card.used')) {
+      return support.markConflict(client, operation, 'monthly_card_state_conflict',
+        'monthly card usage delta is invalid', existing)
+    }
+    card.usageCount = Number(existing.usage_count) + usageDelta
+    operation = { ...operation, payload_json: { ...operation.payload_json,
+      after: { ...afterSnapshot(operation), usageCount: card.usageCount } } }
   }
   if (operation.operation_type === 'monthly_card.manual_extended') {
     const manager = await client.query(
@@ -986,6 +1054,47 @@ async function confirmRefund(
     ['pending', 'completed', 'rejected'] as const,
     'refund.status'
   )
+  if (operation.payload_json.cloudCommand === true && status !== 'rejected') {
+    if (!financial) {
+      const orderId = text(after.orderId, 'refund.orderId')
+      const order = await client.query<{total_fen:number;payment_method:string;wallet_member_id:string|null}>(
+        `SELECT total_fen, payment_method, wallet_member_id FROM cloud_sales_order
+         WHERE id=$1 AND tenant_id=$2 AND store_id=$3 FOR UPDATE`,
+        [orderId, operation.tenant_id, operation.store_id])
+      const original = order.rows[0]
+      if (!original || original.payment_method !== after.paymentMethod || original.wallet_member_id !== (after.walletMemberId ?? null)) {
+        return support.markConflict(client, operation, 'refund_state_conflict', '原订单或付款会员不匹配')
+      }
+      const refunded = await client.query<{total:string|number}>(
+        `SELECT COALESCE(SUM(total_fen),0) total FROM cloud_refund_request
+         WHERE tenant_id=$1 AND order_id=$2 AND id<>$3 AND status IN ('pending','completed')`,
+        [operation.tenant_id, orderId, operation.aggregate_id])
+      if (Number(refunded.rows[0]?.total ?? 0) + integer(after.totalFen, 'refund.totalFen', 0) > Number(original.total_fen)) {
+        return support.markConflict(client, operation, 'refund_state_conflict', '其他终端已处理退款，本次将超过原订单金额')
+      }
+      for (const value of array(after.items, 'refund.items')) {
+        const item = record(value, 'refund.item')
+        const originalItem = await client.query<{quantity:number;applied_unit_price_fen:number}>(
+          'SELECT quantity, applied_unit_price_fen FROM cloud_sales_order_item WHERE id=$1 AND order_id=$2 AND tenant_id=$3',
+          [item.orderItemId,orderId,operation.tenant_id])
+        const used = await client.query<{quantity:string|number}>(
+          `SELECT COALESCE(SUM((item->>'quantity')::int),0) quantity FROM cloud_refund_request r
+           CROSS JOIN LATERAL jsonb_array_elements(COALESCE(r.payload_json->'after'->'items',r.payload_json->'items','[]'::jsonb)) item
+           WHERE r.tenant_id=$1 AND r.order_id=$2 AND r.id<>$3 AND r.status IN ('pending','completed') AND item->>'orderItemId'=$4`,
+          [operation.tenant_id,orderId,operation.aggregate_id,item.orderItemId])
+        if (!originalItem.rows[0] || Number(used.rows[0]?.quantity??0)+integer(item.quantity,'refund.quantity',1)>Number(originalItem.rows[0].quantity) ||
+            integer(item.unitRefundFen,'refund.unitRefundFen',0)!==Number(originalItem.rows[0].applied_unit_price_fen)) {
+          return support.markConflict(client,operation,'refund_state_conflict','退款数量或单价与原订单不一致')
+        }
+      }
+    } else {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`${operation.tenant_id}:refund:${after.targetId}`])
+      const prior = await client.query(`SELECT 1 FROM cloud_financial_refund_request WHERE tenant_id=$1
+        AND target_type=$2 AND target_id=$3 AND id<>$4 AND status IN ('pending','completed') LIMIT 1`,
+        [operation.tenant_id,after.targetType,after.targetId,operation.aggregate_id])
+      if (prior.rows[0]) return support.markConflict(client,operation,'refund_state_conflict','该充值或月卡已有退款，请核对云端记录')
+    }
+  }
   const version = await support.appendEvent(
     client,
     operation,
@@ -1142,6 +1251,58 @@ export async function processFinancialSyncOperation(
   operation: ReceivedOperation,
   support: FinancialHandlerSupport
 ): Promise<OperationResult | 'unsupported'> {
+  if (operation.operation_type === 'financial_command.reviewed') {
+    const groupId=operation.payload_json.reviewedGroupId
+    const choice=operation.payload_json.choice
+    const reason=String(operation.payload_json.reason??'').trim()
+    if(typeof groupId!=='string' || !/^[0-9a-f-]{36}$/i.test(groupId) ||
+      !['keep_local','apply_cloud'].includes(String(choice)) || reason.length<2 || reason.length>200) {
+      return support.markConflict(client,operation,'financial_review_denied','差异处理资料无效')
+    }
+    const manager=await client.query(`SELECT 1 FROM cloud_employee e JOIN cloud_employee_store_access a ON a.employee_id=e.id AND a.tenant_id=e.tenant_id
+      WHERE e.id=$1 AND e.tenant_id=$2 AND e.status='active' AND a.store_id=$3 AND a.role='manager' AND a.status='active'`,
+      [operation.actor_id,operation.tenant_id,operation.store_id])
+    const source=await client.query<{operation_id:string;status:string;conflict_type:string;payload_json:Record<string,unknown>}>(
+      `SELECT o.operation_id,o.status,c.conflict_type,o.payload_json FROM sync_operation o JOIN sync_conflict c ON c.operation_id=o.operation_id
+       WHERE o.tenant_id=$1 AND o.store_id=$2 AND o.device_id=$3 AND o.payload_json->'atomicGroup'->>'id'=$4 FOR UPDATE OF c`,
+      [operation.tenant_id,operation.store_id,operation.device_id,groupId])
+    const descriptor=source.rows[0]?.payload_json.atomicGroup as {size?:number}|undefined
+    if (!manager.rows[0] || !source.rows.length || source.rows.length!==descriptor?.size ||
+      source.rows.some(row=>row.status!=='conflict' || row.conflict_type!=='atomic_group_rejected')) {
+      return support.markConflict(client,operation,'financial_review_denied','只有整笔未执行的异常才可取消或重新提交')
+    }
+    await client.query(`UPDATE sync_conflict SET status='resolved',resolved_by=$2,resolved_at=CURRENT_TIMESTAMP,resolution_json=$3::jsonb
+      WHERE operation_id=ANY($1::uuid[])`,[source.rows.map(row=>row.operation_id),operation.actor_id,
+        JSON.stringify({source:'manager_review',choice,reason,reviewOperationId:operation.operation_id})])
+    const version=await support.appendEvent(client,operation,'financial_command')
+    await support.completeOperation(client,operation,'financial_command',version)
+    return 'confirmed'
+  }
+  if (['wallet.reconciled','monthly_card.reconciled'].includes(operation.operation_type)) {
+    const sourceId=text(operation.payload_json.rejectedOperationId,'rejected operation')
+    const source=await client.query<{operation_type:string;payload_json:Record<string,unknown>}>(
+      `SELECT o.operation_type,o.payload_json FROM sync_operation o JOIN sync_conflict c ON c.operation_id=o.operation_id
+       WHERE o.operation_id=$1 AND o.tenant_id=$2 AND o.store_id=$3 AND o.device_id=$4 AND o.status='conflict' AND c.status='pending' FOR UPDATE OF c`,
+      [sourceId,operation.tenant_id,operation.store_id,operation.device_id])
+    const manager=await client.query(`SELECT 1 FROM cloud_employee e JOIN cloud_employee_store_access a ON a.employee_id=e.id AND a.tenant_id=e.tenant_id
+      WHERE e.id=$1 AND e.tenant_id=$2 AND e.status='active' AND a.store_id=$3 AND a.role='manager' AND a.status='active'`,
+      [operation.actor_id,operation.tenant_id,operation.store_id])
+    const type=operation.operation_type.split('.')[0]!
+    const original=source.rows[0]
+    const originalAfter=original?.payload_json.after as Record<string,unknown>|undefined
+    const target=afterSnapshot(operation)
+    const originalMember=type==='wallet'?(originalAfter?.wallet as Record<string,unknown>|undefined)?.memberId:originalAfter?.memberId
+    const targetMember=type==='wallet'?(target.wallet as Record<string,unknown>|undefined)?.memberId:target.memberId
+    if (!manager.rows[0] || !original || !original.operation_type.startsWith(`${type}.`) || !originalMember || originalMember!==targetMember ||
+        (type==='monthly_card' && originalAfter?.id!==target.id) ||
+        String(operation.payload_json.reason??'').trim().length>200 || String(operation.payload_json.reason??'').trim().length<2) {
+      return support.markConflict(client,operation,'financial_reconciliation_denied','原异常或店长权限无法核实，未执行资金更正')
+    }
+    const result=type==='wallet'?await confirmWallet(client,operation,support):await confirmMonthlyCard(client,operation,support)
+    if(result==='confirmed') await client.query(`UPDATE sync_conflict SET status='resolved',resolved_by=$2,resolved_at=CURRENT_TIMESTAMP,
+      resolution_json=$3::jsonb WHERE operation_id=$1`,[sourceId,operation.actor_id,JSON.stringify({correctionOperationId:operation.operation_id,reason:operation.payload_json.reason})])
+    return result
+  }
   if (
     [
       'wallet.cash_recharged',

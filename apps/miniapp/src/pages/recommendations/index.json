@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "店家推荐",
+  "navigationBarBackgroundColor": "#fbf7ef",
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "ui-art": "/components/ui-art/index"
+  }
+}

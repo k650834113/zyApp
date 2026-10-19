@@ -14,6 +14,15 @@
 		-X-Powered-By
 	}
 
+	redir /preview/ui-review-ct6b8rni85 /preview/ui-review-ct6b8rni85/ 308
+
+	handle_path /preview/ui-review-ct6b8rni85/* {
+		root * /config/previews/ui-review-ct6b8rni85
+		header X-Robots-Tag "noindex, nofollow, noarchive"
+		header Cache-Control "public, max-age=300"
+		file_server
+	}
+
 	handle_path /test/* {
 		reverse_proxy api-test:3100
 	}

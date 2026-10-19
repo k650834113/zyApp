@@ -42,6 +42,7 @@ describe('cloud sync operation projections', () => {
     expect(classifySyncOperation('board_game.updated')).toBe('board_game')
     expect(classifySyncOperation('system.cloud.connected')).toBe('audit')
     expect(classifySyncOperation('wallet.debited')).toBe('financial')
+      expect(classifySyncOperation('financial_command.reviewed')).toBe('financial')
     expect(classifySyncOperation('monthly_card.used')).toBe('financial')
     expect(classifySyncOperation('order.completed')).toBe('financial')
     expect(classifySyncOperation('refund.completed')).toBe('financial')
@@ -492,6 +493,82 @@ describe('cloud sync operation projections', () => {
       call.sql.includes('INSERT INTO cloud_announcement')
     )
     expect(write?.parameters).toContain('Local title')
+    expect(write?.parameters).toContain('Remote content')
+  })
+
+  it.each([['', 'Filled cloud', 'Filled cloud'], ['Filled local', '', 'Filled local']])('merges empty and filled concurrent descriptions (%s / %s)', async (localTitle, cloudTitle, expected) => {
+    const calls: Array<{ sql: string; parameters: unknown[] }> = []
+    const client = {
+      query: async (sql: string, parameters: unknown[] = []) => {
+        calls.push({ sql, parameters })
+        if (sql.includes('ORDER BY sequence DESC')) {
+          return {
+            rows: [
+              {
+                sequence: 7,
+                payload_json: {
+                  after: {
+                    title: cloudTitle,
+                    content: 'Remote content',
+                    status: 'published',
+                    pinned: false,
+                    visibleFrom: '2026-06-01T00:00:00.000Z',
+                    visibleUntil: null,
+                    publishedAt: '2026-06-01T00:00:00.000Z',
+                    createdAt: '2026-06-01T00:00:00.000Z',
+                    updatedAt: '2026-06-30T07:00:00.000Z'
+                  }
+                }
+              }
+            ]
+          }
+        }
+        if (sql.includes('sequence > $5')) {
+          return {
+            rows: [
+              {
+                payload_json: {
+                  before: { title: 'Baseline' },
+                  after: { title: cloudTitle }
+                }
+              }
+            ]
+          }
+        }
+        if (sql.includes('SELECT tenant_id, store_id')) {
+          return { rows: [{ tenant_id: 'tenant-1', store_id: 'store-1' }] }
+        }
+        if (sql.includes('INSERT INTO cloud_event')) {
+          return { rows: [{ sequence: 8 }], rowCount: 1 }
+        }
+        return { rows: [], rowCount: 1 }
+      }
+    } as unknown as PoolClient
+    const command = operation('announcement.updated', {
+      title: localTitle,
+      content: 'Old content',
+      status: 'published',
+      pinned: false,
+      visibleFrom: '2026-06-01T00:00:00.000Z',
+      visibleUntil: null,
+      publishedAt: '2026-06-01T00:00:00.000Z',
+      createdAt: '2026-06-01T00:00:00.000Z',
+      updatedAt: '2026-06-30T08:00:00.000Z'
+    })
+    command.base_version = 5
+    command.changed_fields = ['title']
+    command.payload_json.before = {
+      ...(command.payload_json.after as Record<string, unknown>),
+      title: cloudTitle
+    }
+
+    await expect(
+      processSyncOperation(client, command, async () => 'confirmed')
+    ).resolves.toBe('confirmed')
+    const write = calls.find((call) =>
+      call.sql.includes('INSERT INTO cloud_announcement')
+    )
+    expect(write?.parameters).toContain(expected)
     expect(write?.parameters).toContain('Remote content')
   })
 
